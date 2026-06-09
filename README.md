@@ -1,4 +1,4 @@
-# obsidian-vaultgate-mcp
+# Vaultgate
 
 > Your Obsidian vault, accessible to any AI assistant — locally, privately, with no plugins.
 
@@ -7,7 +7,7 @@
 [![Node.js](https://img.shields.io/badge/Node.js-18+-brightgreen)](https://nodejs.org)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](#)
 
-`obsidian-vaultgate-mcp` is a local [Model Context Protocol](https://modelcontextprotocol.io) server that bridges any MCP-compatible AI client with your Obsidian vault. It's built on the official Obsidian CLI — no community plugins, no cloud relay, no API keys.
+Vaultgate is a local [Model Context Protocol](https://modelcontextprotocol.io) server that bridges any MCP-compatible AI client with your Obsidian vault. It's built on the official Obsidian CLI — no community plugins, no cloud relay, no API keys.
 
 The AI can read your notes, search across your vault, manage tasks, apply templates, and write content on your behalf. Every write goes through a dry-run preview first, so you stay in control of what actually changes.
 
@@ -18,7 +18,7 @@ The AI can read your notes, search across your vault, manage tasks, apply templa
            │  Model Context Protocol  (HTTP or stdio)
            ▼
   ┌─────────────────────────────┐
-  │    obsidian-vaultgate-mcp   │  ← this package
+  │          Vaultgate          │  ← this package
   │       127.0.0.1 only        │
   └─────────────────────────────┘
            │
@@ -68,7 +68,7 @@ The CLI is bundled with Obsidian but must be registered once before external pro
 2. Scroll to **Command line interface**
 3. Click **Register CLI**
 
-This writes a socket/pipe entry that `obsidian-vaultgate-mcp` uses to communicate with the running Obsidian instance. It persists across restarts — one-time setup per machine.
+This writes a socket/pipe entry that Vaultgate uses to communicate with the running Obsidian instance. It persists across restarts — one-time setup per machine.
 
 ### 2. Install
 
@@ -85,7 +85,7 @@ npm install -g obsidian-vaultgate-mcp
 
 ## HTTP clients
 
-Start the server:
+Start Vaultgate:
 
 ```bash
 obsidian-vaultgate-mcp
@@ -98,7 +98,7 @@ OBSIDIAN_VAULT="My Vault" obsidian-vaultgate-mcp
 ```
 
 ```
-✓ obsidian-vaultgate-mcp running at http://127.0.0.1:3001
+✓ Vaultgate running at http://127.0.0.1:3001
   Streamable HTTP: POST http://127.0.0.1:3001/mcp
   SSE (legacy):    GET  http://127.0.0.1:3001/sse
   Health:          GET  http://127.0.0.1:3001/health
@@ -143,7 +143,7 @@ cd $(npm root -g)/obsidian-vaultgate-mcp
 ./launchd/install.sh
 ```
 
-Installs a `launchd` agent under `~/Library/LaunchAgents/` that starts the server at login and restarts it on failure. The install script resolves all paths automatically (compatible with nvm, Homebrew, system Node).
+Installs a `launchd` agent under `~/Library/LaunchAgents/` that starts Vaultgate at login and restarts it on failure. The install script resolves all paths automatically (compatible with nvm, Homebrew, system Node).
 
 > Note: Obsidian is also launched at login, because the startup health check communicates with the running instance.
 
@@ -160,7 +160,7 @@ rm ~/Library/LaunchAgents/com.obsidian-vaultgate-mcp.plist
 mkdir -p ~/.config/systemd/user
 cat > ~/.config/systemd/user/obsidian-vaultgate-mcp.service << 'EOF'
 [Unit]
-Description=obsidian-vaultgate-mcp MCP server
+Description=Vaultgate MCP server
 
 [Service]
 ExecStart=/usr/bin/node /usr/lib/node_modules/obsidian-vaultgate-mcp/build/index.js
@@ -178,7 +178,7 @@ Adjust `ExecStart` paths with `which node` and `npm root -g`.
 
 ### Windows (Task Scheduler)
 
-1. **Create Basic Task** → name it `obsidian-vaultgate-mcp`
+1. **Create Basic Task** → name it `Vaultgate`
 2. Trigger: **When I log on**
 3. Action: **Start a program** — `node.exe` with the package entry point as argument (`npm root -g` + `\obsidian-vaultgate-mcp\build\index.js`)
 4. Set `OBSIDIAN_VAULT` in environment variables if needed
@@ -253,7 +253,7 @@ When `@xenova/transformers` is available (installed as an optional dependency), 
 - `vault_info` — index state and note count
 - `index_vault` — force a full re-index (normally not needed; the index updates incrementally on each search)
 
-The embedding model (`bge-small-en-v1.5`, ~100 MB) downloads once to `~/.cache/huggingface/`. All subsequent operations are fully offline. If `@xenova/transformers` fails to load on the current platform, the server starts normally with the base tool set — no configuration change required.
+The embedding model (`bge-small-en-v1.5`, ~100 MB) downloads once to `~/.cache/huggingface/`. All subsequent operations are fully offline. If `@xenova/transformers` fails to load on the current platform, Vaultgate starts normally with the base tool set — no configuration change required.
 
 ---
 
