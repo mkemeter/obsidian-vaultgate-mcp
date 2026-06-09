@@ -9,7 +9,8 @@
 #   5. Fills in the plist template and copies it to ~/Library/LaunchAgents/
 #   6. Loads the agent via launchctl
 #
-# After installation: obsidian-mcp-http starts automatically at every login.
+# After installation: obsidian-mcp-http starts automatically at every login
+# on port 3002 (or your configured port).
 # Side effect: Obsidian will also open at login (the startup health check
 # runs `obsidian help`, which auto-launches Obsidian if it isn't running).
 
@@ -76,14 +77,15 @@ read -rp "Vault name (leave blank to use last focused vault): " VAULT_NAME
 # --- Fill template -------------------------------------------------------------
 mkdir -p "$LAUNCH_AGENTS_DIR"
 
-sed \
-  -e "s|__NODE_PATH__|$NODE_PATH|g" \
-  -e "s|__OBSIDIAN_CLI_MCP_PATH__|$MCP_SCRIPT|g" \
-  -e "s|__OBSIDIAN_CLI_PATH__|$OBSIDIAN_PATH|g" \
-  -e "s|__YOUR_VAULT_NAME__|$VAULT_NAME|g" \
-  "$TEMPLATE" > "$DEST"
+SED_ARGS=(
+  -e "s|__NODE_PATH__|$NODE_PATH|g"
+  -e "s|__OBSIDIAN_CLI_MCP_PATH__|$MCP_SCRIPT|g"
+  -e "s|__OBSIDIAN_CLI_PATH__|$OBSIDIAN_PATH|g"
+  -e "s|__YOUR_VAULT_NAME__|$VAULT_NAME|g"
+)
 
-echo ""
+sed "${SED_ARGS[@]}" "$TEMPLATE" > "$DEST"
+
 echo "Plist written to: $DEST"
 
 # --- Load agent ----------------------------------------------------------------
@@ -94,6 +96,7 @@ launchctl load "$DEST"
 echo ""
 echo "✓ obsidian-mcp-http launchd agent installed and started."
 echo ""
+echo "  MCP URL:       http://127.0.0.1:3002/mcp"
 echo "  Check status:  launchctl list | grep obsidian-mcp-http"
 echo "  View logs:     tail -f /tmp/obsidian-mcp-http.log"
 echo "  View errors:   tail -f /tmp/obsidian-mcp-http.err"

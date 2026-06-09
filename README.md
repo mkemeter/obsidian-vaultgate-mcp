@@ -1,98 +1,77 @@
 # obsidian-mcp-http
 
-> Let your AI assistant read and write your Obsidian notes — privately, on your own machine.
+> Your Obsidian vault, accessible to any AI assistant — locally, privately, with no plugins.
 
 [![npm version](https://img.shields.io/npm/v/obsidian-mcp-http)](https://www.npmjs.com/package/obsidian-mcp-http)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-brightgreen)](https://nodejs.org)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](#)
 
-`obsidian-mcp-http` is a small program that runs on your computer and lets AI assistants (like Claude, Cursor, or any other MCP-compatible tool) talk directly to your Obsidian vault. No cloud sync. No third-party accounts. Your notes stay on your machine.
+`obsidian-mcp-http` is a local [Model Context Protocol](https://modelcontextprotocol.io) server that bridges any MCP-compatible AI client with your Obsidian vault. It's built on the official Obsidian CLI — no community plugins, no cloud relay, no API keys.
 
-**What can the AI do once connected?**
-- Read and search your notes
-- Create new notes, append or prepend content
-- Read your tasks and daily notes
-- Search by meaning, not just keywords (optional)
-
-**What can't it do without your permission?**
-Nothing. Every write operation shows you a preview first. The AI has to ask you before changing anything.
+The AI can read your notes, search across your vault, manage tasks, apply templates, and write content on your behalf. Every write goes through a dry-run preview first, so you stay in control of what actually changes.
 
 ---
 
-## Before you start
+## What makes this different
 
-You need two things installed on your computer:
+**Privacy-first by design.** Note content never leaves your machine. The HTTP server binds exclusively to `127.0.0.1`.
 
-1. **Obsidian** — version 1.12.4 or later. [Download here](https://obsidian.md/download) if you don't have it.
-2. **Node.js** — version 18 or later. [Download here](https://nodejs.org/en/download) if you don't have it.
+**No plugins required.** Communication goes through the official Obsidian CLI, which is bundled with Obsidian and uses the same secure IPC channel as the Obsidian mobile sync.
 
-> **How do I check if Node.js is installed?**
-> Open Terminal (Mac/Linux) or Command Prompt (Windows), type `node --version`, and press Enter.
-> If you see something like `v20.11.0`, you're good. If you get an error, install Node.js first.
+**Works with every MCP client.** Supports both Streamable HTTP (modern, MCP spec 2025-03-26) and SSE legacy transport, so it connects to Claude Desktop, Cursor, Windsurf, Zed, and any other MCP-compatible tool.
 
----
+**Semantic search built in.** When `@xenova/transformers` is available (installed automatically as an optional dependency), the vault is indexed in the background using `bge-small-en-v1.5` embeddings. Query by meaning, not just keywords — fully offline after the initial model download.
 
-## Setup (one time only)
-
-### Step 1 — Enable the Obsidian CLI
-
-The Obsidian CLI is a built-in feature that lets other programs (like this one) talk to Obsidian. It ships with Obsidian — you just need to turn it on.
-
-1. Open Obsidian
-2. Go to **Settings** (the gear icon, bottom-left)
-3. Click **General**
-4. Scroll down to **Command line interface**
-5. Click **Register CLI**
-
-That's it. You only do this once.
-
-> **Catalyst license?** Not needed. The CLI is free for everyone since Obsidian 1.12.4.
+**Explicit write consent.** Every write operation defaults to `dryRun: true`. The AI presents a diff-style preview; the change is applied only when called again with `dryRun: false`.
 
 ---
 
-### Step 2 — Install obsidian-mcp-http
+## Requirements
 
-Open Terminal (Mac/Linux) or Command Prompt (Windows) and run:
+- **Obsidian** v1.8.9 or later (CLI introduced in this release)
+- **Node.js** v18 or later
+
+---
+
+## Setup
+
+### 1. Register the Obsidian CLI
+
+The CLI is bundled with Obsidian but must be registered once before external processes can use it.
+
+1. Open Obsidian → **Settings → General**
+2. Scroll to **Command line interface**
+3. Click **Register CLI**
+
+This writes a socket/pipe entry that `obsidian-mcp-http` uses to communicate with the running Obsidian instance. It persists across restarts — one-time setup per machine.
+
+### 2. Install
 
 ```bash
 npm install -g obsidian-mcp-http
 ```
 
-Wait for it to finish. You'll see a lot of text scroll by — that's normal.
+### 3. Connect your AI client
 
-> **Getting a "permission denied" error on Mac/Linux?** Try: `sudo npm install -g obsidian-mcp-http`
-
----
-
-### Step 3 — Connect your AI assistant
-
-Pick the section that matches how you use your AI assistant:
-
-- [HTTP client (most desktop AI apps)](#connecting-an-http-client)
-- [Claude Code (terminal-based)](#connecting-claude-code)
+- [HTTP / URL-based clients](#http-clients) — Cursor, Windsurf, Zed, and most desktop apps
+- [Claude Code (stdio)](#claude-code) — direct subprocess integration
 
 ---
 
-## Connecting an HTTP client
+## HTTP clients
 
-Most desktop AI apps (Cursor, Windsurf, Zed, and others) connect to MCP servers via a URL. Here's how:
-
-**Start the server:**
+Start the server:
 
 ```bash
 obsidian-mcp-http
 ```
 
-If you have **multiple vaults**, specify which one:
+For a specific vault:
 
 ```bash
-OBSIDIAN_VAULT="My Vault Name" obsidian-mcp-http
+OBSIDIAN_VAULT="My Vault" obsidian-mcp-http
 ```
-
-Replace `My Vault Name` with the exact name of your vault (it's the folder name in your file system).
-
-**You should see:**
 
 ```
 ✓ obsidian-mcp-http running at http://127.0.0.1:3001
@@ -101,15 +80,18 @@ Replace `My Vault Name` with the exact name of your vault (it's the folder name 
   Health:          GET  http://127.0.0.1:3001/health
 ```
 
-**In your AI app:** add a new MCP server and enter the URL `http://localhost:3001`.
+Add a new MCP server in your AI app:
 
-> **Which URL to use?** Try `http://localhost:3001/mcp` first (modern). If your app has a "legacy SSE" option, use `http://localhost:3001/sse` instead.
+| Transport | URL |
+|-----------|-----|
+| Streamable HTTP (preferred) | `http://localhost:3001/mcp` |
+| SSE legacy | `http://localhost:3001/sse` |
 
 ---
 
-## Connecting Claude Code
+## Claude Code
 
-Add this to your `~/.claude/settings.json` file:
+Add to `~/.claude/settings.json`:
 
 ```json
 {
@@ -117,57 +99,38 @@ Add this to your `~/.claude/settings.json` file:
     "obsidian": {
       "command": "obsidian-mcp-http",
       "env": {
-        "OBSIDIAN_VAULT": "My Vault Name"
+        "OBSIDIAN_VAULT": "My Vault"
       }
     }
   }
 }
 ```
 
-Replace `My Vault Name` with the exact name of your vault. If you only have one vault, you can remove the `"env"` section entirely.
-
-Claude Code starts and stops the server automatically — you don't need to run anything manually.
+Claude Code manages the process lifecycle via stdio — no separate startup needed. Omit `env` if you only have one vault.
 
 ---
 
-## Start the server automatically at login (optional)
+## Auto-start at login
 
-If you use an HTTP client, you probably want the server running in the background all the time. Here's how to set that up:
-
-### Mac
-
-Run this once in Terminal:
+### macOS (launchd)
 
 ```bash
 cd $(npm root -g)/obsidian-mcp-http
 ./launchd/install.sh
 ```
 
-The script fills in the correct paths automatically and sets up the server to start when you log in.
+Installs a `launchd` agent under `~/Library/LaunchAgents/` that starts the server at login and restarts it on failure. The install script resolves all paths automatically (compatible with nvm, Homebrew, system Node).
 
-> **Side effect:** Obsidian itself will also open at login. This is needed because the server checks that Obsidian is reachable when it starts.
+> Note: Obsidian is also launched at login, because the startup health check communicates with the running instance.
 
-To remove the auto-start:
+To uninstall:
 
 ```bash
 launchctl unload ~/Library/LaunchAgents/com.obsidian-mcp-http.plist
 rm ~/Library/LaunchAgents/com.obsidian-mcp-http.plist
 ```
 
-### Windows
-
-1. Press **Win + R**, type `taskschd.msc`, press Enter
-2. Click **Create Basic Task** (right panel)
-3. Name it `obsidian-mcp-http`, click Next
-4. Trigger: choose **When I log on**, click Next
-5. Action: choose **Start a program**, click Next
-6. Program/script: find `node.exe` — usually `C:\Program Files\nodejs\node.exe`
-7. Arguments: the path to `obsidian-mcp-http` — run `npm root -g` in Command Prompt to find it
-8. Click Finish
-
-To pass your vault name, add `OBSIDIAN_VAULT=My Vault Name` as an environment variable in the task settings (Actions tab → Edit → Environment variables).
-
-### Linux
+### Linux (systemd user service)
 
 ```bash
 mkdir -p ~/.config/systemd/user
@@ -177,7 +140,7 @@ Description=obsidian-mcp-http MCP server
 
 [Service]
 ExecStart=/usr/bin/node /usr/lib/node_modules/obsidian-mcp-http/build/index.js
-Environment=OBSIDIAN_VAULT=My Vault Name
+Environment=OBSIDIAN_VAULT=My Vault
 Restart=on-failure
 
 [Install]
@@ -187,131 +150,124 @@ EOF
 systemctl --user enable --now obsidian-mcp-http
 ```
 
-Replace `My Vault Name` with your vault name, and adjust the paths to match your system (`which node` and `npm root -g` will give you the correct paths).
+Adjust `ExecStart` paths with `which node` and `npm root -g`.
+
+### Windows (Task Scheduler)
+
+1. **Create Basic Task** → name it `obsidian-mcp-http`
+2. Trigger: **When I log on**
+3. Action: **Start a program** — `node.exe` with the package entry point as argument (`npm root -g` + `\obsidian-mcp-http\build\index.js`)
+4. Set `OBSIDIAN_VAULT` in environment variables if needed
 
 ---
 
 ## Configuration
 
-You can change the server's behaviour using environment variables. You don't need to set any of these to get started — the defaults work for most people.
+All configuration via environment variables. None are required for single-vault setups on the default port.
 
-| Variable | Default | What it does |
-|----------|---------|-------------|
-| `OBSIDIAN_VAULT` | _(last opened vault)_ | Which vault to use. Set this if you have more than one vault. |
-| `OBSIDIAN_MCP_PORT` | `3001` | The port the server listens on. Change this if 3001 is already in use by another program. |
-| `OBSIDIAN_CLI_PATH` | `obsidian` | Full path to the Obsidian app. Usually only needed for auto-start setups (launchd, Task Scheduler, systemd) where the system PATH is different from your terminal's. |
-
-**How to set these:** prefix the variable before the command in your terminal:
-
-```bash
-OBSIDIAN_VAULT="Work Notes" OBSIDIAN_MCP_PORT=3002 obsidian-mcp-http
-```
+| Variable | Default | Description |
+|---|---|---|
+| `OBSIDIAN_VAULT` | _(last opened vault)_ | Target vault name (directory name, not path). Required when multiple vaults are open. |
+| `OBSIDIAN_MCP_PORT` | `3001` | TCP port for HTTP mode. |
+| `OBSIDIAN_MCP_HOST` | `127.0.0.1` | Bind address. Do not expose to non-loopback interfaces. |
+| `OBSIDIAN_MCP_TRANSPORT` | _(auto-detect)_ | `http` to force HTTP mode, `stdio` to force stdio. Auto-detected from `stdin.isTTY`. |
+| `OBSIDIAN_CLI_PATH` | `obsidian` | Absolute path to the Obsidian binary. Required in service contexts where `PATH` differs from the user shell. |
 
 ---
 
-## What the AI can do
+## Available tools
 
-Once connected, your AI assistant has access to these tools. You don't need to set them up — they're all available automatically.
+### Read-only
 
-### Reading (safe — no confirmation needed)
+| Tool | Description |
+|---|---|
+| `files_list` | List all notes in the vault |
+| `files_read` | Read the full content of a note |
+| `search` | Full-text search across the vault |
+| `semantic_search` | Natural language search ranked by meaning (requires `@xenova/transformers`) |
+| `find_similar` | Find notes semantically similar to a given path |
+| `vault_info` | Indexed note count and last-indexed timestamp |
+| `daily_read` | Read today's daily note |
+| `tasks_all` | All tasks (complete and incomplete) |
+| `tasks_pending` | Incomplete tasks only |
+| `tasks_daily` | Incomplete tasks from today's daily note |
+| `templates_list` | List available templates |
+| `property_read` | Read YAML frontmatter properties |
+| `tags` | All tags across the vault |
+| `backlinks` | Notes that link to a given note |
+| `unresolved` | Wikilinks pointing to non-existent notes |
+| `plugins_list` | Installed community plugins |
+| `dev_errors` | Recent errors from the Obsidian console |
+| `dev_console` | Console log output from Obsidian |
+| `dev_css` | Computed CSS for a DOM selector |
+| `dev_dom` | DOM subtree of the Obsidian window |
 
-| Tool | What it does |
-|------|-------------|
-| `files_list` | Lists all notes in your vault |
-| `files_read` | Reads the full text of a note |
-| `search` | Searches for text across all your notes |
-| `daily_read` | Reads today's daily note |
-| `tasks_all` | Shows all tasks (done and to-do) |
-| `tasks_pending` | Shows only unchecked tasks |
-| `tasks_daily` | Shows today's unchecked tasks |
-| `templates_list` | Lists your note templates |
-| `property_read` | Reads the YAML frontmatter of a note |
-| `tags` | Lists all tags in your vault |
-| `backlinks` | Finds notes that link to a specific note |
-| `unresolved` | Finds broken links (links to notes that don't exist) |
-| `plugins_list` | Lists installed plugins |
-| `dev_errors` | Shows recent Obsidian error messages |
-| `dev_console` | Shows Obsidian console messages |
-| `dev_css` | Inspects the computed CSS of an element |
-| `dev_dom` | Inspects the DOM structure of the Obsidian window |
+### Write (dry-run by default)
 
-### Semantic search (optional — requires first-run download)
+Every write tool defaults to `dryRun: true` — the AI shows a preview of the intended change and waits for explicit confirmation before touching any file.
 
-These tools understand *meaning*, not just keywords. "What did I write about feeling overwhelmed?" will find relevant notes even if they don't contain that exact phrase.
+| Tool | Description |
+|---|---|
+| `note_create` | Create a new note |
+| `note_append` | Append content to an existing note |
+| `note_prepend` | Prepend content to an existing note |
+| `note_update` | Replace the full content of an existing note |
+| `daily_append` | Append content to today's daily note |
+| `templates_apply` | Apply a template to a note |
+| `property_set` | Set or update a YAML frontmatter property |
+| `plugin_reload` | Reload a community plugin by ID |
+| `dev_screenshot` | Capture a screenshot of the Obsidian window |
+| `dev_mobile` | Toggle mobile viewport emulation |
+| `eval` ⚠️ | Execute arbitrary JavaScript in the Obsidian renderer — review carefully before approving |
 
-| Tool | What it does |
-|------|-------------|
-| `semantic_search` | Finds notes by meaning |
-| `find_similar` | Finds notes similar to a given note |
-| `vault_info` | Shows how many notes are indexed and when |
-| `index_vault` | Forces a full re-index (rarely needed) |
+### Semantic search
 
-> **First-run download:** On first use, a small AI model (~100 MB) is downloaded once to your computer. After that it runs entirely offline — no internet connection needed for search.
->
-> The index builds in the background when you start the server. Your first semantic search may return "still indexing" — try again after a minute.
+When `@xenova/transformers` is available (installed as an optional dependency), four additional tools are registered automatically:
 
-### Writing (always shows a preview first)
+- `semantic_search` — query by meaning, returns ranked results with relevance scores
+- `find_similar` — find notes similar to a given path
+- `vault_info` — index state and note count
+- `index_vault` — force a full re-index (normally not needed; the index updates incrementally on each search)
 
-Every write tool defaults to **preview mode** — the AI shows you what it's about to do and must wait for you to say "yes, go ahead" before making any change. You will never be surprised by an edit you didn't approve.
-
-| Tool | What it does |
-|------|-------------|
-| `note_create` | Creates a new note |
-| `note_append` | Adds content to the end of a note |
-| `note_prepend` | Adds content to the top of a note (great for reverse-chronological logs) |
-| `note_update` | Replaces the full content of an existing note (always use with an exact vault path) |
-| `daily_append` | Adds content to today's daily note |
-| `templates_apply` | Applies one of your templates to a note |
-| `property_set` | Sets or updates a frontmatter property |
-| `plugin_reload` | Reloads an Obsidian plugin |
-| `dev_screenshot` | Saves a screenshot of Obsidian to a file |
-| `dev_mobile` | Toggles mobile-screen emulation in Obsidian |
-| `eval` ⚠️ | Runs arbitrary JavaScript inside Obsidian — only approve if you know what the code does |
+The embedding model (`bge-small-en-v1.5`, ~100 MB) downloads once to `~/.cache/huggingface/`. All subsequent operations are fully offline. If `@xenova/transformers` fails to load on the current platform, the server starts normally with the base tool set — no configuration change required.
 
 ---
 
 ## Troubleshooting
 
-**"command not found: obsidian-mcp-http"**
-Node.js global packages aren't on your PATH. Try restarting your terminal, or run the full path: `npx obsidian-mcp-http`.
+**`command not found: obsidian-mcp-http`**
+The npm global bin directory is not on `PATH`. Run `npm bin -g` to find it, then add to your shell profile. Or invoke via `npx obsidian-mcp-http`.
 
-**"command not found: obsidian" (the CLI, not the app)**
-You haven't registered the CLI yet. Go back to [Step 1](#step-1--enable-the-obsidian-cli).
+**`command not found: obsidian` (the CLI binary)**
+The CLI has not been registered. Go to [Step 1](#1-register-the-obsidian-cli) and click **Register CLI** in Obsidian settings.
 
-**The server starts but the AI says "no tools available"**
-Disconnect and reconnect in your AI app to trigger a fresh session — this clears any stale connection state.
+**Server starts but the AI client reports no tools**
+The client has a stale session. Disconnect and reconnect to trigger a fresh `initialize` handshake.
 
-**Semantic search says "still indexing"**
-The index builds in the background after startup. Wait 30–60 seconds and try again. For large vaults it can take a few minutes.
+**`semantic_search` returns "still indexing"**
+The embedding index is built asynchronously at startup. For large vaults this can take a few minutes. `vault_info` shows the current index state.
 
-**Port 3001 already in use**
-Another program is using that port. Start the server on a different port: `OBSIDIAN_MCP_PORT=3002 obsidian-mcp-http` and update the URL in your AI app accordingly.
+**Port already in use**
+Set `OBSIDIAN_MCP_PORT=3002` and update the URL in your AI client.
 
-**Obsidian opens at login and you don't want that**
-Remove the auto-start agent (see [Mac](#mac) uninstall steps above).
+**Obsidian launches at login**
+Side effect of the launchd agent — the startup health check communicates with the running Obsidian instance. See [macOS uninstall steps](#macos-launchd) to remove the agent.
 
 ---
 
 ## Privacy and security
 
-- **Nothing leaves your computer.** Notes are only ever passed to the local `obsidian` process. No cloud, no analytics, no telemetry.
-- **Localhost only.** The HTTP server listens only on `127.0.0.1` — it is not reachable from other devices on your network.
-- **Preview before every write.** All write operations default to preview mode. The AI cannot modify your notes without your explicit approval on each call.
-- **No login required.** The server trusts only the local user — no passwords or tokens needed.
-
----
-
-## Requirements
-
-- **Obsidian** v1.12.4 or later
-- **Node.js** 18 or later
-- **macOS, Windows, or Linux**
+- **Local execution only.** All vault operations run through the local `obsidian` process. No note content is transmitted to any external service by this package.
+- **Loopback-only binding.** The HTTP server listens on `127.0.0.1` and is unreachable from other hosts on the network.
+- **Explicit write consent.** Every write operation requires a two-step interaction: preview followed by confirmation. No file is modified in a single tool call.
+- **No credentials.** Access is scoped to the local user session — no tokens, API keys, or authentication required.
+- **Open source, copyleft.** GPLv3 ensures the source stays open. Inspect exactly what runs on your machine.
 
 ---
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for architecture details, how to add a tool, and the PR checklist.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for architecture overview, tool implementation guide, and the PR checklist.
 
 ```bash
 git clone https://github.com/mkemeter/obsidian-mcp-http.git
@@ -324,4 +280,4 @@ npm test
 
 ## License
 
-GPL v3 or later — see [LICENSE](LICENSE).
+GPL-3.0-or-later — see [LICENSE](LICENSE).

@@ -16,7 +16,8 @@
  *   GET  /sse       → SSE (legacy, backward-compatible fallback)
  *   POST /messages  → SSE message handler
  *   GET  /health    → Liveness probe (returns 200 OK)
- *   GET  /icon.svg  → Server icon (used by MCP clients that support icons)
+ *   GET  /icon.svg  → Server icon (SVG)
+ *   GET  /favicon.ico → Server icon (ICO)
  */
 
 import * as http from "node:http";
@@ -25,7 +26,7 @@ import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { config } from "./config.js";
 import { runHealthCheck } from "./health.js";
-import { createServer, getIconDataUri, getIconSvg } from "./server.js";
+import { createServer, getIconDataUri, getIconSvg, getFaviconIco } from "./server.js";
 
 /** Origin values permitted for HTTP requests (DNS rebinding protection). */
 function isAllowedOrigin(origin: string | undefined): boolean {
@@ -57,6 +58,7 @@ async function startHttp(): Promise<void> {
   // Icon URL advertised in the MCP server info so clients can display it.
   const iconUrl = `http://${config.host}:${config.port}/icon.svg`;
   const iconSvg = getIconSvg();
+  const faviconIco = getFaviconIco();
 
   const httpServer = http.createServer(async (req: http.IncomingMessage, res: http.ServerResponse) => {
     const origin = req.headers.origin;
@@ -95,6 +97,18 @@ async function startHttp(): Promise<void> {
       if (iconSvg) {
         res.writeHead(200, { "Content-Type": "image/svg+xml", "Cache-Control": "public, max-age=86400" });
         res.end(iconSvg);
+      } else {
+        res.writeHead(404, { "Content-Type": "text/plain" });
+        res.end("Not found");
+      }
+      return;
+    }
+
+    // --- Favicon -------------------------------------------------------------
+    if (req.method === "GET" && url.pathname === "/favicon.ico") {
+      if (faviconIco) {
+        res.writeHead(200, { "Content-Type": "image/x-icon", "Cache-Control": "public, max-age=86400" });
+        res.end(faviconIco);
       } else {
         res.writeHead(404, { "Content-Type": "text/plain" });
         res.end("Not found");

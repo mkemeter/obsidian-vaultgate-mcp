@@ -28,6 +28,16 @@ export function getIconSvg(): string {
   }
 }
 
+/** Raw favicon.ico bytes — served at /favicon.ico so JWD can display the server icon. */
+export function getFaviconIco(): Buffer | null {
+  const icoPath = path.join(path.dirname(url.fileURLToPath(import.meta.url)), "favicon.ico");
+  try {
+    return fs.readFileSync(icoPath);
+  } catch {
+    return null;
+  }
+}
+
 /** SVG icon as a base64 data URI — used in stdio mode where no URL is available. */
 export function getIconDataUri(): string {
   const svg = getIconSvg();
@@ -46,18 +56,27 @@ export function getIconDataUri(): string {
  * platform. If the optional dependency is absent the server starts normally
  * with BASE_TOOL_COUNT tools.
  *
- * @param iconUrl  URL or data URI for the server icon shown in MCP clients.
+ * @param iconUrl  Optional HTTP URL for the icon (HTTP mode only, served at /icon.svg).
+ *                 The data URI is always embedded for maximum client compatibility.
  * @returns  A fully configured `McpServer` with all tools registered.
  */
 export async function createServer(iconUrl?: string): Promise<McpServer> {
+  const dataUri = getIconDataUri();
+
   const serverInfo: ConstructorParameters<typeof McpServer>[0] = {
     name: "obsidian-mcp-http",
     version: "0.1.0",
   };
 
-  if (iconUrl) {
-    (serverInfo as Record<string, unknown>).icons = [
-      { src: iconUrl, mimeType: "image/svg+xml" },
+  if (dataUri) {
+    const meta = serverInfo as Record<string, unknown>;
+    // Flat string — used by some clients (e.g. older MCP implementations)
+    meta.icon = dataUri;
+    // Array form — MCP spec 2025-11-25 standard
+    meta.icons = [
+      { src: dataUri, mimeType: "image/svg+xml" },
+      // Also include the HTTP URL if available so clients can cache/display it
+      ...(iconUrl ? [{ src: iconUrl, mimeType: "image/svg+xml" }] : []),
     ];
   }
 
