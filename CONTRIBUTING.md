@@ -222,7 +222,7 @@ Rules:
 ### 3. Update `BASE_TOOL_COUNT` in `src/server.ts`
 
 ```typescript
-export const BASE_TOOL_COUNT = 27; // was 26
+export const BASE_TOOL_COUNT = 29; // was 28
 ```
 
 The integration test `server.test.ts` asserts the actual registered tool count equals `BASE_TOOL_COUNT` (or `BASE_TOOL_COUNT + SEMANTIC_TOOL_COUNT` when `@xenova/transformers` is available) — it will fail if you forget to update it.
@@ -252,11 +252,11 @@ tests/
 │   ├── config.test.ts       env var loading, defaults, invalid port
 │   ├── health.test.ts       binary found → passes, binary missing → exits
 │   └── tools/
-│       ├── files.test.ts    4 tools × (happy path + error path + dryRun)
+│       ├── files.test.ts    6 tools × (happy path + error path + dryRun)
 │       └── ...              one file per tool group, same pattern
 └── integration/
     ├── http.test.ts         /health, Origin → 403, /mcp, /sse, unknown path → 404
-    └── server.test.ts       all 26 base tools registered, BASE_TOOL_COUNT correct
+    └── server.test.ts       all 28 base tools registered, BASE_TOOL_COUNT correct
 ```
 
 ### Writing unit tests for a tool

@@ -9,7 +9,7 @@
 
 `obsidian-mcp-http` is a local MCP server that bridges any AI assistant directly to your Obsidian vault using the **official Obsidian CLI** — no community plugins, no REST API plugin, no network exposure. Your notes never leave your machine.
 
-It exposes **26 purpose-built tools** — search, read, create, append, tasks, templates, tags, properties, and more — each with a focused schema so the AI knows exactly what's available and what each parameter does. Write operations default to `dryRun: true`: the assistant must show you a preview and get your explicit go-ahead before any note is modified.
+It exposes **28 purpose-built tools** — search, read, create, append, prepend, update, tasks, templates, tags, properties, and more — each with a focused schema so the AI knows exactly what's available and what each parameter does. Install `@xenova/transformers` to unlock 4 additional semantic search tools powered by a local ONNX model. Write operations default to `dryRun: true`: the assistant must show you a preview and get your explicit go-ahead before any note is modified.
 
 It supports both **stdio transport** (for assistants like Claude Code that manage the process) and **HTTP transport** (for URL-based MCP clients such as desktop AI apps).
 
@@ -186,6 +186,8 @@ All write operations **default to `dryRun: true`** — they show a preview witho
 |------|-------------|----------------|
 | `note_create` | Create a new note | `name` (required), `content`, `template`, `overwrite` |
 | `note_append` | Append content to a note | `content` (required), `file`, `path` |
+| `note_prepend` | Prepend content to a note (reverse-chron logs) | `content` (required), `file`, `path` |
+| `note_update` | Replace full content of an existing note | `path` (required, exact vault path), `content` (required) |
 | `daily_append` | Append to today's daily note | `content` (required) |
 | `templates_apply` | Apply a template to a note | `template` (required), `file` |
 | `property_set` | Set a frontmatter property | `name`, `value` (both required), `file` |
