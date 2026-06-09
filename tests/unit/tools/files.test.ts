@@ -137,3 +137,98 @@ describe("note_append (destructive)", () => {
     expect(result.isError).toBe(true);
   });
 });
+
+describe("note_prepend (destructive)", () => {
+  beforeEach(() => vi.resetAllMocks());
+
+  it("returns dry run preview by default", async () => {
+    const result = await invoke(makeServer(), "note_prepend", { content: "header" });
+    expect(mockRun).not.toHaveBeenCalled();
+    expect(result.content[0].text).toContain("[DRY RUN]");
+    expect(result.content[0].text).toContain("prepend");
+  });
+
+  it("executes with correct args when dryRun=false", async () => {
+    mockRun.mockResolvedValue("");
+    await invoke(makeServer(), "note_prepend", {
+      content: "# 2025-06-01",
+      file: "My Note",
+      dryRun: false,
+    });
+    expect(mockRun).toHaveBeenCalledWith(["prepend", "content=# 2025-06-01", "file=My Note"]);
+  });
+
+  it("uses path= when provided", async () => {
+    mockRun.mockResolvedValue("");
+    await invoke(makeServer(), "note_prepend", {
+      content: "header",
+      path: "HR/Jona Kuhn.md",
+      dryRun: false,
+    });
+    expect(mockRun).toHaveBeenCalledWith(["prepend", "content=header", "path=HR/Jona Kuhn.md"]);
+  });
+
+  it("returns fallback message when CLI returns empty string", async () => {
+    mockRun.mockResolvedValue("");
+    const result = await invoke(makeServer(), "note_prepend", { content: "x", dryRun: false });
+    expect(result.content[0].text).toBe("Content prepended.");
+  });
+
+  it("returns isError on CLI failure when dryRun=false", async () => {
+    mockRun.mockRejectedValue(new Error("prepend failed"));
+    const result = await invoke(makeServer(), "note_prepend", { content: "x", dryRun: false });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("prepend failed");
+  });
+});
+
+describe("note_update (destructive)", () => {
+  beforeEach(() => vi.resetAllMocks());
+
+  it("returns dry run preview by default", async () => {
+    const result = await invoke(makeServer(), "note_update", {
+      path: "HR/Jona Kuhn.md",
+      content: "# Updated",
+    });
+    expect(mockRun).not.toHaveBeenCalled();
+    expect(result.content[0].text).toContain("[DRY RUN]");
+    expect(result.content[0].text).toContain("create");
+    expect(result.content[0].text).toContain("overwrite");
+  });
+
+  it("executes with correct args when dryRun=false", async () => {
+    mockRun.mockResolvedValue("");
+    await invoke(makeServer(), "note_update", {
+      path: "HR/Jona Kuhn.md",
+      content: "# Full replacement content",
+      dryRun: false,
+    });
+    expect(mockRun).toHaveBeenCalledWith([
+      "create",
+      "path=HR/Jona Kuhn.md",
+      "content=# Full replacement content",
+      "overwrite",
+    ]);
+  });
+
+  it("returns fallback message when CLI returns empty string", async () => {
+    mockRun.mockResolvedValue("");
+    const result = await invoke(makeServer(), "note_update", {
+      path: "HR/note.md",
+      content: "x",
+      dryRun: false,
+    });
+    expect(result.content[0].text).toBe("Updated: HR/note.md");
+  });
+
+  it("returns isError on CLI failure when dryRun=false", async () => {
+    mockRun.mockRejectedValue(new Error("file not found"));
+    const result = await invoke(makeServer(), "note_update", {
+      path: "missing.md",
+      content: "x",
+      dryRun: false,
+    });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("file not found");
+  });
+});

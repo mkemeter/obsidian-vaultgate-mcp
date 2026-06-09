@@ -7,10 +7,12 @@ import { dryRunPreview, buildFileArgs } from "./_helpers.js";
  * Registers file and note operation tools on the MCP server.
  *
  * Tools registered:
- * - `files_list`  — list all files in the vault (read-only)
- * - `files_read`  — read a note's content (read-only)
- * - `note_create` — create or overwrite a note (destructive, dryRun gated)
- * - `note_append` — append content to an existing note (destructive, dryRun gated)
+ * - `files_list`    — list all files in the vault (read-only)
+ * - `files_read`    — read a note's content (read-only)
+ * - `note_create`   — create or overwrite a note (destructive, dryRun gated)
+ * - `note_append`   — append content to an existing note (destructive, dryRun gated)
+ * - `note_prepend`  — prepend content to an existing note (destructive, dryRun gated)
+ * - `note_update`   — replace the full content of an existing note (destructive, dryRun gated)
  *
  * @param server  The MCP server instance to register tools on.
  */
@@ -179,6 +181,100 @@ export function registerFileTools(server: McpServer): void {
       try {
         const output = await runObsidian(args);
         return { content: [{ type: "text", text: output || "Content appended." }] };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: (error as Error).message }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // ---------------------------------------------------------------------------
+  // note_prepend — destructive (dryRun gated)
+  // ---------------------------------------------------------------------------
+  server.tool(
+    "note_prepend",
+    "Prepend content to the top of an existing note. Useful for reverse-chronological notes " +
+      "such as HR records, meeting logs, and journals.\n\n" +
+      "IMPORTANT: Always call with dryRun=true first, show the user the preview, " +
+      "and ask for explicit confirmation before calling with dryRun=false.",
+    {
+      content: z.string().describe("Content to prepend. Use \\n for newlines."),
+      file: z
+        .string()
+        .optional()
+        .describe(
+          "Note name (wikilink-style). Uses the active file when omitted."
+        ),
+      path: z
+        .string()
+        .optional()
+        .describe("Exact path from vault root, e.g. `folder/note.md`."),
+      dryRun: z
+        .boolean()
+        .default(true)
+        .describe(
+          "When true (default), returns a preview without executing. " +
+            "Set to false only after explicit user confirmation."
+        ),
+    },
+    async ({ content, file, path, dryRun }) => {
+      const args = ["prepend", `content=${content}`, ...buildFileArgs(file, path)];
+
+      if (dryRun) {
+        return { content: [{ type: "text", text: dryRunPreview(args) }] };
+      }
+
+      try {
+        const output = await runObsidian(args);
+        return { content: [{ type: "text", text: output || "Content prepended." }] };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: (error as Error).message }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // ---------------------------------------------------------------------------
+  // note_update — destructive (dryRun gated)
+  // ---------------------------------------------------------------------------
+  server.tool(
+    "note_update",
+    "Replace the full content of an existing note identified by its exact vault path. " +
+      "Use this instead of note_create when updating a note that already exists — it ensures " +
+      "the correct file is targeted and never creates a duplicate at the vault root.\n\n" +
+      "IMPORTANT: Always call with dryRun=true first, show the user the preview, " +
+      "and ask for explicit confirmation before calling with dryRun=false.",
+    {
+      path: z
+        .string()
+        .describe(
+          "Exact path of the note from the vault root, e.g. `HR/Jona Kuhn.md`. " +
+            "Use files_list to find the correct path."
+        ),
+      content: z.string().describe("New full content for the note."),
+      dryRun: z
+        .boolean()
+        .default(true)
+        .describe(
+          "When true (default), returns a preview without executing. " +
+            "Set to false only after explicit user confirmation."
+        ),
+    },
+    async ({ path, content, dryRun }) => {
+      // `create path=<path> content=<content> overwrite` replaces the full file content.
+      const args = ["create", `path=${path}`, `content=${content}`, "overwrite"];
+
+      if (dryRun) {
+        return { content: [{ type: "text", text: dryRunPreview(args) }] };
+      }
+
+      try {
+        const output = await runObsidian(args);
+        return { content: [{ type: "text", text: output || `Updated: ${path}` }] };
       } catch (error) {
         return {
           content: [{ type: "text", text: (error as Error).message }],

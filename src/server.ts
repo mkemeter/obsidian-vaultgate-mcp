@@ -10,7 +10,7 @@ import { registerPluginTools } from "./tools/plugins.js";
 import { registerDevTools } from "./tools/dev.js";
 
 /** Total number of tools registered — used in tests to catch accidental omissions. */
-export const TOOL_COUNT = 26;
+export const TOOL_COUNT = 28;
 
 /**
  * Creates and configures the MCP server with all Obsidian CLI tools.
@@ -27,7 +27,7 @@ export function createServer(): McpServer {
     version: "0.1.0",
   });
 
-  registerFileTools(server);      // files_list, files_read, note_create, note_append
+  registerFileTools(server);      // files_list, files_read, note_create, note_append, note_prepend, note_update
   registerSearchTools(server);    // search
   registerDailyTools(server);     // daily_read, daily_append
   registerTaskTools(server);      // tasks_all, tasks_pending, tasks_daily
