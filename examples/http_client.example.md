@@ -8,12 +8,12 @@ For URL-based MCP clients, start the server and point it at:
 
 ```bash
 # Replace "My Vault" with your actual vault name, or omit if you have one vault:
-OBSIDIAN_VAULT="My Vault" obsidian-mcp-http
+OBSIDIAN_VAULT="My Vault" obsidian-vaultgate-mcp
 ```
 
 Expected output:
 ```
-✓ obsidian-mcp-http running at http://127.0.0.1:3001
+✓ obsidian-vaultgate-mcp running at http://127.0.0.1:3001
   Streamable HTTP: POST http://127.0.0.1:3001/mcp
   SSE (legacy):    GET  http://127.0.0.1:3001/sse
   Health:          GET  http://127.0.0.1:3001/health
@@ -28,12 +28,12 @@ For always-on availability, install the macOS launchd agent so the server
 starts automatically at login:
 
 ```bash
-cd $(npm root -g)/obsidian-mcp-http
+cd $(npm root -g)/obsidian-vaultgate-mcp
 ./launchd/install.sh
 ```
 
 ## Troubleshooting
 
 - **"Connection refused"** — the server isn't running. Start it or install the launchd agent.
-- **"Port already in use"** — another process is on port 3001. Change it: `OBSIDIAN_MCP_PORT=3002 obsidian-mcp-http` and connect to `http://localhost:3002`.
+- **"Port already in use"** — another process is on port 3001. Change it: `OBSIDIAN_MCP_PORT=3002 obsidian-vaultgate-mcp` and connect to `http://localhost:3002`.
 - **Tools return errors** — Obsidian may not be running. The CLI auto-starts it; give it a moment and retry.

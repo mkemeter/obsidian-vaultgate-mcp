@@ -64,7 +64,7 @@ export async function createServer(iconUrl?: string): Promise<McpServer> {
   const dataUri = getIconDataUri();
 
   const serverInfo: ConstructorParameters<typeof McpServer>[0] = {
-    name: "obsidian-mcp-http",
+    name: "obsidian-vaultgate-mcp",
     version: "0.1.0",
   };
 

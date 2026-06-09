@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  macOS launchd plist for obsidian-mcp-http.
+  macOS launchd plist for obsidian-vaultgate-mcp.
 
   This template is filled in automatically by launchd/install.sh.
   Do NOT use "which node" for the node path — it won't work under launchd
@@ -18,7 +18,7 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.obsidian-mcp-http</string>
+  <string>com.obsidian-vaultgate-mcp</string>
 
   <key>ProgramArguments</key>
   <array>
@@ -59,10 +59,10 @@
 
   <!-- Stdout log — check this if the server isn't starting -->
   <key>StandardOutPath</key>
-  <string>/tmp/obsidian-mcp-http.log</string>
+  <string>/tmp/obsidian-vaultgate-mcp.log</string>
 
   <!-- Stderr log — check this for error messages -->
   <key>StandardErrorPath</key>
-  <string>/tmp/obsidian-mcp-http.err</string>
+  <string>/tmp/obsidian-vaultgate-mcp.err</string>
 </dict>
 </plist>

@@ -1,5 +1,5 @@
 {
-  "name": "obsidian-mcp-http",
+  "name": "obsidian-vaultgate-mcp",
   "version": "0.1.0",
   "description": "Connect your Obsidian vault to any AI assistant — zero plugins, full privacy. An MCP server powered by the official Obsidian CLI.",
   "keywords": ["obsidian", "mcp", "model-context-protocol", "ai", "vault", "cli"],
@@ -7,12 +7,12 @@
   "author": "Mathias Kemeter",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mkemeter/obsidian-mcp-http.git"
+    "url": "https://github.com/mkemeter/obsidian-vaultgate-mcp.git"
   },
   "type": "module",
   "main": "build/index.js",
   "bin": {
-    "obsidian-mcp-http": "build/index.js"
+    "obsidian-vaultgate-mcp": "build/index.js"
   },
   "files": [
     "build",

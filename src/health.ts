@@ -13,7 +13,7 @@ import { config } from "./config.js";
  * code 1 if the binary cannot be reached, so launchd's KeepAlive does not
  * spin in a silent restart loop.
  *
- * NOTE: Because this runs `obsidian help`, launching obsidian-mcp-http
+ * NOTE: Because this runs `obsidian help`, launching obsidian-vaultgate-mcp
  * at login (via launchd) will also launch Obsidian at login. This is
  * intentional for daily-use setups and is documented in launchd/README.md.
  */
