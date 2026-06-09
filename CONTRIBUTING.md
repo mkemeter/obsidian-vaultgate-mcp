@@ -219,14 +219,13 @@ Rules:
 - Use `buildFileArgs(file, path)` from `_helpers.ts` whenever the tool targets
   a specific note.
 
-### 3. Update `TOOL_COUNT` in `src/server.ts`
+### 3. Update `BASE_TOOL_COUNT` in `src/server.ts`
 
 ```typescript
-export const TOOL_COUNT = 27; // was 26
+export const BASE_TOOL_COUNT = 27; // was 26
 ```
 
-The integration test `server.test.ts` asserts this constant matches the
-actual registered tool count — it will fail if you forget to update it.
+The integration test `server.test.ts` asserts the actual registered tool count equals `BASE_TOOL_COUNT` (or `BASE_TOOL_COUNT + SEMANTIC_TOOL_COUNT` when `@xenova/transformers` is available) — it will fail if you forget to update it.
 
 ### 4. Add tests
 
@@ -257,7 +256,7 @@ tests/
 │       └── ...              one file per tool group, same pattern
 └── integration/
     ├── http.test.ts         /health, Origin → 403, /mcp, /sse, unknown path → 404
-    └── server.test.ts       all 26 tools registered, TOOL_COUNT correct
+    └── server.test.ts       all 26 base tools registered, BASE_TOOL_COUNT correct
 ```
 
 ### Writing unit tests for a tool
@@ -393,6 +392,6 @@ The most common cause of coverage gaps is an uncovered `catch` block — add an
 - [ ] `npm run test:coverage` meets all three thresholds
 - [ ] New tools have unit tests covering: happy path, CLI error path, and
       (if destructive) `dryRun: true` and `dryRun: false`
-- [ ] `TOOL_COUNT` in `src/server.ts` updated if tools were added or removed
+- [ ] `BASE_TOOL_COUNT` in `src/server.ts` updated if base tools were added or removed
 - [ ] JSDoc added to all new exported symbols
 - [ ] No hardcoded vault names, paths, or personal details

@@ -53,14 +53,16 @@ export function loadConfig(): Config {
   const rawPort = process.env.OBSIDIAN_MCP_PORT;
   const port = rawPort !== undefined ? parseInt(rawPort, 10) : 3001;
 
-  if (rawPort !== undefined && isNaN(port)) {
+  if (rawPort !== undefined && (isNaN(port) || port < 1 || port > 65535)) {
     throw new Error(
-      `Invalid OBSIDIAN_MCP_PORT value "${rawPort}" — must be a number.`
+      `Invalid OBSIDIAN_MCP_PORT value "${rawPort}" — must be an integer between 1 and 65535.`
     );
   }
 
+  const rawVault = process.env.OBSIDIAN_VAULT?.trim();
+
   return {
-    vault: process.env.OBSIDIAN_VAULT || undefined,
+    vault: rawVault || undefined,
     cliBin: process.env.OBSIDIAN_CLI_PATH || "obsidian",
     port,
     host: "127.0.0.1",
