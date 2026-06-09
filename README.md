@@ -193,7 +193,6 @@ All configuration via environment variables. None are required for single-vault 
 |---|---|---|
 | `OBSIDIAN_VAULT` | _(last opened vault)_ | Target vault name (directory name, not path). Required when multiple vaults are open. |
 | `OBSIDIAN_MCP_PORT` | `3001` | TCP port for HTTP mode. |
-| `OBSIDIAN_MCP_HOST` | `127.0.0.1` | Bind address. Do not expose to non-loopback interfaces. |
 | `OBSIDIAN_MCP_TRANSPORT` | _(auto-detect)_ | `http` to force HTTP mode, `stdio` to force stdio. Auto-detected from `stdin.isTTY`. |
 | `OBSIDIAN_CLI_PATH` | `obsidian` | Absolute path to the Obsidian binary. Required in service contexts where `PATH` differs from the user shell. |
 
