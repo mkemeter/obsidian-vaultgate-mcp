@@ -1,0 +1,45 @@
+{
+  "name": "obsidian-mcp-http",
+  "version": "0.1.0",
+  "description": "Connect your Obsidian vault to any AI assistant — zero plugins, full privacy. An MCP server powered by the official Obsidian CLI.",
+  "keywords": ["obsidian", "mcp", "model-context-protocol", "ai", "vault", "cli"],
+  "license": "GPL-3.0-or-later",
+  "author": "Mathias Kemeter",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mkemeter/obsidian-mcp-http.git"
+  },
+  "type": "module",
+  "main": "build/index.js",
+  "bin": {
+    "obsidian-mcp-http": "build/index.js"
+  },
+  "files": [
+    "build",
+    "launchd",
+    "examples",
+    ".env.example",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node build/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": ">=1.10.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@vitest/coverage-v8": "^2.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^2.0.0"
+  }
+}

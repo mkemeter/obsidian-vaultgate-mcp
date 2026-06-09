@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "obsidian": {
+      "command": "obsidian-mcp-http",
+      "env": {
+        "OBSIDIAN_VAULT": "My Vault"
+      }
+    }
+  }
+}

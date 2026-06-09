@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  macOS launchd plist for obsidian-mcp-http.
+
+  This template is filled in automatically by launchd/install.sh.
+  Do NOT use "which node" for the node path — it won't work under launchd
+  because launchd does not inherit your shell's PATH.
+  install.sh uses `node -e "console.log(process.execPath)"` instead,
+  which correctly resolves the active Node.js binary under nvm, Homebrew, etc.
+
+  Side effect: the startup health check runs `obsidian help` which will
+  auto-launch Obsidian if it isn't running. With this plist installed,
+  Obsidian will open automatically at every login. This is intentional
+  for daily-use setups — see launchd/README.md for details.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.obsidian-mcp-http</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__NODE_PATH__</string>
+    <string>__OBSIDIAN_CLI_MCP_PATH__</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <!-- Your vault name. Leave blank to target the last focused vault. -->
+    <key>OBSIDIAN_VAULT</key>
+    <string>__YOUR_VAULT_NAME__</string>
+
+    <!--
+      Absolute path to the obsidian binary.
+      launchd does not inherit PATH, so this must be an absolute path.
+      Default for a standard macOS Obsidian install:
+      /Applications/Obsidian.app/Contents/MacOS/obsidian
+    -->
+    <key>OBSIDIAN_CLI_PATH</key>
+    <string>__OBSIDIAN_CLI_PATH__</string>
+
+    <!--
+      Force HTTP transport mode. Under launchd, stdin is not a TTY, so the
+      server would otherwise start in stdio mode and exit immediately.
+    -->
+    <key>OBSIDIAN_MCP_TRANSPORT</key>
+    <string>http</string>
+  </dict>
+
+  <!-- Start automatically at login -->
+  <key>RunAtLoad</key>
+  <true/>
+
+  <!-- Restart automatically if the process exits -->
+  <key>KeepAlive</key>
+  <true/>
+
+  <!-- Stdout log — check this if the server isn't starting -->
+  <key>StandardOutPath</key>
+  <string>/tmp/obsidian-mcp-http.log</string>
+
+  <!-- Stderr log — check this for error messages -->
+  <key>StandardErrorPath</key>
+  <string>/tmp/obsidian-mcp-http.err</string>
+</dict>
+</plist>
