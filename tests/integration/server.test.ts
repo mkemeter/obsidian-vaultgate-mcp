@@ -34,6 +34,8 @@ describe("server tool registration", () => {
     expect(names).toContain("files_read");
     expect(names).toContain("note_create");
     expect(names).toContain("note_append");
+    expect(names).toContain("note_prepend");
+    expect(names).toContain("note_update");
 
     // search group
     expect(names).toContain("search");
