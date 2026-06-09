@@ -1,16 +1,3 @@
-<div align="center">
-
-```
-        /\
-       /  \
-      / /\ \
-     / /◆\ \
-    /_/ ◆◆ \_\
-    \ \◆◆◆/ /
-     \ \◆/ /
-      \_\/_/
-```
-
 # obsidian-vaultgate-mcp
 
 > Your Obsidian vault, accessible to any AI assistant — locally, privately, with no plugins.
@@ -19,8 +6,6 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-brightgreen)](https://nodejs.org)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](#)
-
-</div>
 
 `obsidian-vaultgate-mcp` is a local [Model Context Protocol](https://modelcontextprotocol.io) server that bridges any MCP-compatible AI client with your Obsidian vault. It's built on the official Obsidian CLI — no community plugins, no cloud relay, no API keys.
 
