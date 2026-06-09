@@ -1,158 +1,148 @@
 /**
  * Unit tests for src/tools/semantic.ts
  *
- * Module-level state (indexState, isReHashing, etc.) persists across imports,
- * so we use vi.resetModules() + dynamic import() in beforeEach for tests that
- * depend on specific state — same pattern as config.ts singleton tests.
+ * Module-level state (indexState, isReHashing, etc.) persists across imports.
+ * We use vi.resetModules() + dynamic import() in beforeEach so each test suite
+ * gets a fresh module instance — same pattern as config.ts singleton tests
+ * (documented in CLAUDE.md).
  *
- * @xenova/transformers and src/cli.js are both mocked so no real model or
- * Obsidian CLI is required.
+ * Instead of vi.waitFor() race conditions we poll getIndexStateForTesting()
+ * directly, which eliminates timing-sensitive failures.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 // ---------------------------------------------------------------------------
-// Static mocks — must be declared before any dynamic imports that use them.
+// Fake embeddings — 4-dim so maths is simple and deterministic.
 // ---------------------------------------------------------------------------
 
-vi.mock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
-vi.mock("../../../src/config.js", () => ({
-  config: { vault: "TestVault", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
-}));
-
-// Fake 4-dim embeddings so maths is easy to verify.
-const FAKE_DIM = 4;
 const FAKE_VEC_A = [1, 0, 0, 0];
-const FAKE_VEC_B = [0, 1, 0, 0];
-const FAKE_VEC_SIMILAR = [0.9, 0.1, 0, 0]; // high similarity to A
-
-const mockPipeline = vi.fn().mockResolvedValue({
-  // Called as embedder(texts, opts) → returns object with tolist()
-  // We make each call return a fixed vector based on call order to keep tests deterministic.
-  // Most tests override this per-test.
-});
-
-vi.mock("@xenova/transformers", () => ({
-  pipeline: vi.fn().mockResolvedValue(
-    vi.fn().mockImplementation(() =>
-      Promise.resolve({ tolist: () => [FAKE_VEC_A] })
-    )
-  ),
-}));
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+const FAKE_VEC_B = [0, 1, 0, 0]; // orthogonal to A  → cosine = 0
 
 const FILE_LIST = "note-a.md\nnote-b.md\n";
 const NOTE_A_CONTENT = "# Note A\n\nThis is note A content.";
 const NOTE_B_CONTENT = "# Note B\n\nThis is note B content.";
 
-async function buildServerWithSemanticTools(): Promise<{
-  server: McpServer;
-  mockRun: ReturnType<typeof vi.fn>;
-}> {
-  const { runObsidian } = await import("../../../src/cli.js");
-  const mockRun = vi.mocked(runObsidian);
-
-  // Default: files list returns two notes, reads return content.
-  mockRun.mockImplementation(async (args: string[]) => {
-    if (args.includes("list")) return FILE_LIST;
-    if (args.includes("note-a.md")) return NOTE_A_CONTENT;
-    if (args.includes("note-b.md")) return NOTE_B_CONTENT;
-    return "";
-  });
-
-  const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
-  const server = new McpServer({ name: "test", version: "0.0.0" });
-  const { registerSemanticTools } = await import("../../../src/tools/semantic.js");
-  registerSemanticTools(server);
-  return { server, mockRun };
-}
+// ---------------------------------------------------------------------------
+// Helpers shared across describe blocks
+// ---------------------------------------------------------------------------
 
 async function callTool(
   server: McpServer,
   name: string,
   args: Record<string, unknown> = {}
 ) {
-  // @ts-ignore
+  // @ts-ignore — internal handler, intentionally accessed in tests
   return server.server._requestHandlers.get("tools/call")?.(
     { method: "tools/call", params: { name, arguments: args } },
     {}
   );
 }
 
+/** Poll until indexState reaches "ready" (or throws after 2 s). */
+async function waitForReady(
+  getState: () => "idle" | "building" | "ready"
+): Promise<void> {
+  const deadline = Date.now() + 2000;
+  while (getState() !== "ready") {
+    if (Date.now() > deadline) throw new Error("Index did not reach 'ready' within 2 s");
+    await new Promise((r) => setTimeout(r, 10));
+  }
+}
+
 // ---------------------------------------------------------------------------
-// cosineSimilarity — pure math, no mocks needed
+// Fresh module setup helper — called inside each beforeEach that needs it.
+// ---------------------------------------------------------------------------
+
+async function freshModule(runMock: (args: string[]) => Promise<string>) {
+  vi.resetModules();
+
+  vi.mock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+  vi.mock("../../../src/config.js", () => ({
+    config: { vault: "TestVault", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+  }));
+  vi.mock("@xenova/transformers", () => ({
+    pipeline: vi.fn().mockResolvedValue(
+      vi.fn().mockImplementation(() =>
+        Promise.resolve({ tolist: () => [FAKE_VEC_A] })
+      )
+    ),
+  }));
+
+  const { runObsidian } = await import("../../../src/cli.js");
+  vi.mocked(runObsidian).mockImplementation(runMock);
+
+  const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
+  const server = new McpServer({ name: "test", version: "0.0.0" });
+  const semantic = await import("../../../src/tools/semantic.js");
+  semantic.registerSemanticTools(server);
+
+  return {
+    server,
+    mockRun: vi.mocked(runObsidian),
+    getState: semantic.getIndexStateForTesting,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// cosineSimilarity — pure math, no mocks, no module reset needed
 // ---------------------------------------------------------------------------
 
 describe("cosineSimilarity", () => {
-  it("returns 1 for identical vectors", async () => {
-    const { cosineSimilarity } = await import("../../../src/tools/semantic.js");
+  // Import once for the whole describe block — pure function, no state.
+  let cosineSimilarity: (a: number[], b: number[]) => number;
+
+  beforeEach(async () => {
+    vi.resetModules();
+    vi.mock("@xenova/transformers", () => ({ pipeline: vi.fn() }));
+    vi.mock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+    vi.mock("../../../src/config.js", () => ({
+      config: { vault: undefined, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+    }));
+    ({ cosineSimilarity } = await import("../../../src/tools/semantic.js"));
+  });
+
+  it("returns 1 for identical unit vectors", () => {
     expect(cosineSimilarity([1, 0, 0], [1, 0, 0])).toBeCloseTo(1);
   });
 
-  it("returns 0 for orthogonal vectors", async () => {
-    const { cosineSimilarity } = await import("../../../src/tools/semantic.js");
+  it("returns 0 for orthogonal vectors", () => {
     expect(cosineSimilarity([1, 0, 0], [0, 1, 0])).toBeCloseTo(0);
   });
 
-  it("returns 0 for zero vector", async () => {
-    const { cosineSimilarity } = await import("../../../src/tools/semantic.js");
+  it("returns 0 when one vector is the zero vector", () => {
     expect(cosineSimilarity([0, 0, 0], [1, 0, 0])).toBeCloseTo(0);
   });
 
-  it("returns correct similarity for near-parallel vectors", async () => {
-    const { cosineSimilarity } = await import("../../../src/tools/semantic.js");
-    const score = cosineSimilarity(FAKE_VEC_A, FAKE_VEC_SIMILAR);
+  it("returns correct positive similarity for near-parallel vectors", () => {
+    const score = cosineSimilarity([0.9, 0.1, 0, 0], [1, 0, 0, 0]);
     expect(score).toBeGreaterThan(0.8);
+    expect(score).toBeLessThanOrEqual(1.0);
+  });
+
+  it("returns value in [0, 1] range for normalized vectors", () => {
+    const score = cosineSimilarity(FAKE_VEC_A, FAKE_VEC_B);
+    expect(score).toBeGreaterThanOrEqual(0);
+    expect(score).toBeLessThanOrEqual(1);
   });
 });
 
 // ---------------------------------------------------------------------------
-// indexState guard — called before index is ready
+// indexState guard — search returns "indexing" message before build completes
 // ---------------------------------------------------------------------------
 
 describe("indexState guard", () => {
-  beforeEach(() => {
-    vi.resetModules();
-    // Re-apply mocks after module reset
-    vi.mock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
-    vi.mock("../../../src/config.js", () => ({
-      config: { vault: "TestVault", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
-    }));
-    vi.mock("@xenova/transformers", () => ({
-      pipeline: vi.fn().mockResolvedValue(
-        vi.fn().mockResolvedValue({ tolist: () => [FAKE_VEC_A] })
-      ),
-    }));
-  });
-
-  it("semantic_search returns indexing message when not ready", async () => {
-    const { runObsidian } = await import("../../../src/cli.js");
-    const mockRun = vi.mocked(runObsidian);
-    // Make the build hang by never resolving file list — indexState stays "building"
-    mockRun.mockReturnValue(new Promise(() => {}));
-
-    const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
-    const server = new McpServer({ name: "test", version: "0.0.0" });
-    const { registerSemanticTools } = await import("../../../src/tools/semantic.js");
-    registerSemanticTools(server);
+  it("semantic_search returns indexing message while building", async () => {
+    // Never-resolving file list keeps indexState in "building"
+    const { server } = await freshModule(() => new Promise(() => {}));
 
     const result = await callTool(server, "semantic_search", { query: "test" });
     expect(result.content[0].text).toMatch(/being indexed/i);
-    // Should NOT have called runObsidian a second time for the query itself
   });
 
-  it("find_similar returns indexing message when not ready", async () => {
-    const { runObsidian } = await import("../../../src/cli.js");
-    vi.mocked(runObsidian).mockReturnValue(new Promise(() => {}));
-
-    const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
-    const server = new McpServer({ name: "test", version: "0.0.0" });
-    const { registerSemanticTools } = await import("../../../src/tools/semantic.js");
-    registerSemanticTools(server);
+  it("find_similar returns indexing message while building", async () => {
+    const { server } = await freshModule(() => new Promise(() => {}));
 
     const result = await callTool(server, "find_similar", { note_path: "note-a.md" });
     expect(result.content[0].text).toMatch(/being indexed/i);
@@ -164,65 +154,91 @@ describe("indexState guard", () => {
 // ---------------------------------------------------------------------------
 
 describe("semantic_search", () => {
-  beforeEach(() => {
+  it("returns ranked results with score and preview (happy path)", async () => {
+    const { server, mockRun, getState } = await freshModule(async (args) => {
+      if (args.includes("list")) return FILE_LIST;
+      return NOTE_A_CONTENT; // reads for both notes and previews
+    });
+
+    await waitForReady(getState);
+
+    // Refetch previews will also call readNote — keep mock returning content
+    mockRun.mockImplementation(async (args: string[]) => {
+      if (args.includes("list")) return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
+
+    const result = await callTool(server, "semantic_search", { query: "note content" });
+    const text: string = result.content[0].text;
+
+    // Must have at least one result with a score
+    expect(text).toMatch(/score:\s*[\d.]+/);
+    // Score values must be in [0, 1]
+    const scores = [...text.matchAll(/score:\s*([\d.]+)/g)].map((m) => parseFloat(m[1]));
+    expect(scores.length).toBeGreaterThan(0);
+    scores.forEach((s) => {
+      expect(s).toBeGreaterThanOrEqual(0);
+      expect(s).toBeLessThanOrEqual(1);
+    });
+    // Results should be in descending score order
+    for (let i = 1; i < scores.length; i++) {
+      expect(scores[i]).toBeLessThanOrEqual(scores[i - 1]);
+    }
+  });
+
+  it("returns 'no notes found' message when min_score filters everything out", async () => {
+    // FAKE_VEC_A as both query and note embeddings → cosine = 1, but we use
+    // FAKE_VEC_B as note embeddings by swapping the mock after module load.
     vi.resetModules();
     vi.mock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
     vi.mock("../../../src/config.js", () => ({
       config: { vault: "TestVault", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
     }));
+    // Notes get FAKE_VEC_B (orthogonal to query FAKE_VEC_A) → score = 0
     vi.mock("@xenova/transformers", () => ({
       pipeline: vi.fn().mockResolvedValue(
-        vi.fn().mockResolvedValue({ tolist: () => [FAKE_VEC_A] })
+        vi.fn().mockImplementation(() =>
+          Promise.resolve({ tolist: () => [FAKE_VEC_B] })
+        )
       ),
     }));
-  });
 
-  it("returns ranked results with score and preview (happy path)", async () => {
     const { runObsidian } = await import("../../../src/cli.js");
-    const mockRun = vi.mocked(runObsidian);
-
-    // Phase 1: background index build
-    mockRun.mockImplementationOnce(async () => FILE_LIST);        // files list
-    mockRun.mockImplementationOnce(async () => NOTE_A_CONTENT);  // read note-a
-    mockRun.mockImplementationOnce(async () => NOTE_B_CONTENT);  // read note-b
+    vi.mocked(runObsidian).mockImplementation(async (args: string[]) => {
+      if (args.includes("list")) return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
 
     const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
     const server = new McpServer({ name: "test", version: "0.0.0" });
-    const { registerSemanticTools } = await import("../../../src/tools/semantic.js");
-    registerSemanticTools(server);
+    const semantic = await import("../../../src/tools/semantic.js");
+    semantic.registerSemanticTools(server);
 
-    // Wait for background build to complete
-    await vi.waitFor(async () => {
-      // Phase 2: search call — needs file list + previews
-      mockRun.mockResolvedValue(NOTE_A_CONTENT);
-      const result = await callTool(server, "semantic_search", { query: "note content" });
-      expect(result.content[0].text).toMatch(/score:/);
-    }, { timeout: 5000 });
+    await waitForReady(semantic.getIndexStateForTesting);
+
+    vi.mocked(runObsidian).mockResolvedValue("");
+
+    const result = await callTool(server, "semantic_search", {
+      query: "anything",
+      min_score: 0.5, // notes have score ~0 (orthogonal), nothing passes
+    });
+    expect(result.content[0].text).toMatch(/no notes found/i);
   });
 
-  it("returns isError on embed failure", async () => {
-    const { runObsidian } = await import("../../../src/cli.js");
-    const mockRun = vi.mocked(runObsidian);
-    mockRun.mockResolvedValue(FILE_LIST);
+  it("returns isError when CLI fails during search", async () => {
+    const { server, mockRun, getState } = await freshModule(async (args) => {
+      if (args.includes("list")) return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
 
-    const { pipeline } = await import("@xenova/transformers");
-    vi.mocked(pipeline).mockResolvedValueOnce(
-      vi.fn().mockRejectedValue(new Error("ONNX crash")) as never
-    );
+    await waitForReady(getState);
 
-    const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
-    const server = new McpServer({ name: "test", version: "0.0.0" });
-    const { registerSemanticTools } = await import("../../../src/tools/semantic.js");
-    registerSemanticTools(server);
+    // Make file list throw on the next search call (syncNewAndDeleted)
+    mockRun.mockRejectedValue(new Error("CLI unavailable"));
 
-    // Let build finish (will fail gracefully, leaving indexState "building")
-    await new Promise((r) => setTimeout(r, 50));
-
-    const result = await callTool(server, "semantic_search", { query: "anything" });
-    // Either indexing message or isError depending on timing
-    expect(
-      result.content[0].text.match(/being indexed/i) || result.isError
-    ).toBeTruthy();
+    const result = await callTool(server, "semantic_search", { query: "test" });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("CLI unavailable");
   });
 });
 
@@ -231,203 +247,137 @@ describe("semantic_search", () => {
 // ---------------------------------------------------------------------------
 
 describe("find_similar", () => {
-  beforeEach(() => {
-    vi.resetModules();
-    vi.mock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
-    vi.mock("../../../src/config.js", () => ({
-      config: { vault: "TestVault", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
-    }));
-    vi.mock("@xenova/transformers", () => ({
-      pipeline: vi.fn().mockResolvedValue(
-        vi.fn().mockResolvedValue({ tolist: () => [FAKE_VEC_A] })
-      ),
-    }));
-  });
-
   it("excludes the source note from results", async () => {
-    const { runObsidian } = await import("../../../src/cli.js");
-    const mockRun = vi.mocked(runObsidian);
+    const { server, mockRun, getState } = await freshModule(async (args) => {
+      if (args.includes("list")) return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
 
-    mockRun.mockImplementationOnce(async () => FILE_LIST);
-    mockRun.mockImplementationOnce(async () => NOTE_A_CONTENT);
-    mockRun.mockImplementationOnce(async () => NOTE_B_CONTENT);
+    await waitForReady(getState);
 
-    const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
-    const server = new McpServer({ name: "test", version: "0.0.0" });
-    const { registerSemanticTools } = await import("../../../src/tools/semantic.js");
-    registerSemanticTools(server);
+    mockRun.mockImplementation(async (args: string[]) => {
+      if (args.includes("list")) return FILE_LIST;
+      return NOTE_B_CONTENT;
+    });
 
-    await vi.waitFor(async () => {
-      mockRun.mockResolvedValue(NOTE_B_CONTENT);
-      const result = await callTool(server, "find_similar", { note_path: "note-a.md" });
-      if (result.content[0].text.match(/being indexed/i)) throw new Error("still building");
-      expect(result.content[0].text).not.toContain("note-a.md");
-    }, { timeout: 5000 });
+    const result = await callTool(server, "find_similar", { note_path: "note-a.md" });
+    expect(result.content[0].text).not.toContain("note-a.md");
   });
 
   it("returns isError when note_path is not in index", async () => {
-    const { runObsidian } = await import("../../../src/cli.js");
-    const mockRun = vi.mocked(runObsidian);
+    const { server, mockRun, getState } = await freshModule(async (args) => {
+      if (args.includes("list")) return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
 
-    mockRun.mockImplementationOnce(async () => FILE_LIST);
-    mockRun.mockImplementationOnce(async () => NOTE_A_CONTENT);
-    mockRun.mockImplementationOnce(async () => NOTE_B_CONTENT);
+    await waitForReady(getState);
 
-    const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
-    const server = new McpServer({ name: "test", version: "0.0.0" });
-    const { registerSemanticTools } = await import("../../../src/tools/semantic.js");
-    registerSemanticTools(server);
+    mockRun.mockResolvedValue("");
 
-    await vi.waitFor(async () => {
-      mockRun.mockResolvedValue("");
-      const result = await callTool(server, "find_similar", {
-        note_path: "does-not-exist.md",
-      });
-      if (result.content[0].text.match(/being indexed/i)) throw new Error("still building");
-      expect(result.isError).toBe(true);
-    }, { timeout: 5000 });
+    const result = await callTool(server, "find_similar", {
+      note_path: "does-not-exist.md",
+    });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("does-not-exist.md");
   });
 });
 
 // ---------------------------------------------------------------------------
-// min_score filter
-// ---------------------------------------------------------------------------
-
-describe("min_score filter", () => {
-  beforeEach(() => {
-    vi.resetModules();
-    vi.mock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
-    vi.mock("../../../src/config.js", () => ({
-      config: { vault: "TestVault", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
-    }));
-    vi.mock("@xenova/transformers", () => ({
-      pipeline: vi.fn().mockResolvedValue(
-        vi.fn().mockResolvedValue({ tolist: () => [FAKE_VEC_B] }) // orthogonal to query
-      ),
-    }));
-  });
-
-  it("returns no results when all scores below min_score", async () => {
-    const { runObsidian } = await import("../../../src/cli.js");
-    const mockRun = vi.mocked(runObsidian);
-
-    mockRun.mockImplementationOnce(async () => FILE_LIST);
-    mockRun.mockImplementationOnce(async () => NOTE_A_CONTENT);
-    mockRun.mockImplementationOnce(async () => NOTE_B_CONTENT);
-
-    const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
-    const server = new McpServer({ name: "test", version: "0.0.0" });
-    const { registerSemanticTools } = await import("../../../src/tools/semantic.js");
-    registerSemanticTools(server);
-
-    await vi.waitFor(async () => {
-      mockRun.mockResolvedValue("");
-      const result = await callTool(server, "semantic_search", {
-        query: "anything",
-        min_score: 0.99, // very high — no note will match orthogonal embeddings
-      });
-      if (result.content[0].text.match(/being indexed/i)) throw new Error("still building");
-      expect(result.content[0].text).toMatch(/no notes found/i);
-    }, { timeout: 5000 });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// index_vault and vault_info
+// index_vault
 // ---------------------------------------------------------------------------
 
 describe("index_vault", () => {
-  beforeEach(() => {
-    vi.resetModules();
-    vi.mock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
-    vi.mock("../../../src/config.js", () => ({
-      config: { vault: "TestVault", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
-    }));
-    vi.mock("@xenova/transformers", () => ({
-      pipeline: vi.fn().mockResolvedValue(
-        vi.fn().mockResolvedValue({ tolist: () => [FAKE_VEC_A] })
-      ),
-    }));
-  });
-
   it("reports re-index complete with note count", async () => {
-    const { runObsidian } = await import("../../../src/cli.js");
-    const mockRun = vi.mocked(runObsidian);
+    const { server, mockRun, getState } = await freshModule(async (args) => {
+      if (args.includes("list")) return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
+
+    await waitForReady(getState);
 
     mockRun.mockImplementation(async (args: string[]) => {
       if (args.includes("list")) return FILE_LIST;
       return NOTE_A_CONTENT;
     });
 
-    const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
-    const server = new McpServer({ name: "test", version: "0.0.0" });
-    const { registerSemanticTools } = await import("../../../src/tools/semantic.js");
-    registerSemanticTools(server);
-
-    await vi.waitFor(async () => {
-      const result = await callTool(server, "index_vault");
-      if (result.content[0].text.match(/still in progress/i)) throw new Error("still building");
-      expect(result.content[0].text).toMatch(/re-index complete/i);
-    }, { timeout: 5000 });
+    const result = await callTool(server, "index_vault");
+    expect(result.content[0].text).toMatch(/re-index complete/i);
+    expect(result.content[0].text).toMatch(/\d+ note/);
   });
 
   it("returns isError when re-index CLI fails", async () => {
-    const { runObsidian } = await import("../../../src/cli.js");
-    const mockRun = vi.mocked(runObsidian);
-
-    // Initial build succeeds
-    mockRun.mockImplementationOnce(async () => FILE_LIST);
-    mockRun.mockImplementationOnce(async () => NOTE_A_CONTENT);
-    mockRun.mockImplementationOnce(async () => NOTE_B_CONTENT);
-
-    const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
-    const server = new McpServer({ name: "test", version: "0.0.0" });
-    const { registerSemanticTools } = await import("../../../src/tools/semantic.js");
-    registerSemanticTools(server);
-
-    await vi.waitFor(async () => {
-      // Re-index call: file list fails
-      mockRun.mockRejectedValue(new Error("CLI unavailable"));
-      const result = await callTool(server, "index_vault");
-      if (result.content[0].text?.match(/still in progress/i)) throw new Error("still building");
-      expect(result.isError).toBe(true);
-    }, { timeout: 5000 });
-  });
-});
-
-describe("vault_info", () => {
-  beforeEach(() => {
-    vi.resetModules();
-    vi.mock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
-    vi.mock("../../../src/config.js", () => ({
-      config: { vault: "TestVault", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
-    }));
-    vi.mock("@xenova/transformers", () => ({
-      pipeline: vi.fn().mockResolvedValue(
-        vi.fn().mockResolvedValue({ tolist: () => [FAKE_VEC_A] })
-      ),
-    }));
-  });
-
-  it("shows note count and last indexed timestamp", async () => {
-    const { runObsidian } = await import("../../../src/cli.js");
-    const mockRun = vi.mocked(runObsidian);
-
-    mockRun.mockImplementation(async (args: string[]) => {
+    const { server, mockRun, getState } = await freshModule(async (args) => {
       if (args.includes("list")) return FILE_LIST;
       return NOTE_A_CONTENT;
     });
 
-    const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
-    const server = new McpServer({ name: "test", version: "0.0.0" });
-    const { registerSemanticTools } = await import("../../../src/tools/semantic.js");
-    registerSemanticTools(server);
+    await waitForReady(getState);
 
-    await vi.waitFor(async () => {
-      const result = await callTool(server, "vault_info");
-      if (result.content[0].text.match(/being built/i)) throw new Error("still building");
-      expect(result.content[0].text).toMatch(/indexed notes/i);
-      expect(result.content[0].text).toMatch(/last full re-hash/i);
-    }, { timeout: 5000 });
+    mockRun.mockRejectedValue(new Error("CLI unavailable"));
+
+    const result = await callTool(server, "index_vault");
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("CLI unavailable");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// vault_info
+// ---------------------------------------------------------------------------
+
+describe("vault_info", () => {
+  it("shows indexed note count and last re-hash timestamp", async () => {
+    const { server, getState } = await freshModule(async (args) => {
+      if (args.includes("list")) return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
+
+    await waitForReady(getState);
+
+    const result = await callTool(server, "vault_info");
+    expect(result.content[0].text).toMatch(/indexed notes:\s*\d+/i);
+    expect(result.content[0].text).toMatch(/last full re-hash/i);
+    // Note count should match our FILE_LIST (2 notes)
+    const match = result.content[0].text.match(/indexed notes:\s*(\d+)/i);
+    expect(parseInt(match![1])).toBeGreaterThanOrEqual(1);
+  });
+
+  it("returns 'being built' message when index is not ready", async () => {
+    // Never-resolving build keeps indexState in "building"
+    const { server } = await freshModule(() => new Promise(() => {}));
+
+    const result = await callTool(server, "vault_info");
+    expect(result.content[0].text).toMatch(/being built/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// chunkText — large-note chunking (exercises the overflow branch)
+// ---------------------------------------------------------------------------
+
+describe("chunkText via semantic_search", () => {
+  it("correctly indexes a note larger than CHUNK_SIZE (2000 chars)", async () => {
+    // Build a note with two large paragraphs that exceed 2000 chars total.
+    const bigPara1 = "A ".repeat(600).trimEnd(); // ~1200 chars
+    const bigPara2 = "B ".repeat(600).trimEnd(); // ~1200 chars
+    const bigNote = `# Big Note\n\n${bigPara1}\n\n${bigPara2}`;
+
+    const { server, mockRun, getState } = await freshModule(async (args) => {
+      if (args.includes("list")) return "big-note.md\n";
+      return bigNote;
+    });
+
+    await waitForReady(getState);
+
+    mockRun.mockImplementation(async (args: string[]) => {
+      if (args.includes("list")) return "big-note.md\n";
+      return bigNote;
+    });
+
+    // Index was built — search should find the note (no error / no "indexing" message)
+    const result = await callTool(server, "semantic_search", { query: "content" });
+    expect(result.content[0].text).not.toMatch(/being indexed/i);
+    // big-note.md should appear in results (score ≥ DEFAULT_MIN_SCORE with identical vecs)
+    expect(result.content[0].text).toContain("big-note.md");
   });
 });

@@ -274,6 +274,11 @@ async function fullReHash(idx: VaultIndex): Promise<void> {
 // Module-level index reference — kept in memory so searches don't re-load from disk.
 let liveIndex: VaultIndex | null = null;
 
+/** Exported only for testing — returns the current index build state. */
+export function getIndexStateForTesting(): "idle" | "building" | "ready" {
+  return indexState;
+}
+
 function startBackgroundIndex(): void {
   if (indexState !== "idle") return; // singleton guard
   indexState = "building";
