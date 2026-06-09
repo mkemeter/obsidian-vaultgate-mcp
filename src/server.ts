@@ -57,7 +57,7 @@ export async function createServer(iconUrl?: string): Promise<McpServer> {
 
   if (iconUrl) {
     (serverInfo as Record<string, unknown>).icons = [
-      { url: iconUrl, mimeType: "image/svg+xml" },
+      { src: iconUrl, mimeType: "image/svg+xml" },
     ];
   }
 
