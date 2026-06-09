@@ -39,7 +39,7 @@ function isAllowedOrigin(origin: string | undefined): boolean {
 }
 
 async function startStdio(): Promise<void> {
-  const server = createServer();
+  const server = await createServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
@@ -92,7 +92,7 @@ async function startHttp(): Promise<void> {
 
       if (!transport) {
         // New session — create a server + transport and store it.
-        const server = createServer();
+        const server = await createServer();
         transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => crypto.randomUUID(),
         });
@@ -111,7 +111,7 @@ async function startHttp(): Promise<void> {
 
     // --- SSE transport (legacy MCP, backward-compatible fallback) ------------
     if (req.method === "GET" && url.pathname === "/sse") {
-      const server = createServer();
+      const server = await createServer();
       const transport = new SSEServerTransport("/messages", res);
       sseSessions.set(transport.sessionId, transport);
 
