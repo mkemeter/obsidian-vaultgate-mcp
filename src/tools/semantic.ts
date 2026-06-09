@@ -1,5 +1,5 @@
 /**
- * Semantic search tools for obsidian-mcp-http.
+ * Semantic search tools for obsidian-vaultgate-mcp.
  *
  * Requires @xenova/transformers (optional dependency). If the package is
  * unavailable this module will fail to import and server.ts silently skips it.
@@ -66,7 +66,7 @@ const DEFAULT_MIN_SCORE = 0.25;
 function getIndexPath(): string {
   const vaultKey = config.vault ?? "default";
   const safe = vaultKey.replace(/[^a-zA-Z0-9_-]/g, "_");
-  const dir = path.join(os.homedir(), ".cache", "obsidian-mcp-http");
+  const dir = path.join(os.homedir(), ".cache", "obsidian-vaultgate-mcp");
   fs.mkdirSync(dir, { recursive: true });
   return path.join(dir, `embeddings-${safe}.json`);
 }

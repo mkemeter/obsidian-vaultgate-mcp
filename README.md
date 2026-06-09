@@ -1,13 +1,13 @@
-# obsidian-mcp-http
+# obsidian-vaultgate-mcp
 
 > Your Obsidian vault, accessible to any AI assistant — locally, privately, with no plugins.
 
-[![npm version](https://img.shields.io/npm/v/obsidian-mcp-http)](https://www.npmjs.com/package/obsidian-mcp-http)
+[![npm version](https://img.shields.io/npm/v/obsidian-vaultgate-mcp)](https://www.npmjs.com/package/obsidian-vaultgate-mcp)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-brightgreen)](https://nodejs.org)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](#)
 
-`obsidian-mcp-http` is a local [Model Context Protocol](https://modelcontextprotocol.io) server that bridges any MCP-compatible AI client with your Obsidian vault. It's built on the official Obsidian CLI — no community plugins, no cloud relay, no API keys.
+`obsidian-vaultgate-mcp` is a local [Model Context Protocol](https://modelcontextprotocol.io) server that bridges any MCP-compatible AI client with your Obsidian vault. It's built on the official Obsidian CLI — no community plugins, no cloud relay, no API keys.
 
 The AI can read your notes, search across your vault, manage tasks, apply templates, and write content on your behalf. Every write goes through a dry-run preview first, so you stay in control of what actually changes.
 
@@ -44,12 +44,12 @@ The CLI is bundled with Obsidian but must be registered once before external pro
 2. Scroll to **Command line interface**
 3. Click **Register CLI**
 
-This writes a socket/pipe entry that `obsidian-mcp-http` uses to communicate with the running Obsidian instance. It persists across restarts — one-time setup per machine.
+This writes a socket/pipe entry that `obsidian-vaultgate-mcp` uses to communicate with the running Obsidian instance. It persists across restarts — one-time setup per machine.
 
 ### 2. Install
 
 ```bash
-npm install -g obsidian-mcp-http
+npm install -g obsidian-vaultgate-mcp
 ```
 
 ### 3. Connect your AI client
@@ -64,17 +64,17 @@ npm install -g obsidian-mcp-http
 Start the server:
 
 ```bash
-obsidian-mcp-http
+obsidian-vaultgate-mcp
 ```
 
 For a specific vault:
 
 ```bash
-OBSIDIAN_VAULT="My Vault" obsidian-mcp-http
+OBSIDIAN_VAULT="My Vault" obsidian-vaultgate-mcp
 ```
 
 ```
-✓ obsidian-mcp-http running at http://127.0.0.1:3001
+✓ obsidian-vaultgate-mcp running at http://127.0.0.1:3001
   Streamable HTTP: POST http://127.0.0.1:3001/mcp
   SSE (legacy):    GET  http://127.0.0.1:3001/sse
   Health:          GET  http://127.0.0.1:3001/health
@@ -97,7 +97,7 @@ Add to `~/.claude/settings.json`:
 {
   "mcpServers": {
     "obsidian": {
-      "command": "obsidian-mcp-http",
+      "command": "obsidian-vaultgate-mcp",
       "env": {
         "OBSIDIAN_VAULT": "My Vault"
       }
@@ -115,7 +115,7 @@ Claude Code manages the process lifecycle via stdio — no separate startup need
 ### macOS (launchd)
 
 ```bash
-cd $(npm root -g)/obsidian-mcp-http
+cd $(npm root -g)/obsidian-vaultgate-mcp
 ./launchd/install.sh
 ```
 
@@ -126,20 +126,20 @@ Installs a `launchd` agent under `~/Library/LaunchAgents/` that starts the serve
 To uninstall:
 
 ```bash
-launchctl unload ~/Library/LaunchAgents/com.obsidian-mcp-http.plist
-rm ~/Library/LaunchAgents/com.obsidian-mcp-http.plist
+launchctl unload ~/Library/LaunchAgents/com.obsidian-vaultgate-mcp.plist
+rm ~/Library/LaunchAgents/com.obsidian-vaultgate-mcp.plist
 ```
 
 ### Linux (systemd user service)
 
 ```bash
 mkdir -p ~/.config/systemd/user
-cat > ~/.config/systemd/user/obsidian-mcp-http.service << 'EOF'
+cat > ~/.config/systemd/user/obsidian-vaultgate-mcp.service << 'EOF'
 [Unit]
-Description=obsidian-mcp-http MCP server
+Description=obsidian-vaultgate-mcp MCP server
 
 [Service]
-ExecStart=/usr/bin/node /usr/lib/node_modules/obsidian-mcp-http/build/index.js
+ExecStart=/usr/bin/node /usr/lib/node_modules/obsidian-vaultgate-mcp/build/index.js
 Environment=OBSIDIAN_VAULT=My Vault
 Restart=on-failure
 
@@ -147,16 +147,16 @@ Restart=on-failure
 WantedBy=default.target
 EOF
 
-systemctl --user enable --now obsidian-mcp-http
+systemctl --user enable --now obsidian-vaultgate-mcp
 ```
 
 Adjust `ExecStart` paths with `which node` and `npm root -g`.
 
 ### Windows (Task Scheduler)
 
-1. **Create Basic Task** → name it `obsidian-mcp-http`
+1. **Create Basic Task** → name it `obsidian-vaultgate-mcp`
 2. Trigger: **When I log on**
-3. Action: **Start a program** — `node.exe` with the package entry point as argument (`npm root -g` + `\obsidian-mcp-http\build\index.js`)
+3. Action: **Start a program** — `node.exe` with the package entry point as argument (`npm root -g` + `\obsidian-vaultgate-mcp\build\index.js`)
 4. Set `OBSIDIAN_VAULT` in environment variables if needed
 
 ---
@@ -235,8 +235,8 @@ The embedding model (`bge-small-en-v1.5`, ~100 MB) downloads once to `~/.cache/h
 
 ## Troubleshooting
 
-**`command not found: obsidian-mcp-http`**
-The npm global bin directory is not on `PATH`. Run `npm bin -g` to find it, then add to your shell profile. Or invoke via `npx obsidian-mcp-http`.
+**`command not found: obsidian-vaultgate-mcp`**
+The npm global bin directory is not on `PATH`. Run `npm bin -g` to find it, then add to your shell profile. Or invoke via `npx obsidian-vaultgate-mcp`.
 
 **`command not found: obsidian` (the CLI binary)**
 The CLI has not been registered. Go to [Step 1](#1-register-the-obsidian-cli) and click **Register CLI** in Obsidian settings.
@@ -270,8 +270,8 @@ Side effect of the launchd agent — the startup health check communicates with 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for architecture overview, tool implementation guide, and the PR checklist.
 
 ```bash
-git clone https://github.com/mkemeter/obsidian-mcp-http.git
-cd obsidian-mcp-http
+git clone https://github.com/mkemeter/obsidian-vaultgate-mcp.git
+cd obsidian-vaultgate-mcp
 npm install
 npm test
 ```

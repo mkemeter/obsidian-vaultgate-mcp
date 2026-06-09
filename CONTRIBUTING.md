@@ -1,4 +1,4 @@
-# Contributing to obsidian-mcp-http
+# Contributing to obsidian-vaultgate-mcp
 
 Thank you for your interest in contributing. This document covers the project
 architecture, development workflow, and conventions for adding or changing tools.
@@ -29,8 +29,8 @@ architecture, development workflow, and conventions for adding or changing tools
 ## Development setup
 
 ```bash
-git clone https://github.com/mkemeter/obsidian-mcp-http.git
-cd obsidian-mcp-http
+git clone https://github.com/mkemeter/obsidian-vaultgate-mcp.git
+cd obsidian-vaultgate-mcp
 npm install
 npm run build   # compiles TypeScript → build/
 npm test        # run the full test suite

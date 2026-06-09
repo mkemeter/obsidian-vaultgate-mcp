@@ -1,28 +1,28 @@
 #!/usr/bin/env bash
-# install.sh — installs obsidian-mcp-http as a macOS launchd agent.
+# install.sh — installs obsidian-vaultgate-mcp as a macOS launchd agent.
 #
 # What this script does:
 #   1. Detects the absolute path to node (works with nvm, Homebrew, system Node)
-#   2. Detects the absolute path to the obsidian-mcp-http binary
+#   2. Detects the absolute path to the obsidian-vaultgate-mcp binary
 #   3. Detects the absolute path to the obsidian CLI binary
 #   4. Prompts for your vault name
 #   5. Fills in the plist template and copies it to ~/Library/LaunchAgents/
 #   6. Loads the agent via launchctl
 #
-# After installation: obsidian-mcp-http starts automatically at every login
+# After installation: obsidian-vaultgate-mcp starts automatically at every login
 # on port 3002 (or your configured port).
 # Side effect: Obsidian will also open at login (the startup health check
 # runs `obsidian help`, which auto-launches Obsidian if it isn't running).
 
 set -euo pipefail
 
-PLIST_NAME="com.obsidian-mcp-http.plist"
+PLIST_NAME="com.obsidian-vaultgate-mcp.plist"
 LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATE="$SCRIPT_DIR/$PLIST_NAME.template"
 DEST="$LAUNCH_AGENTS_DIR/$PLIST_NAME"
 
-echo "=== obsidian-mcp-http launchd installer ==="
+echo "=== obsidian-vaultgate-mcp launchd installer ==="
 echo ""
 
 # --- Detect Node.js path -------------------------------------------------------
@@ -35,23 +35,23 @@ if [[ -z "$NODE_PATH" ]]; then
 fi
 echo "Node.js:         $NODE_PATH"
 
-# --- Detect obsidian-mcp-http binary -------------------------------------------
-MCP_PATH=$(which obsidian-mcp-http 2>/dev/null || true)
+# --- Detect obsidian-vaultgate-mcp binary -------------------------------------------
+MCP_PATH=$(which obsidian-vaultgate-mcp 2>/dev/null || true)
 if [[ -z "$MCP_PATH" ]]; then
   # Try npm global bin
   NPM_BIN=$(npm bin -g 2>/dev/null || true)
-  if [[ -n "$NPM_BIN" && -x "$NPM_BIN/obsidian-mcp-http" ]]; then
-    MCP_PATH="$NPM_BIN/obsidian-mcp-http"
+  if [[ -n "$NPM_BIN" && -x "$NPM_BIN/obsidian-vaultgate-mcp" ]]; then
+    MCP_PATH="$NPM_BIN/obsidian-vaultgate-mcp"
   fi
 fi
 if [[ -z "$MCP_PATH" ]]; then
-  echo "ERROR: obsidian-mcp-http binary not found."
-  echo "  Run: npm install -g obsidian-mcp-http"
+  echo "ERROR: obsidian-vaultgate-mcp binary not found."
+  echo "  Run: npm install -g obsidian-vaultgate-mcp"
   exit 1
 fi
 # Resolve the actual script path (the bin entry is a JS file, not a shell wrapper)
 MCP_SCRIPT=$(node -e "const fs=require('fs'); const p='$MCP_PATH'; try { const t=fs.readlinkSync(p); console.log(require('path').resolve(require('path').dirname(p),t)); } catch { console.log(p); }")
-echo "obsidian-mcp-http: $MCP_SCRIPT"
+echo "obsidian-vaultgate-mcp: $MCP_SCRIPT"
 
 # --- Detect obsidian CLI binary ------------------------------------------------
 OBSIDIAN_DEFAULT="/Applications/Obsidian.app/Contents/MacOS/obsidian"
@@ -94,12 +94,12 @@ launchctl unload "$DEST" 2>/dev/null || true
 launchctl load "$DEST"
 
 echo ""
-echo "✓ obsidian-mcp-http launchd agent installed and started."
+echo "✓ obsidian-vaultgate-mcp launchd agent installed and started."
 echo ""
 echo "  MCP URL:       http://127.0.0.1:3002/mcp"
-echo "  Check status:  launchctl list | grep obsidian-mcp-http"
-echo "  View logs:     tail -f /tmp/obsidian-mcp-http.log"
-echo "  View errors:   tail -f /tmp/obsidian-mcp-http.err"
+echo "  Check status:  launchctl list | grep obsidian-vaultgate-mcp"
+echo "  View logs:     tail -f /tmp/obsidian-vaultgate-mcp.log"
+echo "  View errors:   tail -f /tmp/obsidian-vaultgate-mcp.err"
 echo ""
 echo "  Note: Obsidian will open automatically at every login because the"
 echo "  startup health check auto-launches it if it isn't already running."

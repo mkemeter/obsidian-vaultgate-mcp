@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * obsidian-mcp-http entry point.
+ * obsidian-vaultgate-mcp entry point.
  *
  * Detects the run mode and starts the appropriate transport:
  *
@@ -179,8 +179,8 @@ async function startHttp(): Promise<void> {
       if (err.code === "EADDRINUSE") {
         process.stderr.write(
           `\nERROR: Port ${config.port} is already in use.\n` +
-            `  Another instance of obsidian-mcp-http may already be running.\n` +
-            `  Change the port: OBSIDIAN_MCP_PORT=3002 obsidian-mcp-http\n\n`
+            `  Another instance of obsidian-vaultgate-mcp may already be running.\n` +
+            `  Change the port: OBSIDIAN_MCP_PORT=3002 obsidian-vaultgate-mcp\n\n`
         );
         process.exit(1);
       }
@@ -189,7 +189,7 @@ async function startHttp(): Promise<void> {
   });
 
   process.stdout.write(
-    `✓ obsidian-mcp-http running at http://${config.host}:${config.port}\n` +
+    `✓ obsidian-vaultgate-mcp running at http://${config.host}:${config.port}\n` +
       `  Streamable HTTP: POST http://${config.host}:${config.port}/mcp\n` +
       `  SSE (legacy):    GET  http://${config.host}:${config.port}/sse\n` +
       `  Health:          GET  http://${config.host}:${config.port}/health\n`
