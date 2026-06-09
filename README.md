@@ -166,6 +166,17 @@ The tools are split into focused groups so the AI can discover the right one wit
 | `dev_console` | Obsidian console messages | `level` |
 | `dev_css` | Inspect computed CSS | `selector`, `prop` |
 | `dev_dom` | Inspect DOM structure | `selector` |
+| `semantic_search` | Semantic / meaning-based search | `query` (required), `top_n`, `min_score` |
+| `find_similar` | Find notes similar to a given note | `note_path` (required), `top_n`, `min_score` |
+| `vault_info` | Indexed note count + last update time | — |
+
+### Maintenance tools
+
+| Tool | What it does | Key parameters |
+|------|-------------|----------------|
+| `index_vault` | Force a full re-index of the vault | — |
+
+> **Semantic tools** require the optional `@xenova/transformers` dependency (installed automatically). The first run downloads a small ONNX embedding model (~100 MB) once, silently, to `~/.cache/huggingface/`. The index is built in the background at startup and maintained automatically — no configuration needed.
 
 ### Destructive tools (require `dryRun: false`)
 

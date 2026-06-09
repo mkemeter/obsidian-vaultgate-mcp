@@ -9,8 +9,11 @@ import { registerTagTools } from "./tools/tags.js";
 import { registerPluginTools } from "./tools/plugins.js";
 import { registerDevTools } from "./tools/dev.js";
 
-/** Total number of tools registered — used in tests to catch accidental omissions. */
-export const TOOL_COUNT = 28;
+/** Number of always-present tools (includes note_prepend and note_update). */
+export const BASE_TOOL_COUNT = 28;
+
+/** Number of additional tools registered when @xenova/transformers is available. */
+export const SEMANTIC_TOOL_COUNT = 4;
 
 /**
  * Creates and configures the MCP server with all Obsidian CLI tools.
@@ -19,9 +22,14 @@ export const TOOL_COUNT = 28;
  * both stdio (Claude Code) and HTTP (URL-based MCP clients) transports.
  * Callers attach the appropriate transport in `index.ts`.
  *
+ * Semantic search tools (semantic_search, find_similar, index_vault, vault_info)
+ * are registered automatically when @xenova/transformers is available on the
+ * platform. If the optional dependency is absent the server starts normally
+ * with BASE_TOOL_COUNT tools.
+ *
  * @returns  A fully configured `McpServer` with all tools registered.
  */
-export function createServer(): McpServer {
+export async function createServer(): Promise<McpServer> {
   const server = new McpServer({
     name: "obsidian-mcp-http",
     version: "0.1.0",
@@ -36,6 +44,18 @@ export function createServer(): McpServer {
   registerTagTools(server);       // tags, backlinks, unresolved
   registerPluginTools(server);    // plugins_list, plugin_reload
   registerDevTools(server);       // eval, dev_errors, dev_console, dev_css, dev_dom, dev_screenshot, dev_mobile
+
+  // Semantic search tools — optional, require @xenova/transformers ONNX runtime.
+  // Only the import is guarded; if the module loads, registration errors propagate normally.
+  let semanticModule: { registerSemanticTools: (s: McpServer) => void } | undefined;
+  try {
+    semanticModule = await import("./tools/semantic.js");
+  } catch {
+    // @xenova/transformers unavailable on this platform — skip semantic tools silently.
+  }
+  if (semanticModule) {
+    semanticModule.registerSemanticTools(server);
+  }
 
   return server;
 }
