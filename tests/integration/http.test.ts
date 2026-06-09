@@ -68,7 +68,7 @@ function startTestServer(): Promise<{ server: http.Server; baseUrl: string; port
     }
 
     if (req.method === "POST" && url.pathname === "/mcp") {
-      const mcpServer = createMcpServer();
+      const mcpServer = await createMcpServer();
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => crypto.randomUUID(),
       });
@@ -78,7 +78,7 @@ function startTestServer(): Promise<{ server: http.Server; baseUrl: string; port
     }
 
     if (req.method === "GET" && url.pathname === "/sse") {
-      const mcpServer = createMcpServer();
+      const mcpServer = await createMcpServer();
       const transport = new SSEServerTransport("/messages", res);
       sseSessions.set(transport.sessionId, transport);
       res.on("close", () => sseSessions.delete(transport.sessionId));

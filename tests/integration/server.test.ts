@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { createServer, TOOL_COUNT } from "../../src/server.js";
+import { createServer, BASE_TOOL_COUNT, SEMANTIC_TOOL_COUNT } from "../../src/server.js";
 
 describe("server tool registration", () => {
   it("registers all expected tools", async () => {
-    const server = createServer();
+    const server = await createServer();
     // @ts-ignore
     const result = await server.server._requestHandlers.get("tools/list")?.(
       { method: "tools/list", params: {} },
@@ -12,11 +12,15 @@ describe("server tool registration", () => {
 
     expect(result).toBeDefined();
     expect(Array.isArray(result.tools)).toBe(true);
-    expect(result.tools.length).toBe(TOOL_COUNT);
+    // Accept either base count or base + semantic tools (depending on whether
+    // @xenova/transformers is installed in the test environment).
+    expect([BASE_TOOL_COUNT, BASE_TOOL_COUNT + SEMANTIC_TOOL_COUNT]).toContain(
+      result.tools.length
+    );
   });
 
   it("registers all tool groups by name", async () => {
-    const server = createServer();
+    const server = await createServer();
     // @ts-ignore
     const result = await server.server._requestHandlers.get("tools/list")?.(
       { method: "tools/list", params: {} },
@@ -70,19 +74,19 @@ describe("server tool registration", () => {
     expect(names).toContain("dev_mobile");
   });
 
-  it("TOOL_COUNT constant matches actual registered tool count", async () => {
-    const server = createServer();
+  it("BASE_TOOL_COUNT constant reflects actual base tools", async () => {
+    const server = await createServer();
     // @ts-ignore
     const result = await server.server._requestHandlers.get("tools/list")?.(
       { method: "tools/list", params: {} },
       {}
     );
-    // If this fails, update TOOL_COUNT in server.ts
-    expect(result.tools.length).toBe(TOOL_COUNT);
+    // If this fails, update BASE_TOOL_COUNT in server.ts
+    expect(result.tools.length).toBeGreaterThanOrEqual(BASE_TOOL_COUNT);
   });
 
   it("all tools have a name and description", async () => {
-    const server = createServer();
+    const server = await createServer();
     // @ts-ignore
     const result = await server.server._requestHandlers.get("tools/list")?.(
       { method: "tools/list", params: {} },
