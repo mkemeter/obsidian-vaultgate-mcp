@@ -1,3 +1,16 @@
+<div align="center">
+
+```
+        /\
+       /  \
+      / /\ \
+     / /◆\ \
+    /_/ ◆◆ \_\
+    \ \◆◆◆/ /
+     \ \◆/ /
+      \_\/_/
+```
+
 # obsidian-vaultgate-mcp
 
 > Your Obsidian vault, accessible to any AI assistant — locally, privately, with no plugins.
@@ -7,13 +20,39 @@
 [![Node.js](https://img.shields.io/badge/Node.js-18+-brightgreen)](https://nodejs.org)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](#)
 
+</div>
+
 `obsidian-vaultgate-mcp` is a local [Model Context Protocol](https://modelcontextprotocol.io) server that bridges any MCP-compatible AI client with your Obsidian vault. It's built on the official Obsidian CLI — no community plugins, no cloud relay, no API keys.
 
 The AI can read your notes, search across your vault, manage tasks, apply templates, and write content on your behalf. Every write goes through a dry-run preview first, so you stay in control of what actually changes.
 
+```
+  Your AI Assistant
+  (Claude · Cursor · Windsurf · Zed · …)
+           │
+           │  Model Context Protocol  (HTTP or stdio)
+           ▼
+  ┌─────────────────────────────┐
+  │    obsidian-vaultgate-mcp   │  ← this package
+  │       127.0.0.1 only        │
+  └─────────────────────────────┘
+           │
+           │  Official Obsidian CLI  ·  local IPC
+           ▼
+  ┌─────────────────────────────┐
+  │         Obsidian App        │
+  └─────────────────────────────┘
+           │
+           │  read / write
+           ▼
+  ┌─────────────────────────────┐
+  │         Your Vault          │  ← stays on your machine
+  └─────────────────────────────┘
+```
+
 ---
 
-## What makes this different
+## Highlights
 
 **Privacy-first by design.** Note content never leaves your machine. The HTTP server binds exclusively to `127.0.0.1`.
 
