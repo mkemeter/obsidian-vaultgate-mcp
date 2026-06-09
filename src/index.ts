@@ -16,6 +16,7 @@
  *   GET  /sse       → SSE (legacy, backward-compatible fallback)
  *   POST /messages  → SSE message handler
  *   GET  /health    → Liveness probe (returns 200 OK)
+ *   GET  /icon.svg  → Server icon (used by MCP clients that support icons)
  */
 
 import * as http from "node:http";
@@ -24,7 +25,7 @@ import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { config } from "./config.js";
 import { runHealthCheck } from "./health.js";
-import { createServer } from "./server.js";
+import { createServer, getIconDataUri, getIconSvg } from "./server.js";
 
 /** Origin values permitted for HTTP requests (DNS rebinding protection). */
 function isAllowedOrigin(origin: string | undefined): boolean {
@@ -39,7 +40,7 @@ function isAllowedOrigin(origin: string | undefined): boolean {
 }
 
 async function startStdio(): Promise<void> {
-  const server = await createServer();
+  const server = await createServer(getIconDataUri());
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
@@ -53,7 +54,11 @@ async function startHttp(): Promise<void> {
   // Map key = sessionId query param sent by the client on /messages requests.
   const sseSessions = new Map<string, SSEServerTransport>();
 
-  const httpServer = http.createServer(async (req, res) => {
+  // Icon URL advertised in the MCP server info so clients can display it.
+  const iconUrl = `http://${config.host}:${config.port}/icon.svg`;
+  const iconSvg = getIconSvg();
+
+  const httpServer = http.createServer(async (req: http.IncomingMessage, res: http.ServerResponse) => {
     const origin = req.headers.origin;
 
     // --- DNS rebinding protection -------------------------------------------
@@ -85,6 +90,18 @@ async function startHttp(): Promise<void> {
       return;
     }
 
+    // --- Icon ----------------------------------------------------------------
+    if (req.method === "GET" && url.pathname === "/icon.svg") {
+      if (iconSvg) {
+        res.writeHead(200, { "Content-Type": "image/svg+xml", "Cache-Control": "public, max-age=86400" });
+        res.end(iconSvg);
+      } else {
+        res.writeHead(404, { "Content-Type": "text/plain" });
+        res.end("Not found");
+      }
+      return;
+    }
+
     // --- Streamable HTTP (modern MCP transport) ------------------------------
     if (req.method === "POST" && url.pathname === "/mcp") {
       const sessionId = req.headers["mcp-session-id"] as string | undefined;
@@ -92,7 +109,7 @@ async function startHttp(): Promise<void> {
 
       if (!transport) {
         // New session — create a server + transport and store it.
-        const server = await createServer();
+        const server = await createServer(iconUrl);
         transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => crypto.randomUUID(),
         });
@@ -111,7 +128,7 @@ async function startHttp(): Promise<void> {
 
     // --- SSE transport (legacy MCP, backward-compatible fallback) ------------
     if (req.method === "GET" && url.pathname === "/sse") {
-      const server = await createServer();
+      const server = await createServer(iconUrl);
       const transport = new SSEServerTransport("/messages", res);
       sseSessions.set(transport.sessionId, transport);
 
@@ -137,7 +154,7 @@ async function startHttp(): Promise<void> {
       return;
     }
 
-    // --- Catch-all ------------------------------------------------------------
+    // --- Catch-all -----------------------------------------------------------
     res.writeHead(404, { "Content-Type": "text/plain" });
     res.end("Not found");
   });

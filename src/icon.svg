@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#4c1d95"/>
+    </linearGradient>
+    <linearGradient id="gem-light" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c4b5fd"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <linearGradient id="gem-dark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6d28d9"/>
+      <stop offset="100%" stop-color="#3b0764"/>
+    </linearGradient>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="32" cy="32" r="30" fill="url(#bg)"/>
+  <!-- Crystal / diamond facets -->
+  <!-- Top facet (lightest) -->
+  <polygon points="32,10 44,26 32,22" fill="#ede9fe" opacity="0.95"/>
+  <!-- Left facet -->
+  <polygon points="32,10 20,26 32,22" fill="url(#gem-light)"/>
+  <!-- Right facet -->
+  <polygon points="44,26 32,22 40,42" fill="#7c3aed" opacity="0.85"/>
+  <!-- Bottom-left facet -->
+  <polygon points="20,26 32,22 24,42" fill="url(#gem-light)" opacity="0.9"/>
+  <!-- Center facet -->
+  <polygon points="32,22 44,26 40,42 24,42 20,26" fill="#a78bfa" opacity="0.75"/>
+  <!-- Bottom point -->
+  <polygon points="24,42 40,42 32,54" fill="url(#gem-dark)"/>
+  <!-- Subtle highlight -->
+  <polygon points="32,10 38,20 32,18" fill="white" opacity="0.35"/>
+</svg>

@@ -23,7 +23,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp src/icon.svg build/icon.svg",
     "start": "node build/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
