@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
-import { dryRunPreview } from "./_helpers.js";
+import { dryRunPreview, dryRunSchema } from "./_helpers.js";
 
 /**
  * Registers plugin management tools on the MCP server.
@@ -47,13 +47,7 @@ export function registerPluginTools(server: McpServer): void {
         .describe(
           "Plugin ID (the folder name of the plugin, e.g. `dataview` or `templater-obsidian`)."
         ),
-      dryRun: z
-        .boolean()
-        .default(true)
-        .describe(
-          "When true (default), returns a preview without executing. " +
-            "Set to false only after explicit user confirmation."
-        ),
+      dryRun: dryRunSchema,
     },
     async ({ id, dryRun }) => {
       const args = ["plugin:reload", `id=${id}`];

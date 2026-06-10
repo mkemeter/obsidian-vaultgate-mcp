@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
-import { dryRunPreview } from "./_helpers.js";
+import { dryRunPreview, dryRunSchema } from "./_helpers.js";
 
 /**
  * Registers daily note tools on the MCP server.
@@ -47,13 +47,7 @@ export function registerDailyTools(server: McpServer): void {
         .describe(
           "Content to append. Use \\n for newlines, e.g. '- [ ] Task one\\n- [ ] Task two'."
         ),
-      dryRun: z
-        .boolean()
-        .default(true)
-        .describe(
-          "When true (default), returns a preview without executing. " +
-            "Set to false only after explicit user confirmation."
-        ),
+      dryRun: dryRunSchema,
     },
     async ({ content, dryRun }) => {
       const args = ["daily:append", `content=${content}`];

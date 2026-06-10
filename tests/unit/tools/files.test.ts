@@ -92,6 +92,12 @@ describe("note_create (destructive)", () => {
     expect(mockRun).toHaveBeenCalledWith(["create", "name=Test Note"]);
   });
 
+  it("executes when dryRun passed as string 'false' (client serialisation fix)", async () => {
+    mockRun.mockResolvedValue("Note created.");
+    await invoke(makeServer(), "note_create", { name: "Test Note", dryRun: "false" });
+    expect(mockRun).toHaveBeenCalledWith(["create", "name=Test Note"]);
+  });
+
   it("includes content arg when provided", async () => {
     mockRun.mockResolvedValue("");
     await invoke(makeServer(), "note_create", { name: "Note", content: "# Hello", dryRun: false });
