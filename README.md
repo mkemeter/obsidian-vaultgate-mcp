@@ -1,4 +1,4 @@
-# Vaultgate
+# Obsidian Vaultgate MCP
 
 > Your Obsidian vault, accessible to any AI assistant — locally, privately, with no plugins.
 
