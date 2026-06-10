@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
-import { dryRunPreview } from "./_helpers.js";
+import { dryRunPreview, dryRunSchema } from "./_helpers.js";
 
 const VAULTGATE_FILE = "VAULTGATE.md";
 
@@ -70,13 +70,7 @@ export function registerContextTools(server: McpServer): void {
       content: z
         .string()
         .describe("Full Markdown content to write to VAULTGATE.md."),
-      dryRun: z
-        .boolean()
-        .default(true)
-        .describe(
-          "When true (default), returns a preview of the content that would be written. " +
-            "Set to false only after showing the user the preview and receiving explicit confirmation."
-        ),
+      dryRun: dryRunSchema,
     },
     async ({ content, dryRun }) => {
       const args = ["create", `name=${VAULTGATE_FILE}`, `content=${content}`, "overwrite"];

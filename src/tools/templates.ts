@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
-import { dryRunPreview, buildFileArgs } from "./_helpers.js";
+import { dryRunPreview, buildFileArgs, dryRunSchema } from "./_helpers.js";
 
 /**
  * Registers template tools on the MCP server.
@@ -53,13 +53,7 @@ export function registerTemplateTools(server: McpServer): void {
         .string()
         .optional()
         .describe("Exact vault-root path of the target note."),
-      dryRun: z
-        .boolean()
-        .default(true)
-        .describe(
-          "When true (default), returns a preview without executing. " +
-            "Set to false only after explicit user confirmation."
-        ),
+      dryRun: dryRunSchema,
     },
     async ({ template, file, path, dryRun }) => {
       const args = [

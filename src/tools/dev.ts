@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
-import { dryRunPreview } from "./_helpers.js";
+import { dryRunPreview, dryRunSchema } from "./_helpers.js";
 
 /**
  * Registers developer and debug tools on the MCP server.
@@ -40,10 +40,7 @@ export function registerDevTools(server: McpServer): void {
         .describe(
           "JavaScript expression to evaluate, e.g. `app.vault.getFiles().length`."
         ),
-      dryRun: z
-        .boolean()
-        .default(true)
-        .describe(
+      dryRun: dryRunSchema.describe(
           "When true (default), returns a preview without executing. " +
             "Set to false ONLY after showing the user the exact code and receiving explicit confirmation."
         ),
@@ -186,13 +183,7 @@ export function registerDevTools(server: McpServer): void {
       path: z
         .string()
         .describe("Output file path for the screenshot, e.g. `screenshot.png`."),
-      dryRun: z
-        .boolean()
-        .default(true)
-        .describe(
-          "When true (default), returns a preview without executing. " +
-            "Set to false only after explicit user confirmation."
-        ),
+      dryRun: dryRunSchema,
     },
     async ({ path, dryRun }) => {
       const args = ["dev:screenshot", `path=${path}`];
@@ -223,13 +214,7 @@ export function registerDevTools(server: McpServer): void {
       "and ask for explicit confirmation before calling with dryRun=false.",
     {
       on: z.boolean().describe("Pass `true` to enable mobile view, `false` to disable."),
-      dryRun: z
-        .boolean()
-        .default(true)
-        .describe(
-          "When true (default), returns a preview without executing. " +
-            "Set to false only after explicit user confirmation."
-        ),
+      dryRun: dryRunSchema,
     },
     async ({ on, dryRun }) => {
       const args = ["dev:mobile", on ? "on" : "off"];

@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
-import { dryRunPreview, buildFileArgs } from "./_helpers.js";
+import { dryRunPreview, buildFileArgs, dryRunSchema } from "./_helpers.js";
 
 /**
  * Registers file and note operation tools on the MCP server.
@@ -112,13 +112,7 @@ export function registerFileTools(server: McpServer): void {
         .boolean()
         .optional()
         .describe("Do not open the note after creation. Defaults to false."),
-      dryRun: z
-        .boolean()
-        .default(true)
-        .describe(
-          "When true (default), returns a preview of the command without executing it. " +
-            "Set to false only after showing the user the preview and receiving explicit confirmation."
-        ),
+      dryRun: dryRunSchema,
     },
     async ({ name, content, template, overwrite, silent, dryRun }) => {
       const args = ["create", `name=${name}`];
@@ -163,13 +157,7 @@ export function registerFileTools(server: McpServer): void {
         .string()
         .optional()
         .describe("Exact path from vault root, e.g. `folder/note.md`."),
-      dryRun: z
-        .boolean()
-        .default(true)
-        .describe(
-          "When true (default), returns a preview without executing. " +
-            "Set to false only after explicit user confirmation."
-        ),
+      dryRun: dryRunSchema,
     },
     async ({ content, file, path, dryRun }) => {
       const args = ["append", `content=${content}`, ...buildFileArgs(file, path)];
@@ -211,13 +199,7 @@ export function registerFileTools(server: McpServer): void {
         .string()
         .optional()
         .describe("Exact path from vault root, e.g. `folder/note.md`."),
-      dryRun: z
-        .boolean()
-        .default(true)
-        .describe(
-          "When true (default), returns a preview without executing. " +
-            "Set to false only after explicit user confirmation."
-        ),
+      dryRun: dryRunSchema,
     },
     async ({ content, file, path, dryRun }) => {
       const args = ["prepend", `content=${content}`, ...buildFileArgs(file, path)];
@@ -256,13 +238,7 @@ export function registerFileTools(server: McpServer): void {
             "Use files_list to find the correct path."
         ),
       content: z.string().describe("New full content for the note."),
-      dryRun: z
-        .boolean()
-        .default(true)
-        .describe(
-          "When true (default), returns a preview without executing. " +
-            "Set to false only after explicit user confirmation."
-        ),
+      dryRun: dryRunSchema,
     },
     async ({ path, content, dryRun }) => {
       // `create path=<path> content=<content> overwrite` replaces the full file content.
