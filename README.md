@@ -76,7 +76,36 @@ This writes a socket/pipe entry that Vaultgate uses to communicate with the runn
 npm install -g obsidian-vaultgate-mcp
 ```
 
-### 3. Connect your AI client
+### 3. (Optional) Create vault conventions
+
+Create a file called `VAULTGATE.md` at the root of your vault to document how your vault is organised. At every new session, the contents are automatically injected into the AI assistant's system prompt — so it always knows your folder structure, naming rules, tag taxonomy, frontmatter schema, and template conventions without you having to explain them each time.
+
+**Sample `VAULTGATE.md`:**
+
+```markdown
+# Vault Conventions
+
+## Folder structure
+- `Projects/` — one note per project, status in frontmatter
+- `People/` — contacts and team members
+- `Daily/` — daily notes (YYYY-MM-DD.md)
+- `Resources/` — reference material
+
+## Frontmatter
+All notes should have: `status`, `tags`, `created` (ISO date).
+
+## Tags
+Prefer lowercase kebab-case. Core taxonomy: #project, #person, #resource, #meeting.
+
+## Naming
+Use sentence case for note titles. No special characters except hyphens.
+```
+
+You can also ask your AI assistant: *"Help me set up vault conventions"* — it will analyse your vault structure and draft `VAULTGATE.md` for you using the `vault_context_set` tool.
+
+> **Note:** `VAULTGATE.md` is read at connection time. After editing the file, reconnect your AI client to pick up the changes.
+
+### 4. Connect your AI client
 
 - [HTTP / URL-based clients](#http-clients) — Cursor, Windsurf, Zed, and most desktop apps
 - [Claude Code (stdio)](#claude-code) — direct subprocess integration
@@ -224,6 +253,7 @@ All configuration via environment variables. None are required for single-vault 
 | `dev_console` | Console log output from Obsidian |
 | `dev_css` | Computed CSS for a DOM selector |
 | `dev_dom` | DOM subtree of the Obsidian window |
+| `vault_context` | Read vault conventions from `VAULTGATE.md` (fallback if conventions were not delivered at session start) |
 
 ### Write (dry-run by default)
 
@@ -242,6 +272,7 @@ Every write tool defaults to `dryRun: true` — the AI shows a preview of the in
 | `dev_screenshot` | Capture a screenshot of the Obsidian window |
 | `dev_mobile` | Toggle mobile viewport emulation |
 | `eval` ⚠️ | Execute arbitrary JavaScript in the Obsidian renderer — review carefully before approving |
+| `vault_context_set` | Create or update `VAULTGATE.md` — the vault conventions file read by AI assistants at session start |
 
 ### Semantic search
 

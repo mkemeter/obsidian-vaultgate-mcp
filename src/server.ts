@@ -11,9 +11,11 @@ import { registerPropertyTools } from "./tools/properties.js";
 import { registerTagTools } from "./tools/tags.js";
 import { registerPluginTools } from "./tools/plugins.js";
 import { registerDevTools } from "./tools/dev.js";
+import { registerContextTools } from "./tools/context.js";
+import { runObsidian } from "./cli.js";
 
-/** Number of always-present tools (includes note_prepend and note_update). */
-export const BASE_TOOL_COUNT = 28;
+/** Number of always-present tools (includes vault_context + vault_context_set). */
+export const BASE_TOOL_COUNT = 30;
 
 /** Number of additional tools registered when @xenova/transformers is available. */
 export const SEMANTIC_TOOL_COUNT = 4;
@@ -80,7 +82,21 @@ export async function createServer(iconUrl?: string): Promise<McpServer> {
     ];
   }
 
-  const server = new McpServer(serverInfo);
+  // Read VAULTGATE.md and inject as instructions so compliant MCP clients
+  // receive vault conventions automatically at session start.
+  let vaultInstructions: string | undefined;
+  try {
+    const raw = await runObsidian(["read", "path=VAULTGATE.md"]);
+    if (raw.trim()) {
+      vaultInstructions =
+        raw.trim() +
+        "\n\n> Vault context received. You do not need to call `vault_context`.";
+    }
+  } catch {
+    // File absent or vault not reachable — skip silently.
+  }
+
+  const server = new McpServer(serverInfo, { instructions: vaultInstructions });
 
   registerFileTools(server);      // files_list, files_read, note_create, note_append, note_prepend, note_update
   registerSearchTools(server);    // search
@@ -91,6 +107,7 @@ export async function createServer(iconUrl?: string): Promise<McpServer> {
   registerTagTools(server);       // tags, backlinks, unresolved
   registerPluginTools(server);    // plugins_list, plugin_reload
   registerDevTools(server);       // eval, dev_errors, dev_console, dev_css, dev_dom, dev_screenshot, dev_mobile
+  registerContextTools(server);   // vault_context, vault_context_set
 
   // Semantic search tools — optional, require @xenova/transformers ONNX runtime.
   // Only the import is guarded; if the module loads, registration errors propagate normally.
