@@ -9,7 +9,16 @@
 
 Vaultgate is a local [Model Context Protocol](https://modelcontextprotocol.io) server that bridges any MCP-compatible AI client with your Obsidian vault. It's built on the official Obsidian CLI — no community plugins, no cloud relay, no API keys.
 
-The AI can read your notes, search across your vault, manage tasks, apply templates, and write content on your behalf. Every write goes through a dry-run preview first, so you stay in control of what actually changes.
+Ask your AI to read notes, run full-text or semantic search, manage tasks, apply templates, and write content on your behalf. Every write goes through a dry-run preview first, so you stay in control of what actually changes.
+
+| | |
+|---|---|
+| 🔒 **Private by design** | Note content never leaves your machine. Binds to `127.0.0.1` only. |
+| 🔌 **No plugins required** | Uses the official Obsidian CLI — bundled with Obsidian, zero community plugins. |
+| 🤖 **Works with any MCP client** | Claude, Cursor, Windsurf, Zed, and anything else that speaks MCP. |
+| 🔍 **Semantic search** | Query your vault by meaning, not just keywords — fully offline. |
+| ✋ **Explicit write consent** | Every change requires a two-step preview + confirm. Nothing is modified silently. |
+| 📋 **Vault conventions** | Document your folder structure and naming rules in `VAULTGATE.md` — injected into every AI session automatically. |
 
 ```
   Your AI Assistant
@@ -37,17 +46,23 @@ The AI can read your notes, search across your vault, manage tasks, apply templa
 
 ---
 
-## Highlights
+## Contents
 
-**Privacy-first by design.** Note content never leaves your machine. The HTTP server binds exclusively to `127.0.0.1`.
-
-**No plugins required.** Communication goes through the official Obsidian CLI, which is bundled with Obsidian and uses the same secure IPC channel as the Obsidian mobile sync.
-
-**Works with every MCP client.** Supports both Streamable HTTP (modern, MCP spec 2025-03-26) and SSE legacy transport, so it connects to Claude Desktop, Cursor, Windsurf, Zed, and any other MCP-compatible tool.
-
-**Semantic search built in.** When `@xenova/transformers` is available (installed automatically as an optional dependency), the vault is indexed in the background using `bge-small-en-v1.5` embeddings. Query by meaning, not just keywords — fully offline after the initial model download.
-
-**Explicit write consent.** Every write operation defaults to `dryRun: true`. The AI presents a diff-style preview; the change is applied only when called again with `dryRun: false`.
+- [Requirements](#requirements)
+- [Setup](#setup)
+  - [1. Register the Obsidian CLI](#1-register-the-obsidian-cli)
+  - [2. Install](#2-install)
+  - [3. Create vault conventions](#3-optional-create-vault-conventions)
+  - [4. Connect your AI client](#4-connect-your-ai-client)
+- [HTTP clients](#http-clients)
+- [Claude Code](#claude-code)
+- [Auto-start at login](#auto-start-at-login)
+- [Configuration](#configuration)
+- [Available tools](#available-tools)
+- [Troubleshooting](#troubleshooting)
+- [Privacy and security](#privacy-and-security)
+- [Contributing](#contributing)
+- [License](#license)
 
 ---
 
