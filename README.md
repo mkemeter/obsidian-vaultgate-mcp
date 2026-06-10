@@ -1,4 +1,4 @@
-# Obsidian Vaultgate MCP
+# Obsidian VaultGate MCP
 
 > Your Obsidian vault, accessible to any AI assistant — locally, privately, with no plugins.
 
@@ -7,18 +7,25 @@
 [![Node.js](https://img.shields.io/badge/Node.js-18+-brightgreen)](https://nodejs.org)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](#)
 
-Vaultgate is a local [Model Context Protocol](https://modelcontextprotocol.io) server that bridges any MCP-compatible AI client with your Obsidian vault. It's built on the official Obsidian CLI — no community plugins, no cloud relay, no API keys.
+VaultGate is a local [Model Context Protocol](https://modelcontextprotocol.io) server that bridges any MCP-compatible AI client with your Obsidian vault. It's built on the official Obsidian CLI — no community plugins, no cloud relay, no API keys.
 
 Ask your AI to read notes, run full-text or semantic search, manage tasks, apply templates, and write content on your behalf. Every write goes through a dry-run preview first, so you stay in control of what actually changes.
 
-| | |
-|---|---|
-| 🔒 **Private by design** | Note content never leaves your machine. Binds to `127.0.0.1` only. |
-| 🔌 **No plugins required** | Uses the official Obsidian CLI — bundled with Obsidian, zero community plugins. |
-| 🤖 **Works with any MCP client** | Claude, Cursor, Windsurf, Zed, and anything else that speaks MCP. |
-| 🔍 **Semantic search** | Query your vault by meaning, not just keywords — fully offline. |
-| ✋ **Explicit write consent** | Every change requires a two-step preview + confirm. Nothing is modified silently. |
-| 📋 **Vault conventions** | Document your folder structure and naming rules in `VAULTGATE.md` — injected into every AI session automatically. |
+---
+
+🔒 **Private by design** — Note content never leaves your machine. Binds to `127.0.0.1` only.
+
+🔌 **No plugins required** — Uses the official Obsidian CLI — bundled with Obsidian, zero community plugins.
+
+🤖 **Works with any MCP client** — Claude, Cursor, Windsurf, Zed, and anything else that speaks MCP.
+
+🔍 **Semantic search** — Query your vault by meaning, not just keywords — fully offline.
+
+✋ **Explicit write consent** — Every change requires a two-step preview + confirm. Nothing is modified silently.
+
+📋 **Vault conventions** — Document your folder structure and naming rules in `VAULTGATE.md` — injected into every AI session automatically.
+
+---
 
 ```
   Your AI Assistant
@@ -27,7 +34,7 @@ Ask your AI to read notes, run full-text or semantic search, manage tasks, apply
            │  Model Context Protocol  (HTTP or stdio)
            ▼
   ┌─────────────────────────────┐
-  │          Vaultgate          │  ← this package
+  │          VaultGate          │  ← this package
   │       127.0.0.1 only        │
   └─────────────────────────────┘
            │
@@ -45,6 +52,7 @@ Ask your AI to read notes, run full-text or semantic search, manage tasks, apply
 ```
 
 ---
+
 
 ## Contents
 
@@ -66,12 +74,14 @@ Ask your AI to read notes, run full-text or semantic search, manage tasks, apply
 
 ---
 
+
 ## Requirements
 
 - **Obsidian** v1.8.9 or later (CLI introduced in this release)
 - **Node.js** v18 or later
 
 ---
+
 
 ## Setup
 
@@ -83,7 +93,7 @@ The CLI is bundled with Obsidian but must be registered once before external pro
 2. Scroll to **Command line interface**
 3. Click **Register CLI**
 
-This writes a socket/pipe entry that Vaultgate uses to communicate with the running Obsidian instance. It persists across restarts — one-time setup per machine.
+This writes a socket/pipe entry that VaultGate uses to communicate with the running Obsidian instance. It persists across restarts — one-time setup per machine.
 
 ### 2. Install
 
@@ -100,17 +110,21 @@ Create a file called `VAULTGATE.md` at the root of your vault to document how yo
 ```markdown
 # Vault Conventions
 
+
 ## Folder structure
 - `Projects/` — one note per project, status in frontmatter
 - `People/` — contacts and team members
 - `Daily/` — daily notes (YYYY-MM-DD.md)
 - `Resources/` — reference material
 
+
 ## Frontmatter
 All notes should have: `status`, `tags`, `created` (ISO date).
 
+
 ## Tags
 Prefer lowercase kebab-case. Core taxonomy: #project, #person, #resource, #meeting.
+
 
 ## Naming
 Use sentence case for note titles. No special characters except hyphens.
@@ -127,9 +141,10 @@ You can also ask your AI assistant: *"Help me set up vault conventions"* — it 
 
 ---
 
+
 ## HTTP clients
 
-Start Vaultgate:
+Start VaultGate:
 
 ```bash
 obsidian-vaultgate-mcp
@@ -142,7 +157,7 @@ OBSIDIAN_VAULT="My Vault" obsidian-vaultgate-mcp
 ```
 
 ```
-✓ Vaultgate running at http://127.0.0.1:3001
+✓ VaultGate running at http://127.0.0.1:3001
   Streamable HTTP: POST http://127.0.0.1:3001/mcp
   SSE (legacy):    GET  http://127.0.0.1:3001/sse
   Health:          GET  http://127.0.0.1:3001/health
@@ -156,6 +171,7 @@ Add a new MCP server in your AI app:
 | SSE legacy | `http://localhost:3001/sse` |
 
 ---
+
 
 ## Claude Code
 
@@ -178,6 +194,7 @@ Claude Code manages the process lifecycle via stdio — no separate startup need
 
 ---
 
+
 ## Auto-start at login
 
 ### macOS (launchd)
@@ -187,7 +204,7 @@ cd $(npm root -g)/obsidian-vaultgate-mcp
 ./launchd/install.sh
 ```
 
-Installs a `launchd` agent under `~/Library/LaunchAgents/` that starts Vaultgate at login and restarts it on failure. The install script resolves all paths automatically (compatible with nvm, Homebrew, system Node).
+Installs a `launchd` agent under `~/Library/LaunchAgents/` that starts VaultGate at login and restarts it on failure. The install script resolves all paths automatically (compatible with nvm, Homebrew, system Node).
 
 > Note: Obsidian is also launched at login, because the startup health check communicates with the running instance.
 
@@ -204,7 +221,7 @@ rm ~/Library/LaunchAgents/com.obsidian-vaultgate-mcp.plist
 mkdir -p ~/.config/systemd/user
 cat > ~/.config/systemd/user/obsidian-vaultgate-mcp.service << 'EOF'
 [Unit]
-Description=Vaultgate MCP server
+Description=VaultGate MCP server
 
 [Service]
 ExecStart=/usr/bin/node /usr/lib/node_modules/obsidian-vaultgate-mcp/build/index.js
@@ -222,12 +239,13 @@ Adjust `ExecStart` paths with `which node` and `npm root -g`.
 
 ### Windows (Task Scheduler)
 
-1. **Create Basic Task** → name it `Vaultgate`
+1. **Create Basic Task** → name it `VaultGate`
 2. Trigger: **When I log on**
 3. Action: **Start a program** — `node.exe` with the package entry point as argument (`npm root -g` + `\obsidian-vaultgate-mcp\build\index.js`)
 4. Set `OBSIDIAN_VAULT` in environment variables if needed
 
 ---
+
 
 ## Configuration
 
@@ -241,6 +259,7 @@ All configuration via environment variables. None are required for single-vault 
 | `OBSIDIAN_CLI_PATH` | `obsidian` | Absolute path to the Obsidian binary. Required in service contexts where `PATH` differs from the user shell. |
 
 ---
+
 
 ## Available tools
 
@@ -301,9 +320,10 @@ When `@xenova/transformers` is available (installed as an optional dependency), 
 - `vault_info` — index state and note count
 - `index_vault` — force a full re-index (normally not needed; the index updates incrementally on each search)
 
-The embedding model (`bge-small-en-v1.5`, ~100 MB) downloads once to `~/.cache/huggingface/`. All subsequent operations are fully offline. If `@xenova/transformers` fails to load on the current platform, Vaultgate starts normally with the base tool set — no configuration change required.
+The embedding model (`bge-small-en-v1.5`, ~100 MB) downloads once to `~/.cache/huggingface/`. All subsequent operations are fully offline. If `@xenova/transformers` fails to load on the current platform, VaultGate starts normally with the base tool set — no configuration change required.
 
 ---
+
 
 ## Troubleshooting
 
@@ -327,6 +347,7 @@ Side effect of the launchd agent — the startup health check communicates with 
 
 ---
 
+
 ## Privacy and security
 
 - **Local execution only.** All vault operations run through the local `obsidian` process. No note content is transmitted to any external service by this package.
@@ -336,6 +357,7 @@ Side effect of the launchd agent — the startup health check communicates with 
 - **Open source, copyleft.** GPLv3 ensures the source stays open. Inspect exactly what runs on your machine.
 
 ---
+
 
 ## Contributing
 
@@ -349,6 +371,7 @@ npm test
 ```
 
 ---
+
 
 ## License
 
