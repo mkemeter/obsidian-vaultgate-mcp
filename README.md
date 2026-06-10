@@ -103,7 +103,7 @@ Use sentence case for note titles. No special characters except hyphens.
 
 You can also ask your AI assistant: *"Help me set up vault conventions"* — it will analyse your vault structure and draft `VAULTGATE.md` for you using the `vault_context_set` tool.
 
-> **Note:** `VAULTGATE.md` is read at connection time. After editing the file, reconnect your AI client to pick up the changes.
+> **Note:** `VAULTGATE.md` is read at connection time. To pick up edits mid-session, ask your assistant to call `vault_context` — it always reads the current file content.
 
 ### 4. Connect your AI client
 
