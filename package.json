@@ -7,7 +7,7 @@
   "author": "Mathias Kemeter",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mkemeter/obsidian-vaultgate-mcp.git"
+    "url": "git+https://github.com/mkemeter/obsidian-vaultgate-mcp.git"
   },
   "type": "module",
   "main": "build/index.js",
@@ -17,6 +17,7 @@
   "files": [
     "build",
     "launchd",
+    "systemd",
     "examples",
     ".env.example",
     "README.md",
