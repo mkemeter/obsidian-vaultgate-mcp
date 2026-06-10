@@ -101,6 +101,12 @@ This writes a socket/pipe entry that VaultGate uses to communicate with the runn
 npm install -g obsidian-vaultgate-mcp
 ```
 
+To try without installing globally:
+
+```bash
+npx obsidian-vaultgate-mcp
+```
+
 ### 3. (Optional) Create vault conventions
 
 Create a file called `VAULTGATE.md` at the root of your vault to document how your vault is organised. At every new session, the contents are automatically injected into the AI assistant's system prompt — so it always knows your folder structure, naming rules, tag taxonomy, frontmatter schema, and template conventions without you having to explain them each time.
@@ -163,6 +169,12 @@ OBSIDIAN_VAULT="My Vault" obsidian-vaultgate-mcp
   Health:          GET  http://127.0.0.1:3001/health
 ```
 
+Verify it's running:
+
+```bash
+curl http://localhost:3001/health   # should print: OK
+```
+
 Add a new MCP server in your AI app:
 
 | Transport | URL |
@@ -218,24 +230,21 @@ rm ~/Library/LaunchAgents/com.obsidian-vaultgate-mcp.plist
 ### Linux (systemd user service)
 
 ```bash
-mkdir -p ~/.config/systemd/user
-cat > ~/.config/systemd/user/obsidian-vaultgate-mcp.service << 'EOF'
-[Unit]
-Description=VaultGate MCP server
-
-[Service]
-ExecStart=/usr/bin/node /usr/lib/node_modules/obsidian-vaultgate-mcp/build/index.js
-Environment=OBSIDIAN_VAULT=My Vault
-Restart=on-failure
-
-[Install]
-WantedBy=default.target
-EOF
-
-systemctl --user enable --now obsidian-vaultgate-mcp
+cd $(npm root -g)/obsidian-vaultgate-mcp
+./systemd/install.sh
 ```
 
-Adjust `ExecStart` paths with `which node` and `npm root -g`.
+Installs a systemd user service under `~/.config/systemd/user/` that starts VaultGate at login and restarts it on failure. The install script resolves all paths automatically (compatible with nvm, volta, system Node).
+
+> Note: Obsidian is also launched at login, because the startup health check communicates with the running instance.
+
+To uninstall:
+
+```bash
+systemctl --user disable --now obsidian-vaultgate-mcp
+rm ~/.config/systemd/user/obsidian-vaultgate-mcp.service
+systemctl --user daemon-reload
+```
 
 ### Windows (Task Scheduler)
 
