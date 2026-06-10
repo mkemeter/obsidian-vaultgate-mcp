@@ -18,14 +18,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
           cache: 'npm'
+          # No registry-url — npm uses OIDC Trusted Publishing natively.
+          # setup-node's registry-url would write an .npmrc expecting NODE_AUTH_TOKEN,
+          # which blocks the OIDC flow. Without it, npm detects GitHub Actions env vars
+          # and exchanges the OIDC token directly with the npm registry.
 
       - name: Install dependencies
         run: npm ci
 
       - name: Publish
         run: npm publish --provenance --access public
-        # Authentication is handled by OIDC Trusted Publishing — no token needed.
-        # Requires a Trusted Publisher configured on npmjs.com for this repo/workflow.
-        # See: https://docs.npmjs.com/generating-provenance-statements
