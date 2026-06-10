@@ -18,8 +18,11 @@ export function registerPropertyTools(server: McpServer): void {
   // ---------------------------------------------------------------------------
   server.tool(
     "property_read",
-    "Read the YAML frontmatter properties of a note.",
+    "Read a specific YAML frontmatter property from a note.",
     {
+      name: z
+        .string()
+        .describe("Property name (frontmatter key) to read, e.g. `status`, `tags`."),
       file: z
         .string()
         .optional()
@@ -31,8 +34,8 @@ export function registerPropertyTools(server: McpServer): void {
         .optional()
         .describe("Exact vault-root path, e.g. `folder/note.md`."),
     },
-    async ({ file, path }) => {
-      const args = ["property:read", ...buildFileArgs(file, path)];
+    async ({ name, file, path }) => {
+      const args = ["property:read", `name=${name}`, ...buildFileArgs(file, path)];
       try {
         const output = await runObsidian(args);
         return { content: [{ type: "text", text: output }] };

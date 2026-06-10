@@ -188,7 +188,7 @@ async function listVaultPaths(): Promise<string[]> {
 }
 
 async function readNote(filePath: string): Promise<string> {
-  return runObsidian(["files", "read", "--file", filePath]);
+  return runObsidian(["read", `path=${filePath}`]);
 }
 
 // ---------------------------------------------------------------------------
@@ -367,16 +367,11 @@ export function registerSemanticTools(server: McpServer): void {
     {
       query: z.string().describe("Natural-language search query"),
       top_n: z
-        .number()
-        .int()
-        .min(1)
-        .max(50)
+        .preprocess((v) => (typeof v === "string" ? Number(v) : v), z.number().int().min(1).max(50))
         .default(DEFAULT_TOP_N)
         .describe("Maximum number of results to return (default 10)"),
       min_score: z
-        .number()
-        .min(0)
-        .max(1)
+        .preprocess((v) => (typeof v === "string" ? Number(v) : v), z.number().min(0).max(1))
         .default(DEFAULT_MIN_SCORE)
         .describe(
           "Minimum similarity score 0–1 to include a result (default 0.25)"
@@ -438,16 +433,11 @@ export function registerSemanticTools(server: McpServer): void {
           "Vault-relative path of the source note (as returned by files_list or semantic_search)"
         ),
       top_n: z
-        .number()
-        .int()
-        .min(1)
-        .max(50)
+        .preprocess((v) => (typeof v === "string" ? Number(v) : v), z.number().int().min(1).max(50))
         .default(DEFAULT_TOP_N)
         .describe("Maximum number of results to return (default 10)"),
       min_score: z
-        .number()
-        .min(0)
-        .max(1)
+        .preprocess((v) => (typeof v === "string" ? Number(v) : v), z.number().min(0).max(1))
         .default(DEFAULT_MIN_SCORE)
         .describe("Minimum similarity score 0–1 (default 0.25)"),
     },
@@ -519,7 +509,7 @@ export function registerSemanticTools(server: McpServer): void {
     "Force a full re-index of the vault. Normally not needed — the index is maintained automatically. Use only if you suspect the index is stale.",
     {},
     async () => {
-      if (!liveIndex) {
+      if (!liveIndex || indexState !== "ready") {
         return {
           content: [
             {

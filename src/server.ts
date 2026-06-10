@@ -15,7 +15,7 @@ import { registerContextTools } from "./tools/context.js";
 import { runObsidian } from "./cli.js";
 
 /** Number of always-present tools (includes vault_context + vault_context_set). */
-export const BASE_TOOL_COUNT = 30;
+export const BASE_TOOL_COUNT = 31;
 
 /** Number of additional tools registered when @xenova/transformers is available. */
 export const SEMANTIC_TOOL_COUNT = 4;
@@ -98,7 +98,7 @@ export async function createServer(iconUrl?: string): Promise<McpServer> {
 
   const server = new McpServer(serverInfo, { instructions: vaultInstructions });
 
-  registerFileTools(server);      // files_list, files_read, note_create, note_append, note_prepend, note_update
+  registerFileTools(server);      // files_list, files_read, note_create, note_append, note_prepend, note_update, note_trash
   registerSearchTools(server);    // search
   registerDailyTools(server);     // daily_read, daily_append
   registerTaskTools(server);      // tasks_all, tasks_pending, tasks_daily

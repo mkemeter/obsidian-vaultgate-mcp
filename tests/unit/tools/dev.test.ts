@@ -40,7 +40,10 @@ describe("eval (destructive ⚠️)", () => {
       code: "app.vault.getFiles().length",
       dryRun: false,
     });
-    expect(mockRun).toHaveBeenCalledWith(["eval", "code=app.vault.getFiles().length"]);
+    expect(mockRun).toHaveBeenCalledWith([
+      "eval",
+      "code=(async () => {\napp.vault.getFiles().length\n})()",
+    ]);
     expect(result.content[0].text).toBe("42");
   });
 

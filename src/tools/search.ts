@@ -14,10 +14,10 @@ export function registerSearchTools(server: McpServer): void {
     {
       query: z.string().describe("Search term or phrase to look for."),
       limit: z
-        .number()
-        .int()
-        .positive()
-        .optional()
+        .preprocess(
+          (v) => (typeof v === "string" ? Number(v) : v),
+          z.number().int().positive().optional()
+        )
         .describe("Maximum number of results to return."),
     },
     async ({ query, limit }) => {
