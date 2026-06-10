@@ -122,7 +122,19 @@ async function startHttp(): Promise<void> {
       let transport = sessionId ? mcpSessions.get(sessionId) : undefined;
 
       if (!transport) {
-        // New session — create a server + transport and store it.
+        if (sessionId) {
+          // A session ID was presented but not found — the server was restarted
+          // and the session is gone. Return 404 so the client knows to
+          // re-initialize (send a fresh `initialize` request without a session ID).
+          res.writeHead(404, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({
+            jsonrpc: "2.0",
+            error: { code: -32001, message: "Session not found — server was restarted. Please reinitialize." },
+            id: null,
+          }));
+          return;
+        }
+        // No session ID — new session. Create a server + transport and store it.
         const server = await createServer(iconUrl);
         transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => crypto.randomUUID(),

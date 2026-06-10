@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
-import { buildFileArgs } from "./_helpers.js";
+import { buildFileArgs, optionalBoolSchema } from "./_helpers.js";
 
 /**
  * Registers tag and link analysis tools on the MCP server.
@@ -27,10 +27,7 @@ export function registerTagTools(server: McpServer): void {
         .enum(["name", "count"])
         .optional()
         .describe("Sort order: by name or by usage count."),
-      counts: z
-        .boolean()
-        .optional()
-        .describe("Include usage count next to each tag."),
+      counts: optionalBoolSchema.describe("Include usage count next to each tag."),
     },
     async ({ sort, counts }) => {
       const args = ["tags"];

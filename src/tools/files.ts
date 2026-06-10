@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
-import { dryRunPreview, buildFileArgs, dryRunSchema } from "./_helpers.js";
+import { dryRunPreview, buildFileArgs, dryRunSchema, optionalBoolSchema } from "./_helpers.js";
 
 /**
  * Registers file and note operation tools on the MCP server.
@@ -29,10 +29,10 @@ export function registerFileTools(server: McpServer): void {
         .optional()
         .describe("Sort order for the file listing."),
       limit: z
-        .number()
-        .int()
-        .positive()
-        .optional()
+        .preprocess(
+          (v) => (typeof v === "string" ? Number(v) : v),
+          z.number().int().positive().optional()
+        )
         .describe("Maximum number of files to return."),
     },
     async ({ sort, limit }) => {
@@ -95,27 +95,46 @@ export function registerFileTools(server: McpServer): void {
   server.tool(
     "note_create",
     "Create a new note in the vault, optionally from a template.\n\n" +
+      "To create a note inside a subfolder, use the `path` parameter " +
+      "(e.g. `Projects/2026-06 My Note.md`). Use `name` only for vault-root notes " +
+      "whose name contains no '/'.\n\n" +
       "IMPORTANT: Always call with dryRun=true first, show the user the preview, " +
       "and ask for explicit confirmation before calling with dryRun=false.",
     {
-      name: z.string().describe("Name for the new note (no extension needed)."),
+      name: z
+        .string()
+        .optional()
+        .describe(
+          "Name for the new note at the vault root (no extension needed, no '/'). " +
+            "Use `path` instead for subfolder locations."
+        ),
+      path: z
+        .string()
+        .optional()
+        .describe(
+          "Exact path from the vault root, e.g. `Projects/2026-06 My Note.md`. " +
+            "Use this for notes inside subfolders. Takes precedence over `name`."
+        ),
       content: z.string().optional().describe("Initial note content."),
       template: z
         .string()
         .optional()
         .describe("Template name to apply when creating the note."),
-      overwrite: z
-        .boolean()
-        .optional()
-        .describe("Overwrite the note if it already exists. Defaults to false."),
-      silent: z
-        .boolean()
-        .optional()
-        .describe("Do not open the note after creation. Defaults to false."),
+      overwrite: optionalBoolSchema.describe(
+          "Overwrite the note if it already exists. Defaults to false."
+        ),
+      silent: optionalBoolSchema.describe(
+          "Do not open the note after creation. Defaults to false."
+        ),
       dryRun: dryRunSchema,
     },
-    async ({ name, content, template, overwrite, silent, dryRun }) => {
-      const args = ["create", `name=${name}`];
+    async ({ name, path, content, template, overwrite, silent, dryRun }) => {
+      const args = ["create"];
+      if (path !== undefined) {
+        args.push(`path=${path}`);
+      } else if (name !== undefined) {
+        args.push(`name=${name}`);
+      }
       if (content) args.push(`content=${content}`);
       if (template) args.push(`template=${template}`);
       if (overwrite) args.push("overwrite");
@@ -127,7 +146,7 @@ export function registerFileTools(server: McpServer): void {
 
       try {
         const output = await runObsidian(args);
-        return { content: [{ type: "text", text: output || `Created: ${name}` }] };
+        return { content: [{ type: "text", text: output || `Created: ${path ?? name}` }] };
       } catch (error) {
         return {
           content: [{ type: "text", text: (error as Error).message }],
@@ -251,6 +270,43 @@ export function registerFileTools(server: McpServer): void {
       try {
         const output = await runObsidian(args);
         return { content: [{ type: "text", text: output || `Updated: ${path}` }] };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: (error as Error).message }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // ---------------------------------------------------------------------------
+  // note_trash — destructive (dryRun gated)
+  // ---------------------------------------------------------------------------
+  server.tool(
+    "note_trash",
+    "Move a note to the system trash (recoverable). " +
+      "Use this instead of eval+app.vault.trash() for safe, auditable note deletion.\n\n" +
+      "IMPORTANT: Always call with dryRun=true first, show the user the preview, " +
+      "and ask for explicit confirmation before calling with dryRun=false.",
+    {
+      path: z
+        .string()
+        .describe(
+          "Exact path of the note from the vault root, e.g. `HR/Jona Kuhn.md`. " +
+            "Use files_list to find the correct path."
+        ),
+      dryRun: dryRunSchema,
+    },
+    async ({ path, dryRun }) => {
+      const args = ["delete", `path=${path}`];
+
+      if (dryRun) {
+        return { content: [{ type: "text", text: dryRunPreview(args) }] };
+      }
+
+      try {
+        const output = await runObsidian(args);
+        return { content: [{ type: "text", text: output || `Moved to trash: ${path}` }] };
       } catch (error) {
         return {
           content: [{ type: "text", text: (error as Error).message }],

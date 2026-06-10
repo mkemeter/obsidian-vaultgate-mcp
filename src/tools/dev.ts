@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
-import { dryRunPreview, dryRunSchema } from "./_helpers.js";
+import { dryRunPreview, dryRunSchema, optionalBoolSchema, requiredBoolSchema } from "./_helpers.js";
 
 /**
  * Registers developer and debug tools on the MCP server.
@@ -29,6 +29,8 @@ export function registerDevTools(server: McpServer): void {
   server.tool(
     "eval",
     "Execute JavaScript in the Obsidian app context and return the result.\n\n" +
+      "The code runs inside an async function, so `await` and `return` work at the top level:\n" +
+      "  `const files = await app.vault.getFiles(); return files.length;`\n\n" +
       "⚠️  WARNING: This executes arbitrary JavaScript inside your running Obsidian instance.\n" +
       "It can read vault data, modify files, call plugins, or cause data loss.\n\n" +
       "IMPORTANT: ALWAYS call with dryRun=true first, show the user EXACTLY what code will run, " +
@@ -38,7 +40,8 @@ export function registerDevTools(server: McpServer): void {
       code: z
         .string()
         .describe(
-          "JavaScript expression to evaluate, e.g. `app.vault.getFiles().length`."
+          "JavaScript to execute. `await` and `return` work at the top level. " +
+            "Example: `const files = await app.vault.getFiles(); return files.length;`"
         ),
       dryRun: dryRunSchema.describe(
           "When true (default), returns a preview without executing. " +
@@ -46,7 +49,10 @@ export function registerDevTools(server: McpServer): void {
         ),
     },
     async ({ code, dryRun }) => {
-      const args = ["eval", `code=${code}`];
+      // Wrap in an async IIFE so `await` and `return` work at the top level of
+      // the user's code, regardless of how the Obsidian CLI evaluates the expression.
+      const wrappedCode = `(async () => {\n${code}\n})()`;
+      const args = ["eval", `code=${wrappedCode}`];
 
       if (dryRun) {
         return { content: [{ type: "text", text: dryRunPreview(args) }] };
@@ -150,10 +156,7 @@ export function registerDevTools(server: McpServer): void {
       selector: z
         .string()
         .describe("CSS selector, e.g. `.workspace-leaf` or `#app`."),
-      text: z
-        .boolean()
-        .optional()
-        .describe("Return only the text content of matched elements."),
+      text: optionalBoolSchema.describe("Return only the text content of matched elements."),
     },
     async ({ selector, text }) => {
       const args = ["dev:dom", `selector=${selector}`];
@@ -213,7 +216,7 @@ export function registerDevTools(server: McpServer): void {
       "IMPORTANT: Always call with dryRun=true first, show the user the preview, " +
       "and ask for explicit confirmation before calling with dryRun=false.",
     {
-      on: z.boolean().describe("Pass `true` to enable mobile view, `false` to disable."),
+      on: requiredBoolSchema.describe("Pass `true` to enable mobile view, `false` to disable."),
       dryRun: dryRunSchema,
     },
     async ({ on, dryRun }) => {

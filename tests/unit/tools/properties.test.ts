@@ -27,22 +27,28 @@ function makeServer() {
 describe("property_read", () => {
   beforeEach(() => vi.resetAllMocks());
 
-  it("calls obsidian property:read for active file", async () => {
-    mockRun.mockResolvedValue("status: draft\ntags: [work]");
-    const result = await invoke(makeServer(), "property_read", {});
-    expect(mockRun).toHaveBeenCalledWith(["property:read"]);
-    expect(result.content[0].text).toContain("status");
+  it("calls obsidian property:read with name for active file", async () => {
+    mockRun.mockResolvedValue("draft");
+    const result = await invoke(makeServer(), "property_read", { name: "status" });
+    expect(mockRun).toHaveBeenCalledWith(["property:read", "name=status"]);
+    expect(result.content[0].text).toContain("draft");
   });
 
   it("includes file arg when provided", async () => {
     mockRun.mockResolvedValue("");
-    await invoke(makeServer(), "property_read", { file: "My Note" });
-    expect(mockRun).toHaveBeenCalledWith(["property:read", "file=My Note"]);
+    await invoke(makeServer(), "property_read", { name: "tags", file: "My Note" });
+    expect(mockRun).toHaveBeenCalledWith(["property:read", "name=tags", "file=My Note"]);
+  });
+
+  it("includes path arg when provided", async () => {
+    mockRun.mockResolvedValue("");
+    await invoke(makeServer(), "property_read", { name: "status", path: "HR/note.md" });
+    expect(mockRun).toHaveBeenCalledWith(["property:read", "name=status", "path=HR/note.md"]);
   });
 
   it("returns isError on CLI failure", async () => {
     mockRun.mockRejectedValue(new Error("file not found"));
-    const result = await invoke(makeServer(), "property_read", {});
+    const result = await invoke(makeServer(), "property_read", { name: "status" });
     expect(result.isError).toBe(true);
   });
 });

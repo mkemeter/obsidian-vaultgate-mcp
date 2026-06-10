@@ -98,6 +98,25 @@ describe("note_create (destructive)", () => {
     expect(mockRun).toHaveBeenCalledWith(["create", "name=Test Note"]);
   });
 
+  it("uses path= when path is provided (subfolder support)", async () => {
+    mockRun.mockResolvedValue("");
+    await invoke(makeServer(), "note_create", {
+      path: "Projects/2026-06 My Note.md",
+      dryRun: false,
+    });
+    expect(mockRun).toHaveBeenCalledWith(["create", "path=Projects/2026-06 My Note.md"]);
+  });
+
+  it("path= takes precedence over name= when both provided", async () => {
+    mockRun.mockResolvedValue("");
+    await invoke(makeServer(), "note_create", {
+      name: "ignored",
+      path: "Folder/Note.md",
+      dryRun: false,
+    });
+    expect(mockRun).toHaveBeenCalledWith(["create", "path=Folder/Note.md"]);
+  });
+
   it("includes content arg when provided", async () => {
     mockRun.mockResolvedValue("");
     await invoke(makeServer(), "note_create", { name: "Note", content: "# Hello", dryRun: false });
@@ -236,5 +255,36 @@ describe("note_update (destructive)", () => {
     });
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("file not found");
+  });
+});
+
+describe("note_trash (destructive)", () => {
+  beforeEach(() => vi.resetAllMocks());
+
+  it("returns dry run preview by default", async () => {
+    const result = await invoke(makeServer(), "note_trash", { path: "HR/Jona Kuhn.md" });
+    expect(mockRun).not.toHaveBeenCalled();
+    expect(result.content[0].text).toContain("[DRY RUN]");
+    expect(result.content[0].text).toContain("delete");
+    expect(result.content[0].text).toContain("HR/Jona Kuhn.md");
+  });
+
+  it("executes with correct args when dryRun=false", async () => {
+    mockRun.mockResolvedValue("");
+    await invoke(makeServer(), "note_trash", { path: "HR/Jona Kuhn.md", dryRun: false });
+    expect(mockRun).toHaveBeenCalledWith(["delete", "path=HR/Jona Kuhn.md"]);
+  });
+
+  it("returns fallback message when CLI returns empty string", async () => {
+    mockRun.mockResolvedValue("");
+    const result = await invoke(makeServer(), "note_trash", { path: "old.md", dryRun: false });
+    expect(result.content[0].text).toBe("Moved to trash: old.md");
+  });
+
+  it("returns isError on CLI failure when dryRun=false", async () => {
+    mockRun.mockRejectedValue(new Error("trash failed"));
+    const result = await invoke(makeServer(), "note_trash", { path: "missing.md", dryRun: false });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("trash failed");
   });
 });

@@ -37,6 +37,7 @@ function isAllowedOrigin(origin: string | undefined, port: number): boolean {
 /** Start a test HTTP server on a random OS-assigned port. Returns the server and its URL. */
 function startTestServer(): Promise<{ server: http.Server; baseUrl: string; port: number }> {
   const sseSessions = new Map<string, SSEServerTransport>();
+  const mcpSessions = new Map<string, StreamableHTTPServerTransport>();
 
   const server = http.createServer(async (req, res) => {
     const origin = req.headers.origin;
@@ -68,12 +69,27 @@ function startTestServer(): Promise<{ server: http.Server; baseUrl: string; port
     }
 
     if (req.method === "POST" && url.pathname === "/mcp") {
-      const mcpServer = await createMcpServer();
-      const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => crypto.randomUUID(),
-      });
-      await mcpServer.connect(transport);
-      await transport.handleRequest(req, res);
+      const sessionId = req.headers["mcp-session-id"] as string | undefined;
+      const mcpSessions = (server as any).__mcpSessions as Map<string, StreamableHTTPServerTransport>;
+      let transport = sessionId ? mcpSessions.get(sessionId) : undefined;
+
+      if (!transport) {
+        if (sessionId) {
+          res.writeHead(404, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ jsonrpc: "2.0", error: { code: -32001, message: "Session not found — server was restarted. Please reinitialize." }, id: null }));
+          return;
+        }
+        const mcpServer = await createMcpServer();
+        transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => crypto.randomUUID() });
+        await mcpServer.connect(transport);
+        await transport.handleRequest(req, res);
+        if (transport.sessionId) {
+          mcpSessions.set(transport.sessionId, transport);
+          transport.onclose = () => mcpSessions.delete(transport!.sessionId!);
+        }
+      } else {
+        await transport.handleRequest(req, res);
+      }
       return;
     }
 
@@ -106,6 +122,7 @@ function startTestServer(): Promise<{ server: http.Server; baseUrl: string; port
     // Port 0 = OS picks a free port
     server.listen(0, "127.0.0.1", () => {
       const { port } = server.address() as { port: number };
+      (server as any).__mcpSessions = mcpSessions;
       resolve({ server, baseUrl: `http://127.0.0.1:${port}`, port });
     });
   });
@@ -259,5 +276,22 @@ describe("HTTP server", () => {
   it("server binds to 127.0.0.1 (not 0.0.0.0)", () => {
     const addr = server.address() as { address: string };
     expect(addr.address).toBe("127.0.0.1");
+  });
+
+  // --- Stale session (post-restart recovery) --------------------------------
+
+  it("POST /mcp with a stale session ID returns 404 with reinitialize hint", async () => {
+    const res = await fetch(`${baseUrl}/mcp`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+        "mcp-session-id": "stale-session-id-from-before-restart",
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
+    });
+    expect(res.status).toBe(404);
+    const body = await res.json() as { error: { message: string } };
+    expect(body.error.message).toContain("reinitialize");
   });
 });

@@ -258,14 +258,14 @@ All configuration via environment variables. None are required for single-vault 
 | `tasks_all` | All tasks (complete and incomplete) |
 | `tasks_pending` | Incomplete tasks only |
 | `tasks_daily` | Incomplete tasks from today's daily note |
-| `templates_list` | List available templates |
-| `property_read` | Read YAML frontmatter properties |
+| `templates_list` | List available templates (requires core Templates plugin — see note below) |
+| `property_read` | Read a specific YAML frontmatter property by name |
 | `tags` | All tags across the vault |
 | `backlinks` | Notes that link to a given note |
 | `unresolved` | Wikilinks pointing to non-existent notes |
 | `plugins_list` | Installed community plugins |
 | `dev_errors` | Recent errors from the Obsidian console |
-| `dev_console` | Console log output from Obsidian |
+| `dev_console` | Console log output from Obsidian (requires `dev:debug on` first — run once via `eval`) |
 | `dev_css` | Computed CSS for a DOM selector |
 | `dev_dom` | DOM subtree of the Obsidian window |
 | `vault_context` | Read vault conventions from `VAULTGATE.md` (fallback if conventions were not delivered at session start) |
@@ -276,10 +276,11 @@ Every write tool defaults to `dryRun: true` — the AI shows a preview of the in
 
 | Tool | Description |
 |---|---|
-| `note_create` | Create a new note |
+| `note_create` | Create a new note (use `path=` for subfolder locations) |
 | `note_append` | Append content to an existing note |
 | `note_prepend` | Prepend content to an existing note |
 | `note_update` | Replace the full content of an existing note |
+| `note_trash` | Move a note to the system trash (recoverable) |
 | `daily_append` | Append content to today's daily note |
 | `templates_apply` | Apply a template to a note |
 | `property_set` | Set or update a YAML frontmatter property |
@@ -288,6 +289,8 @@ Every write tool defaults to `dryRun: true` — the AI shows a preview of the in
 | `dev_mobile` | Toggle mobile viewport emulation |
 | `eval` ⚠️ | Execute arbitrary JavaScript in the Obsidian renderer — review carefully before approving |
 | `vault_context_set` | Create or update `VAULTGATE.md` — the vault conventions file read by AI assistants at session start |
+
+> **templates_list / templates_apply** require the built-in **Templates** core plugin with a folder configured in its settings. If your vault uses the **Templater** community plugin instead (or the core plugin is disabled), these tools will return `Error: No template folder configured`. This is a configuration dependency, not a bug.
 
 ### Semantic search
 
