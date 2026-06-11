@@ -98,6 +98,10 @@ export function registerFileTools(server: McpServer): void {
       "To create a note inside a subfolder, use the `path` parameter " +
       "(e.g. `Projects/2026-06 My Note.md`). Use `name` only for vault-root notes " +
       "whose name contains no '/'.\n\n" +
+      "NOTE: When `overwrite` is false (the default) and a note at that path already " +
+      "exists, Obsidian creates a suffixed duplicate (e.g. `Note 1.md`) rather than " +
+      "returning an error. To replace an existing note, pass `overwrite: true` or " +
+      "use `note_update` instead.\n\n" +
       "IMPORTANT: Always call with dryRun=true first, show the user the preview, " +
       "and ask for explicit confirmation before calling with dryRun=false.",
     {
