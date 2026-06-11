@@ -1,8 +1,15 @@
 {
   "name": "obsidian-vaultgate-mcp",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Connect your Obsidian vault to any AI assistant — zero plugins, full privacy. An MCP server powered by the official Obsidian CLI.",
-  "keywords": ["obsidian", "mcp", "model-context-protocol", "ai", "vault", "cli"],
+  "keywords": [
+    "obsidian",
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "vault",
+    "cli"
+  ],
   "license": "GPL-3.0-or-later",
   "author": "Mathias Kemeter",
   "repository": {

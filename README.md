@@ -282,6 +282,8 @@ All configuration via environment variables. None are required for single-vault 
 | `semantic_search` | Natural language search ranked by meaning (requires `@xenova/transformers`) |
 | `find_similar` | Find notes semantically similar to a given path |
 | `vault_info` | Indexed note count and last-indexed timestamp |
+| `index_vault` | Force a full re-index without discarding the existing cache |
+| `clear_index` | Delete the cache and rebuild from scratch (last-resort reset) |
 | `daily_read` | Read today's daily note |
 | `tasks_all` | All tasks (complete and incomplete) |
 | `tasks_pending` | Incomplete tasks only |
@@ -322,12 +324,13 @@ Every write tool defaults to `dryRun: true` — the AI shows a preview of the in
 
 ### Semantic search
 
-When `@xenova/transformers` is available (installed as an optional dependency), four additional tools are registered automatically:
+When `@xenova/transformers` is available (installed as an optional dependency), five additional tools are registered automatically:
 
-- `semantic_search` — query by meaning, returns ranked results with relevance scores
+- `semantic_search` — query by meaning, returns ranked results with relevance scores and the matched section heading
 - `find_similar` — find notes similar to a given path
 - `vault_info` — index state and note count
-- `index_vault` — force a full re-index (normally not needed; the index updates incrementally on each search)
+- `index_vault` — re-embed changed notes without discarding the existing cache (routine re-index)
+- `clear_index` — delete the cache file entirely and rebuild from scratch; use only when the cache is corrupted or after a version change. **Do not use before `index_vault`** — `index_vault` already handles incremental updates without data loss.
 
 The embedding model (`bge-small-en-v1.5`, ~100 MB) downloads once to `~/.cache/huggingface/`. All subsequent operations are fully offline. If `@xenova/transformers` fails to load on the current platform, VaultGate starts normally with the base tool set — no configuration change required.
 

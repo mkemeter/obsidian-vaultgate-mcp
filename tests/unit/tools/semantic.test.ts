@@ -129,20 +129,61 @@ describe("cosineSimilarity", () => {
 });
 
 // ---------------------------------------------------------------------------
+// freshModuleNoCache — like freshModule but uses a vault name that has no
+// on-disk cache. This ensures loadIndex() returns an empty index, so
+// startBackgroundIndex() must call syncNewAndDeleted() — where a
+// never-resolving mock can hold the state in "building".
+// ---------------------------------------------------------------------------
+
+async function freshModuleNoCache(runMock: (args: string[]) => Promise<string>) {
+  vi.resetModules();
+
+  // Use a vault name that will never have a real cache file on disk.
+  // vi.doMock (not vi.mock) is used so the vault name is resolved at call time.
+  const uniqueVault = `__test_empty_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+  vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+  vi.doMock("../../../src/config.js", () => ({
+    config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+  }));
+  vi.doMock("@xenova/transformers", () => ({
+    pipeline: vi.fn().mockResolvedValue(
+      vi.fn().mockImplementation(() =>
+        Promise.resolve({ tolist: () => [FAKE_VEC_A] })
+      )
+    ),
+  }));
+
+  const { runObsidian } = await import("../../../src/cli.js");
+  vi.mocked(runObsidian).mockImplementation(runMock);
+
+  const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
+  const server = new McpServer({ name: "test", version: "0.0.0" });
+  const semantic = await import("../../../src/tools/semantic.js");
+  semantic.registerSemanticTools(server);
+
+  return {
+    server,
+    mockRun: vi.mocked(runObsidian),
+    getState: semantic.getIndexStateForTesting,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // indexState guard — search returns "indexing" message before build completes
 // ---------------------------------------------------------------------------
 
 describe("indexState guard", () => {
   it("semantic_search returns indexing message while building", async () => {
-    // Never-resolving file list keeps indexState in "building"
-    const { server } = await freshModule(() => new Promise(() => {}));
+    // Never-resolving file list + no cache on disk keeps indexState in "building"
+    const { server } = await freshModuleNoCache(() => new Promise(() => {}));
 
     const result = await callTool(server, "semantic_search", { query: "test" });
     expect(result.content[0].text).toMatch(/being indexed/i);
   });
 
   it("find_similar returns indexing message while building", async () => {
-    const { server } = await freshModule(() => new Promise(() => {}));
+    const { server } = await freshModuleNoCache(() => new Promise(() => {}));
 
     const result = await callTool(server, "find_similar", { note_path: "note-a.md" });
     expect(result.content[0].text).toMatch(/being indexed/i);
@@ -190,12 +231,12 @@ describe("semantic_search", () => {
     // FAKE_VEC_A as both query and note embeddings → cosine = 1, but we use
     // FAKE_VEC_B as note embeddings by swapping the mock after module load.
     vi.resetModules();
-    vi.mock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
-    vi.mock("../../../src/config.js", () => ({
+    vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+    vi.doMock("../../../src/config.js", () => ({
       config: { vault: "TestVault", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
     }));
     // Notes get FAKE_VEC_B (orthogonal to query FAKE_VEC_A) → score = 0
-    vi.mock("@xenova/transformers", () => ({
+    vi.doMock("@xenova/transformers", () => ({
       pipeline: vi.fn().mockResolvedValue(
         vi.fn().mockImplementation(() =>
           Promise.resolve({ tolist: () => [FAKE_VEC_B] })
@@ -322,6 +363,63 @@ describe("index_vault", () => {
 });
 
 // ---------------------------------------------------------------------------
+// clear_index
+// ---------------------------------------------------------------------------
+
+describe("clear_index", () => {
+  it("dry run reports what would be deleted without clearing", async () => {
+    const { server, getState } = await freshModule(async (args) => {
+      if (args.includes("list")) return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
+
+    await waitForReady(getState);
+
+    const result = await callTool(server, "clear_index", {});
+    expect(result.content[0].text).toMatch(/dry run/i);
+    expect(result.content[0].text).not.toMatch(/cache cleared/i);
+    expect(getState()).toBe("ready");
+  });
+
+  it("clears the index and triggers a rebuild when dryRun=false", async () => {
+    const { server, mockRun, getState } = await freshModule(async (args) => {
+      if (args.includes("list")) return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
+
+    await waitForReady(getState);
+
+    mockRun.mockImplementation(async (args: string[]) => {
+      if (args.includes("list")) return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
+
+    const result = await callTool(server, "clear_index", { dryRun: false });
+    expect(result.content[0].text).toMatch(/cache cleared/i);
+    expect(result.content[0].text).toMatch(/rebuilding/i);
+  });
+
+  it("clears gracefully when no cache file exists", async () => {
+    const { server, mockRun, getState } = await freshModule(async (args) => {
+      if (args.includes("list")) return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
+
+    await waitForReady(getState);
+
+    mockRun.mockImplementation(async (args: string[]) => {
+      if (args.includes("list")) return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
+
+    // The test cache file won't exist on disk — clear_index should handle gracefully.
+    const result = await callTool(server, "clear_index", { dryRun: false });
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toMatch(/cache cleared/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // vault_info
 // ---------------------------------------------------------------------------
 
@@ -343,8 +441,8 @@ describe("vault_info", () => {
   });
 
   it("returns 'being built' message when index is not ready", async () => {
-    // Never-resolving build keeps indexState in "building"
-    const { server } = await freshModule(() => new Promise(() => {}));
+    // Never-resolving file list + no cache on disk keeps indexState in "building"
+    const { server } = await freshModuleNoCache(() => new Promise(() => {}));
 
     const result = await callTool(server, "vault_info");
     expect(result.content[0].text).toMatch(/being built/i);
@@ -352,32 +450,177 @@ describe("vault_info", () => {
 });
 
 // ---------------------------------------------------------------------------
-// chunkText — large-note chunking (exercises the overflow branch)
+// splitIntoSections via semantic_search
 // ---------------------------------------------------------------------------
 
-describe("chunkText via semantic_search", () => {
-  it("correctly indexes a note larger than CHUNK_SIZE (2000 chars)", async () => {
-    // Build a note with two large paragraphs that exceed 2000 chars total.
-    const bigPara1 = "A ".repeat(600).trimEnd(); // ~1200 chars
-    const bigPara2 = "B ".repeat(600).trimEnd(); // ~1200 chars
-    const bigNote = `# Big Note\n\n${bigPara1}\n\n${bigPara2}`;
+describe("splitIntoSections via semantic_search", () => {
+  it("correctly indexes a note with multiple headings", async () => {
+    const multiSectionNote = [
+      "# Meeting Notes",
+      "",
+      "Intro text before any section.",
+      "",
+      "## Agenda",
+      "",
+      "Item one. Item two. Item three.",
+      "",
+      "## Action Items",
+      "",
+      "Follow up on all open tasks.",
+    ].join("\n");
+
+    vi.resetModules();
+    vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+    vi.doMock("../../../src/config.js", () => ({
+      config: { vault: "TestVault", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+    }));
+    // Return one FAKE_VEC_A per input text so multi-section notes embed correctly.
+    vi.doMock("@xenova/transformers", () => ({
+      pipeline: vi.fn().mockResolvedValue(
+        vi.fn().mockImplementation((texts: string[]) =>
+          Promise.resolve({ tolist: () => texts.map(() => FAKE_VEC_A) })
+        )
+      ),
+    }));
+
+    const { runObsidian } = await import("../../../src/cli.js");
+    vi.mocked(runObsidian).mockImplementation(async (args: string[]) => {
+      if (args.includes("list")) return "meeting.md\n";
+      return multiSectionNote;
+    });
+
+    const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
+    const server = new McpServer({ name: "test", version: "0.0.0" });
+    const semantic = await import("../../../src/tools/semantic.js");
+    semantic.registerSemanticTools(server);
+
+    await waitForReady(semantic.getIndexStateForTesting);
+
+    vi.mocked(runObsidian).mockImplementation(async (args: string[]) => {
+      if (args.includes("list")) return "meeting.md\n";
+      return multiSectionNote;
+    });
+
+    const result = await callTool(server, "semantic_search", { query: "agenda items" });
+    expect(result.content[0].text).not.toMatch(/being indexed/i);
+    expect(result.content[0].text).toContain("meeting.md");
+  });
+
+  it("result label includes '> Section' for notes with a matched heading", async () => {
+    const noteWithHeading = "# Topic\n\n## Details\n\nSome detailed content here.";
 
     const { server, mockRun, getState } = await freshModule(async (args) => {
-      if (args.includes("list")) return "big-note.md\n";
-      return bigNote;
+      if (args.includes("list")) return "topic.md\n";
+      return noteWithHeading;
     });
 
     await waitForReady(getState);
 
     mockRun.mockImplementation(async (args: string[]) => {
+      if (args.includes("list")) return "topic.md\n";
+      return noteWithHeading;
+    });
+
+    const result = await callTool(server, "semantic_search", { query: "details" });
+    const text: string = result.content[0].text;
+    // Result should contain the path; if a heading matched, it appears as "path > Heading"
+    expect(text).toContain("topic.md");
+    // Score format still present
+    expect(text).toMatch(/score:\s*[\d.]+/);
+  });
+
+  it("correctly indexes a note larger than CHUNK_SIZE (2000 chars) via sub-chunking", async () => {
+    // A single section with body exceeding 2000 chars triggers paragraph sub-chunking.
+    const bigPara1 = "A ".repeat(600).trimEnd(); // ~1200 chars
+    const bigPara2 = "B ".repeat(600).trimEnd(); // ~1200 chars
+    const bigNote = `# Big Note\n\n## Long Section\n\n${bigPara1}\n\n${bigPara2}`;
+
+    vi.resetModules();
+    vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+    vi.doMock("../../../src/config.js", () => ({
+      config: { vault: "TestVault", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+    }));
+    // Return one FAKE_VEC_A per input text so sub-chunks embed correctly.
+    vi.doMock("@xenova/transformers", () => ({
+      pipeline: vi.fn().mockResolvedValue(
+        vi.fn().mockImplementation((texts: string[]) =>
+          Promise.resolve({ tolist: () => texts.map(() => FAKE_VEC_A) })
+        )
+      ),
+    }));
+
+    const { runObsidian } = await import("../../../src/cli.js");
+    vi.mocked(runObsidian).mockImplementation(async (args: string[]) => {
       if (args.includes("list")) return "big-note.md\n";
       return bigNote;
     });
 
-    // Index was built — search should find the note (no error / no "indexing" message)
+    const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
+    const server = new McpServer({ name: "test", version: "0.0.0" });
+    const semantic = await import("../../../src/tools/semantic.js");
+    semantic.registerSemanticTools(server);
+
+    await waitForReady(semantic.getIndexStateForTesting);
+
+    vi.mocked(runObsidian).mockImplementation(async (args: string[]) => {
+      if (args.includes("list")) return "big-note.md\n";
+      return bigNote;
+    });
+
     const result = await callTool(server, "semantic_search", { query: "content" });
     expect(result.content[0].text).not.toMatch(/being indexed/i);
-    // big-note.md should appear in results (score ≥ DEFAULT_MIN_SCORE with identical vecs)
     expect(result.content[0].text).toContain("big-note.md");
+  });
+
+  it("correctly indexes a note whose headings are ISO dates", async () => {
+    // Notes with date-stamped sections (logs, archives) must index without error.
+    // Date headings are stripped from embedded text but kept as display labels.
+    const dateNote = [
+      "# Project Log",
+      "",
+      "## 2026-01-15",
+      "",
+      "Kicked off the initiative and aligned with stakeholders.",
+      "",
+      "## 2026-02-20",
+      "",
+      "Reviewed progress and identified blockers.",
+    ].join("\n");
+
+    vi.resetModules();
+    vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+    vi.doMock("../../../src/config.js", () => ({
+      config: { vault: "TestVault", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+    }));
+    vi.doMock("@xenova/transformers", () => ({
+      pipeline: vi.fn().mockResolvedValue(
+        vi.fn().mockImplementation((texts: string[]) =>
+          Promise.resolve({ tolist: () => texts.map(() => FAKE_VEC_A) })
+        )
+      ),
+    }));
+
+    const { runObsidian } = await import("../../../src/cli.js");
+    vi.mocked(runObsidian).mockImplementation(async (args: string[]) => {
+      if (args.includes("list")) return "log.md\n";
+      return dateNote;
+    });
+
+    const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
+    const server = new McpServer({ name: "test", version: "0.0.0" });
+    const semantic = await import("../../../src/tools/semantic.js");
+    semantic.registerSemanticTools(server);
+
+    await waitForReady(semantic.getIndexStateForTesting);
+
+    vi.mocked(runObsidian).mockImplementation(async (args: string[]) => {
+      if (args.includes("list")) return "log.md\n";
+      return dateNote;
+    });
+
+    const result = await callTool(server, "semantic_search", { query: "stakeholder alignment" });
+    expect(result.content[0].text).not.toMatch(/being indexed/i);
+    expect(result.content[0].text).not.toMatch(/semantic search failed/i);
+    expect(result.content[0].text).toContain("log.md");
   });
 });

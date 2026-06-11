@@ -18,7 +18,7 @@ import { runObsidian } from "./cli.js";
 export const BASE_TOOL_COUNT = 31;
 
 /** Number of additional tools registered when @xenova/transformers is available. */
-export const SEMANTIC_TOOL_COUNT = 4;
+export const SEMANTIC_TOOL_COUNT = 5;
 
 /** Raw SVG icon string — used in HTTP mode where the server can serve it directly. */
 export function getIconSvg(): string {

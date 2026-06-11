@@ -31,9 +31,14 @@ import { config } from "../config.js";
 // TypeScript interfaces
 // ---------------------------------------------------------------------------
 
+interface ChunkEntry {
+  heading: string;
+  embedding: number[];
+}
+
 interface IndexEntry {
   hash: string;
-  embedding: number[];
+  chunks: ChunkEntry[];
 }
 
 interface VaultIndex {
@@ -53,7 +58,7 @@ let isReHashing = false;
 let embedderInstance: Awaited<ReturnType<typeof pipeline>> | null = null;
 
 const MODEL_ID = "Xenova/bge-small-en-v1.5";
-const INDEX_VERSION = 1;
+const INDEX_VERSION = 2;
 const CHUNK_SIZE = 2000;
 const REHASH_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 h
 const DEFAULT_TOP_N = 10;
@@ -142,6 +147,84 @@ function chunkText(text: string): string[] {
   return chunks.length > 0 ? chunks : [text.slice(0, CHUNK_SIZE)];
 }
 
+// Matches ISO date-only headings like "## 2026-01-20" — these carry temporal
+// structure but not semantic content, so we exclude them from embedded text
+// while keeping them as display labels.
+const DATE_HEADING_RE = /^\d{4}-\d{2}-\d{2}\s*$/;
+
+function isDateOnlyHeading(heading: string): boolean {
+  return DATE_HEADING_RE.test(heading.replace(/^#+\s*/, "").trim());
+}
+
+function splitIntoSections(
+  text: string
+): Array<{ heading: string; text: string }> {
+  const lines = text.split("\n");
+  const headingRe = /^#{1,3}\s+(.+)/;
+
+  // Find the H1 title for use as context prefix in sub-sections.
+  const titleLine = lines.find((l) => /^#\s+/.test(l));
+  const title = titleLine ? titleLine.replace(/^#\s+/, "").trim() : "";
+
+  // Pass 1: split into raw sections.
+  const rawSections: Array<{ heading: string; body: string }> = [];
+  let currentHeading = "";
+  let currentLines: string[] = [];
+
+  for (const line of lines) {
+    if (headingRe.test(line)) {
+      rawSections.push({ heading: currentHeading, body: currentLines.join("\n").trim() });
+      currentHeading = line.trim();
+      currentLines = [];
+    } else {
+      currentLines.push(line);
+    }
+  }
+  rawSections.push({ heading: currentHeading, body: currentLines.join("\n").trim() });
+
+  // Pass 2: attach nearest H1/H2 parent to each H3 section.
+  const sections = rawSections.map((section, i) => {
+    if (/^###\s/.test(section.heading)) {
+      for (let j = i - 1; j >= 0; j--) {
+        if (/^#{1,2}\s/.test(rawSections[j].heading)) {
+          return { ...section, parentHeading: rawSections[j].heading };
+        }
+      }
+    }
+    return { ...section, parentHeading: "" };
+  });
+
+  const result: Array<{ heading: string; text: string }> = [];
+
+  for (const { heading, parentHeading, body } of sections) {
+    if (`${heading}\n\n${body}`.trim().length < 20) continue;
+
+    // Build embedding text:
+    //   - Always start with document title
+    //   - For H3 sections: include parent H2 (skip if it is a date heading)
+    //   - Include current heading (skip if it is a date heading)
+    //   - Always include body
+    const parts: string[] = [];
+    if (title) parts.push(title);
+    if (parentHeading && !isDateOnlyHeading(parentHeading)) parts.push(parentHeading);
+    if (heading && !isDateOnlyHeading(heading)) parts.push(heading);
+    parts.push(body);
+
+    const fullText = parts.filter(Boolean).join("\n\n").trim();
+    if (fullText.length < 20) continue;
+
+    if (fullText.length <= CHUNK_SIZE) {
+      result.push({ heading, text: fullText });
+    } else {
+      for (const sub of chunkText(fullText)) {
+        result.push({ heading, text: sub });
+      }
+    }
+  }
+
+  return result.length > 0 ? result : [{ heading: "", text: text.slice(0, CHUNK_SIZE) }];
+}
+
 function md5(text: string): string {
   return crypto.createHash("md5").update(text).digest("hex");
 }
@@ -195,12 +278,12 @@ async function readNote(filePath: string): Promise<string> {
 // Per-note embedding — chunk, embed, average
 // ---------------------------------------------------------------------------
 
-async function embedNote(content: string): Promise<number[]> {
+async function embedNote(content: string): Promise<ChunkEntry[]> {
   const cleaned = cleanNote(content);
   if (!cleaned) return [];
-  const chunks = chunkText(cleaned);
-  const vectors = await embed(chunks);
-  return averageAndNormalise(vectors);
+  const sections = splitIntoSections(cleaned);
+  const vectors = await embed(sections.map((s) => s.text));
+  return sections.map((s, i) => ({ heading: s.heading, embedding: vectors[i] }));
 }
 
 // ---------------------------------------------------------------------------
@@ -222,9 +305,9 @@ async function syncNewAndDeleted(idx: VaultIndex): Promise<void> {
     try {
       const content = await readNote(p);
       const hash = md5(content);
-      const embedding = await embedNote(content);
-      if (embedding.length > 0) {
-        idx.files[p] = { hash, embedding };
+      const chunks = await embedNote(content);
+      if (chunks.length > 0) {
+        idx.files[p] = { hash, chunks };
       }
     } catch {
       // Skip notes that can't be read — non-fatal.
@@ -250,9 +333,9 @@ async function fullReHash(idx: VaultIndex): Promise<void> {
         const content = await readNote(p);
         const hash = md5(content);
         if (idx.files[p]?.hash !== hash) {
-          const embedding = await embedNote(content);
-          if (embedding.length > 0) {
-            idx.files[p] = { hash, embedding };
+          const chunks = await embedNote(content);
+          if (chunks.length > 0) {
+            idx.files[p] = { hash, chunks };
           }
         }
       } catch {
@@ -286,11 +369,21 @@ function startBackgroundIndex(): void {
   (async () => {
     try {
       const idx = loadIndex();
-      await syncNewAndDeleted(idx);
-      idx.lastReHash = Date.now();
-      saveIndex(idx);
-      liveIndex = idx;
-      indexState = "ready";
+
+      if (Object.keys(idx.files).length > 0) {
+        // Existing cache: become ready immediately so searches are not
+        // blocked by a startup CLI round-trip. syncNewAndDeleted() runs
+        // on the first search call inside semanticQuery() anyway.
+        liveIndex = idx;
+        indexState = "ready";
+      } else {
+        // No cache yet: embed all notes before becoming ready.
+        await syncNewAndDeleted(idx);
+        idx.lastReHash = Date.now();
+        saveIndex(idx);
+        liveIndex = idx;
+        indexState = "ready";
+      }
     } catch {
       // If build fails, stay in "building" so callers return the "indexing" message
       // rather than crashing. A server restart will retry.
@@ -306,6 +399,7 @@ interface SearchResult {
   path: string;
   score: number;
   preview: string;
+  matchedHeading: string;
 }
 
 async function semanticQuery(
@@ -330,9 +424,17 @@ async function semanticQuery(
   const results: SearchResult[] = [];
   for (const [p, entry] of Object.entries(liveIndex.files)) {
     if (p === excludePath) continue;
-    const score = cosineSimilarity(queryVec, entry.embedding);
-    if (score >= minScore) {
-      results.push({ path: p, score, preview: "" });
+    let bestScore = 0;
+    let bestHeading = "";
+    for (const chunk of entry.chunks) {
+      const s = cosineSimilarity(queryVec, chunk.embedding);
+      if (s > bestScore) {
+        bestScore = s;
+        bestHeading = chunk.heading;
+      }
+    }
+    if (bestScore >= minScore) {
+      results.push({ path: p, score: bestScore, preview: "", matchedHeading: bestHeading });
     }
   }
 
@@ -401,10 +503,13 @@ export function registerSemanticTools(server: McpServer): void {
           };
         }
 
-        const lines = results.map(
-          (r, i) =>
-            `${i + 1}. ${r.path} (score: ${r.score.toFixed(3)})\n   ${r.preview}`
-        );
+        const lines = results.map((r, i) => {
+          const label =
+            r.matchedHeading
+              ? `${r.path} > ${r.matchedHeading.replace(/^#+\s*/, "").trim()}`
+              : r.path;
+          return `${i + 1}. ${label} (score: ${r.score.toFixed(3)})\n   ${r.preview}`;
+        });
         return {
           content: [{ type: "text", text: lines.join("\n\n") }],
         };
@@ -467,8 +572,9 @@ export function registerSemanticTools(server: McpServer): void {
           };
         }
 
+        const noteVec = averageAndNormalise(entry.chunks.map((c) => c.embedding));
         const results = await semanticQuery(
-          entry.embedding,
+          noteVec,
           top_n,
           min_score,
           note_path // exclude source note
@@ -482,10 +588,13 @@ export function registerSemanticTools(server: McpServer): void {
           };
         }
 
-        const lines = results.map(
-          (r, i) =>
-            `${i + 1}. ${r.path} (score: ${r.score.toFixed(3)})\n   ${r.preview}`
-        );
+        const lines = results.map((r, i) => {
+          const label =
+            r.matchedHeading
+              ? `${r.path} > ${r.matchedHeading.replace(/^#+\s*/, "").trim()}`
+              : r.path;
+          return `${i + 1}. ${label} (score: ${r.score.toFixed(3)})\n   ${r.preview}`;
+        });
         return {
           content: [{ type: "text", text: lines.join("\n\n") }],
         };
@@ -538,6 +647,70 @@ export function registerSemanticTools(server: McpServer): void {
             {
               type: "text",
               text: `Re-index failed: ${err instanceof Error ? err.message : String(err)}`,
+            },
+          ],
+        };
+      }
+    }
+  );
+
+  // --- clear_index --------------------------------------------------------
+  server.tool(
+    "clear_index",
+    [
+      "Delete the local embedding cache file and rebuild the index from scratch.",
+      "Use this only when the cache is corrupted or after a version/model change that",
+      "leaves stale data on disk.",
+      "DO NOT use this before re-indexing — index_vault already re-embeds changed notes",
+      "without discarding anything. clear_index is a last-resort reset, not a routine operation.",
+      "A background rebuild starts automatically after clearing; searches will return",
+      "'being indexed' until it completes.",
+    ].join(" "),
+    {
+      dryRun: z
+        .boolean()
+        .default(true)
+        .describe(
+          "When true (default), shows what would be deleted without doing it. Pass false to actually clear."
+        ),
+    },
+    async ({ dryRun }) => {
+      const cachePath = getIndexPath();
+      const exists = fs.existsSync(cachePath);
+
+      if (dryRun) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: exists
+                ? `Dry run: would delete cache file at ${cachePath} and trigger a full rebuild.\nPass dryRun=false to proceed.`
+                : `Dry run: no cache file found at ${cachePath} — nothing to delete.`,
+            },
+          ],
+        };
+      }
+
+      try {
+        if (exists) fs.unlinkSync(cachePath);
+        liveIndex = null;
+        indexState = "idle";
+        startBackgroundIndex();
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Cache cleared${exists ? ` (deleted ${cachePath})` : " (no file existed)"}. Rebuilding index in the background — use vault_info to check progress.`,
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: `clear_index failed: ${err instanceof Error ? err.message : String(err)}`,
             },
           ],
         };
