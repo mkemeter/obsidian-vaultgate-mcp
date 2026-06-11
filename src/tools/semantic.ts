@@ -4,17 +4,23 @@
  * Requires @xenova/transformers (optional dependency). If the package is
  * unavailable this module will fail to import and server.ts silently skips it.
  *
- * Four tools are registered:
- *   semantic_search — natural-language query → ranked note results
+ * Five tools are registered:
+ *   semantic_search — natural-language query → ranked note results with section labels
  *   find_similar    — given a vault path → similar notes
  *   index_vault     — force full re-index (escape hatch)
+ *   clear_index     — delete cache and rebuild from scratch (last-resort reset)
  *   vault_info      — note count + last indexed timestamp
  *
  * The embedding index is maintained automatically:
- *   - Built in the background at server startup.
+ *   - Built in the background at server startup (cache-first: existing caches
+ *     become ready immediately; syncNewAndDeleted() runs on the first search).
  *   - New / deleted notes detected instantly on each search call (path diff).
  *   - Modified notes detected lazily: full re-hash triggered async if last
  *     re-hash was more than 24 h ago.
+ *
+ * Indexing strategy: one embedding per section (H1/H2/H3 boundary). Search
+ * scores notes by their best-matching chunk (max pooling). Results include the
+ * matched section heading so users know which part of a note to open.
  */
 
 import * as fs from "node:fs";
