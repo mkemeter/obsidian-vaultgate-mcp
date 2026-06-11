@@ -123,7 +123,8 @@ export function registerDevTools(server: McpServer): void {
   // ---------------------------------------------------------------------------
   server.tool(
     "dev_css",
-    "Inspect computed CSS property values for a DOM selector.",
+    "Inspect CSS property values for a DOM selector. Returns only explicitly declared rules — " +
+      "computed or inherited values may not appear even if the element has a visible style.",
     {
       selector: z
         .string()
