@@ -12,10 +12,11 @@ import { registerTagTools } from "./tools/tags.js";
 import { registerPluginTools } from "./tools/plugins.js";
 import { registerDevTools } from "./tools/dev.js";
 import { registerContextTools } from "./tools/context.js";
+import { registerUriTools } from "./tools/uri.js";
 import { runObsidian } from "./cli.js";
 
 /** Number of always-present tools (includes vault_context + vault_context_set). */
-export const BASE_TOOL_COUNT = 31;
+export const BASE_TOOL_COUNT = 34;
 
 /** Number of additional tools registered when @xenova/transformers is available. */
 export const SEMANTIC_TOOL_COUNT = 5;
@@ -108,6 +109,7 @@ export async function createServer(iconUrl?: string): Promise<McpServer> {
   registerPluginTools(server);    // plugins_list, plugin_reload
   registerDevTools(server);       // eval, dev_errors, dev_console, dev_css, dev_dom, dev_screenshot, dev_mobile
   registerContextTools(server);   // vault_context, vault_context_set
+  registerUriTools(server);       // note_open, search_open, daily_open
 
   // Semantic search tools — optional, require @xenova/transformers ONNX runtime.
   // Only the import is guarded; if the module loads, registration errors propagate normally.

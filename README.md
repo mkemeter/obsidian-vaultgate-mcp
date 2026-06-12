@@ -7,21 +7,25 @@
 [![Node.js](https://img.shields.io/badge/Node.js-18+-brightgreen)](https://nodejs.org)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](#)
 
-VaultGate is a local [Model Context Protocol](https://modelcontextprotocol.io) server that bridges any MCP-compatible AI client with your Obsidian vault. It's built on the official Obsidian CLI — no community plugins, no cloud relay, no API keys.
+VaultGate is a local [Model Context Protocol](https://modelcontextprotocol.io) server that bridges any MCP-compatible AI client with your Obsidian vault. It's built on Obsidian's native integration APIs — no community plugins, no cloud relay, no API keys.
 
-Ask your AI to read notes, run full-text or semantic search, manage tasks, apply templates, and write content on your behalf. Every write goes through a dry-run preview first, so you stay in control of what actually changes.
+Ask your AI to read notes, run full-text or semantic search, manage tasks, apply templates, write content, and open anything directly in the Obsidian UI. Every write goes through a dry-run preview first, so you stay in control of what actually changes.
 
 ---
 
 🔒 **Private by design** — Note content never leaves your machine. Binds to `127.0.0.1` only.
 
-🔌 **No plugins required** — Uses the official Obsidian CLI — bundled with Obsidian, zero community plugins.
+🔐 **Obsidian stays in control** — The AI never accesses your files directly. Every operation is mediated by the running Obsidian instance, preserving its link graph, context, and integrity.
+
+🔌 **No plugins required** — Relies entirely on Obsidian's built-in integration APIs. Zero community plugins, no extra installs.
 
 🤖 **Works with any MCP client** — Claude, Cursor, Windsurf, Zed, and anything else that speaks MCP.
 
 🔍 **Semantic search** — Query your vault by meaning, not just keywords — fully offline.
 
 ✋ **Explicit write consent** — Every change requires a two-step preview + confirm. Nothing is modified silently.
+
+🪟 **GUI navigation** — Open any note, search result, or daily note directly in Obsidian. The AI can hand work off to you in the UI.
 
 📋 **Vault conventions** — Document your folder structure and naming rules in `VAULTGATE.md` — injected into every AI session automatically.
 
@@ -36,16 +40,17 @@ Ask your AI to read notes, run full-text or semantic search, manage tasks, apply
   ┌─────────────────────────────┐
   │          VaultGate          │  ← this package
   │       127.0.0.1 only        │
-  └─────────────────────────────┘
-           │
-           │  Official Obsidian CLI  ·  local IPC
-           ▼
+  └──────┬──────────────┬───────┘
+         │              │
+  CLI · IPC socket      │  obsidian:// URI · OS launcher
+         │              │
+         └──────┬───────┘
+                ▼
   ┌─────────────────────────────┐
   │         Obsidian App        │
-  └─────────────────────────────┘
-           │
-           │  read / write
-           ▼
+  └─────────────┬───────────────┘
+                │  read / write
+                ▼
   ┌─────────────────────────────┐
   │         Your Vault          │  ← stays on your machine
   └─────────────────────────────┘
@@ -294,6 +299,16 @@ All configuration via environment variables. None are required for single-vault 
 
 ## Available tools
 
+### GUI navigation
+
+These tools dispatch `obsidian://` URIs through the OS to trigger navigation inside the running Obsidian instance. They bring Obsidian to the foreground — no vault data is read or written.
+
+| Tool | Description |
+|---|---|
+| `note_open` | Open a note in the Obsidian GUI. Accepts `path` (vault-root) or `file` (wikilink name); optional `heading` or `block` to scroll to a location |
+| `search_open` | Open the Obsidian search panel with a pre-filled query |
+| `daily_open` | Open today's daily note in the Obsidian GUI |
+
 ### Read-only
 
 | Tool | Description |
@@ -379,12 +394,18 @@ Set `OBSIDIAN_MCP_PORT=3002` and update the URL in your AI client.
 **Obsidian launches at login**
 Side effect of the launchd agent — the startup health check communicates with the running Obsidian instance. See [Uninstall](#uninstall) to remove the agent.
 
+**`note_open` / `search_open` / `daily_open` brings Obsidian to the foreground**
+This is intentional — these tools are designed to hand work off to you in the UI.
+
+**`xdg-open: command not found` (Linux)**
+Install `xdg-utils` via your package manager (e.g. `sudo apt install xdg-utils`) to enable URI dispatch.
+
 ---
 
 
 ## Privacy and security
 
-- **Local execution only.** All vault operations run through the local `obsidian` process. No note content is transmitted to any external service by this package.
+- **Local execution only.** All vault operations go through the running Obsidian instance — never directly to the file system. Obsidian's internal state (links, indexes, plugin context) stays consistent.
 - **Loopback-only binding.** The HTTP server listens on `127.0.0.1` and is unreachable from other hosts on the network.
 - **Explicit write consent.** Every write operation requires a two-step interaction: preview followed by confirmation. No file is modified in a single tool call.
 - **No credentials.** Access is scoped to the local user session — no tokens, API keys, or authentication required.
