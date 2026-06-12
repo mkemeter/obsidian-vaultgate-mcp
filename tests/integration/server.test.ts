@@ -74,6 +74,11 @@ describe("server tool registration", () => {
     expect(names).toContain("dev_dom");
     expect(names).toContain("dev_screenshot");
     expect(names).toContain("dev_mobile");
+
+    // uri group
+    expect(names).toContain("note_open");
+    expect(names).toContain("search_open");
+    expect(names).toContain("daily_open");
   });
 
   it("BASE_TOOL_COUNT constant reflects actual base tools", async () => {

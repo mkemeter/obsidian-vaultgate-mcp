@@ -269,8 +269,10 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerXxxTools } from "../../../src/tools/xxx.js";
 
 // Mock the CLI — tests never invoke the real obsidian binary
-const mockRun = vi.fn();
-vi.mock("../../../src/cli.js", () => ({ runObsidian: mockRun }));
+vi.mock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+
+const { runObsidian } = await import("../../../src/cli.js");
+const mockRun = vi.mocked(runObsidian);
 
 function makeServer() {
   const server = new McpServer({ name: "test", version: "0.0.0" });
@@ -280,12 +282,12 @@ function makeServer() {
 
 async function invoke(server: McpServer, toolName: string, args: Record<string, unknown>) {
   const handler = (server.server as any)._requestHandlers.get("tools/call");
-  return handler({ params: { name: toolName, arguments: args } }, {});
+  return await handler({ params: { name: toolName, arguments: args } }, {});
 }
 
 describe("xxx tools", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     mockRun.mockResolvedValue("mock output");
   });
 
