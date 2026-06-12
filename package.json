@@ -23,9 +23,7 @@
   },
   "files": [
     "build",
-    "launchd",
-    "systemd",
-    "examples",
+    "deploy",
     ".env.example",
     "README.md",
     "LICENSE"
