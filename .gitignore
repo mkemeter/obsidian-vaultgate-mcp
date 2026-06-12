@@ -4,5 +4,6 @@ build/
 *.log
 coverage/
 .DS_Store
+CLAUDE.md
 plans/
 .biome/
