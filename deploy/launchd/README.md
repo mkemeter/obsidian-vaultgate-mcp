@@ -5,8 +5,7 @@ This directory contains a launchd agent that starts `obsidian-vaultgate-mcp` aut
 ## Quick install
 
 ```bash
-cd $(npm root -g)/obsidian-vaultgate-mcp
-./launchd/install.sh
+bash "$(npm root -g)/obsidian-vaultgate-mcp/deploy/install.sh"
 ```
 
 The install script will:
@@ -72,4 +71,4 @@ launchctl unload ~/Library/LaunchAgents/com.obsidian-vaultgate-mcp.plist
 launchctl load ~/Library/LaunchAgents/com.obsidian-vaultgate-mcp.plist
 ```
 
-Or re-run `./launchd/install.sh` to regenerate from the template.
+Or re-run `./deploy/launchd/install.sh` to regenerate from the template.

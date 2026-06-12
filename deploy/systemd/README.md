@@ -5,8 +5,7 @@ This directory contains an install script that sets up `obsidian-vaultgate-mcp` 
 ## Quick install
 
 ```bash
-cd $(npm root -g)/obsidian-vaultgate-mcp
-./systemd/install.sh
+bash "$(npm root -g)/obsidian-vaultgate-mcp/deploy/install.sh"
 ```
 
 The install script will:
@@ -62,4 +61,4 @@ systemctl --user daemon-reload
 systemctl --user restart obsidian-vaultgate-mcp
 ```
 
-Or re-run `./systemd/install.sh` to regenerate the service file from scratch.
+Or re-run `./deploy/systemd/install.sh` to regenerate the service file from scratch.

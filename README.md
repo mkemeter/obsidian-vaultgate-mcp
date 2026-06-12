@@ -65,6 +65,7 @@ Ask your AI to read notes, run full-text or semantic search, manage tasks, apply
 - [HTTP clients](#http-clients)
 - [Claude Code](#claude-code)
 - [Auto-start at login](#auto-start-at-login)
+- [Uninstall](#uninstall)
 - [Configuration](#configuration)
 - [Available tools](#available-tools)
 - [Troubleshooting](#troubleshooting)
@@ -212,46 +213,67 @@ Claude Code manages the process lifecycle via stdio — no separate startup need
 ### macOS (launchd)
 
 ```bash
-cd $(npm root -g)/obsidian-vaultgate-mcp
-./launchd/install.sh
+bash "$(npm root -g)/obsidian-vaultgate-mcp/deploy/install.sh"
 ```
 
 Installs a `launchd` agent under `~/Library/LaunchAgents/` that starts VaultGate at login and restarts it on failure. The install script resolves all paths automatically (compatible with nvm, Homebrew, system Node).
 
 > Note: Obsidian is also launched at login, because the startup health check communicates with the running instance.
 
-To uninstall:
-
-```bash
-launchctl unload ~/Library/LaunchAgents/com.obsidian-vaultgate-mcp.plist
-rm ~/Library/LaunchAgents/com.obsidian-vaultgate-mcp.plist
-```
+To uninstall: see [Uninstall](#uninstall) below.
 
 ### Linux (systemd user service)
 
 ```bash
-cd $(npm root -g)/obsidian-vaultgate-mcp
-./systemd/install.sh
+bash "$(npm root -g)/obsidian-vaultgate-mcp/deploy/install.sh"
 ```
 
 Installs a systemd user service under `~/.config/systemd/user/` that starts VaultGate at login and restarts it on failure. The install script resolves all paths automatically (compatible with nvm, volta, system Node).
 
 > Note: Obsidian is also launched at login, because the startup health check communicates with the running instance.
 
-To uninstall:
-
-```bash
-systemctl --user disable --now obsidian-vaultgate-mcp
-rm ~/.config/systemd/user/obsidian-vaultgate-mcp.service
-systemctl --user daemon-reload
-```
+To uninstall: see [Uninstall](#uninstall) below.
 
 ### Windows (Task Scheduler)
 
-1. **Create Basic Task** → name it `VaultGate`
-2. Trigger: **When I log on**
-3. Action: **Start a program** — `node.exe` with the package entry point as argument (`npm root -g` + `\obsidian-vaultgate-mcp\build\index.js`)
-4. Set `OBSIDIAN_VAULT` in environment variables if needed
+```powershell
+powershell -ExecutionPolicy Bypass -File "$(npm root -g)\obsidian-vaultgate-mcp\deploy\install.ps1"
+```
+
+Detects paths automatically, prompts for your vault name, writes a startup wrapper, and registers a Task Scheduler task that runs VaultGate at login.
+
+To uninstall: see [Uninstall](#uninstall) below.
+
+---
+
+
+## Uninstall
+
+### macOS and Linux
+
+```bash
+bash "$(npm root -g)/obsidian-vaultgate-mcp/deploy/uninstall.sh"
+```
+
+Stops the background service (if installed), removes the npm package, and deletes the local embedding cache.
+
+### Windows
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "$(npm root -g)\obsidian-vaultgate-mcp\deploy\uninstall.ps1"
+```
+
+### What gets removed
+
+| Item | Removed automatically |
+|------|-----------------------|
+| launchd agent (macOS) | ✓ if installed |
+| systemd service (Linux) | ✓ if installed |
+| Task Scheduler task + wrapper (Windows) | ✓ if installed |
+| npm package + binary | ✓ always |
+| Embedding cache (`~/.cache/obsidian-vaultgate-mcp/`) | ✓ always |
+| ONNX model cache (`~/.cache/huggingface/`) | No — may be shared with other tools |
+| `VAULTGATE.md` in your vault | No — your file, delete manually if wanted |
 
 ---
 
@@ -355,7 +377,7 @@ The embedding index is built asynchronously at startup. For large vaults this ca
 Set `OBSIDIAN_MCP_PORT=3002` and update the URL in your AI client.
 
 **Obsidian launches at login**
-Side effect of the launchd agent — the startup health check communicates with the running Obsidian instance. See [macOS uninstall steps](#macos-launchd) to remove the agent.
+Side effect of the launchd agent — the startup health check communicates with the running Obsidian instance. See [Uninstall](#uninstall) to remove the agent.
 
 ---
 

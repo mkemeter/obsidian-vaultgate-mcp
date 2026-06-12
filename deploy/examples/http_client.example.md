@@ -28,8 +28,7 @@ For always-on availability, install the macOS launchd agent so the server
 starts automatically at login:
 
 ```bash
-cd $(npm root -g)/obsidian-vaultgate-mcp
-./launchd/install.sh
+bash "$(npm root -g)/obsidian-vaultgate-mcp/deploy/install.sh"
 ```
 
 ## Troubleshooting
