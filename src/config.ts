@@ -53,7 +53,7 @@ export function loadConfig(): Config {
   const rawPort = process.env.OBSIDIAN_MCP_PORT;
   const port = rawPort !== undefined ? parseInt(rawPort, 10) : 3001;
 
-  if (rawPort !== undefined && (isNaN(port) || port < 1 || port > 65535)) {
+  if (rawPort !== undefined && (Number.isNaN(port) || port < 1 || port > 65535)) {
     throw new Error(
       `Invalid OBSIDIAN_MCP_PORT value "${rawPort}" — must be an integer between 1 and 65535.`
     );

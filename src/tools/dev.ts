@@ -1,4 +1,4 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
 import { dryRunPreview, dryRunSchema, optionalBoolSchema, requiredBoolSchema } from "./_helpers.js";
@@ -44,9 +44,9 @@ export function registerDevTools(server: McpServer): void {
             "Example: `const files = await app.vault.getFiles(); return files.length;`"
         ),
       dryRun: dryRunSchema.describe(
-          "When true (default), returns a preview without executing. " +
-            "Set to false ONLY after showing the user the exact code and receiving explicit confirmation."
-        ),
+        "When true (default), returns a preview without executing. " +
+          "Set to false ONLY after showing the user the exact code and receiving explicit confirmation."
+      ),
     },
     async ({ code, dryRun }) => {
       // Wrap in an async IIFE so `await` and `return` work at the top level of
@@ -126,12 +126,8 @@ export function registerDevTools(server: McpServer): void {
     "Inspect CSS property values for a DOM selector. Returns only explicitly declared rules — " +
       "computed or inherited values may not appear even if the element has a visible style.",
     {
-      selector: z
-        .string()
-        .describe("CSS selector to target, e.g. `.workspace-leaf`."),
-      prop: z
-        .string()
-        .describe("CSS property name to inspect, e.g. `background-color`."),
+      selector: z.string().describe("CSS selector to target, e.g. `.workspace-leaf`."),
+      prop: z.string().describe("CSS property name to inspect, e.g. `background-color`."),
     },
     async ({ selector, prop }) => {
       const args = ["dev:css", `selector=${selector}`, `prop=${prop}`];
@@ -154,9 +150,7 @@ export function registerDevTools(server: McpServer): void {
     "dev_dom",
     "Query DOM elements in the Obsidian window matching a CSS selector.",
     {
-      selector: z
-        .string()
-        .describe("CSS selector, e.g. `.workspace-leaf` or `#app`."),
+      selector: z.string().describe("CSS selector, e.g. `.workspace-leaf` or `#app`."),
       text: optionalBoolSchema.describe("Return only the text content of matched elements."),
     },
     async ({ selector, text }) => {
@@ -184,9 +178,7 @@ export function registerDevTools(server: McpServer): void {
       "IMPORTANT: Always call with dryRun=true first, show the user the preview, " +
       "and ask for explicit confirmation before calling with dryRun=false.",
     {
-      path: z
-        .string()
-        .describe("Output file path for the screenshot, e.g. `screenshot.png`."),
+      path: z.string().describe("Output file path for the screenshot, e.g. `screenshot.png`."),
       dryRun: dryRunSchema,
     },
     async ({ path, dryRun }) => {

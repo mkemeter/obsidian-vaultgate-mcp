@@ -48,12 +48,10 @@ export const optionalBoolSchema = z
  * Zod schema for required boolean parameters that may arrive as strings.
  * Same coercion as optionalBoolSchema but without the optional/undefined path.
  */
-export const requiredBoolSchema = z
-  .union([z.boolean(), z.string()])
-  .transform((v): boolean => {
-    if (v === false || v === "false" || v === "0" || v === "no") return false;
-    return true;
-  });
+export const requiredBoolSchema = z.union([z.boolean(), z.string()]).transform((v): boolean => {
+  if (v === false || v === "false" || v === "0" || v === "no") return false;
+  return true;
+});
 
 /**
  * Returns a dry-run preview string describing the CLI command that
@@ -68,10 +66,7 @@ export const requiredBoolSchema = z
 export function dryRunPreview(args: string[]): string {
   const vaultPrefix = config.vault ? [`vault=${config.vault}`] : [];
   const fullCommand = ["obsidian", ...vaultPrefix, ...args].join(" ");
-  return (
-    `[DRY RUN] Would execute: ${fullCommand}\n` +
-    `No changes made. Set dryRun=false to execute.`
-  );
+  return `[DRY RUN] Would execute: ${fullCommand}\nNo changes made. Set dryRun=false to execute.`;
 }
 
 /**
@@ -86,10 +81,7 @@ export function dryRunPreview(args: string[]): string {
  * @param path  Exact vault-root path (takes precedence over file).
  * @returns     Zero or one CLI argument strings.
  */
-export function buildFileArgs(
-  file: string | undefined,
-  path: string | undefined
-): string[] {
+export function buildFileArgs(file: string | undefined, path: string | undefined): string[] {
   if (path !== undefined) return [`path=${path}`];
   if (file !== undefined) return [`file=${file}`];
   return [];

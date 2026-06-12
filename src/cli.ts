@@ -24,9 +24,7 @@ const execFileAsync = promisify(execFile);
 export async function runObsidian(args: string[]): Promise<string> {
   // Prepend vault targeting if configured. Must be the first argument
   // per the Obsidian CLI spec: `obsidian vault="My Vault" <command> ...`
-  const fullArgs = config.vault
-    ? [`vault=${config.vault}`, ...args]
-    : [...args];
+  const fullArgs = config.vault ? [`vault=${config.vault}`, ...args] : [...args];
 
   try {
     const { stdout } = await execFileAsync(config.cliBin, fullArgs, {

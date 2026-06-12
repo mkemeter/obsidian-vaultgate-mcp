@@ -1,19 +1,19 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as url from "node:url";
-import { registerFileTools } from "./tools/files.js";
-import { registerSearchTools } from "./tools/search.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { runObsidian } from "./cli.js";
+import { registerContextTools } from "./tools/context.js";
 import { registerDailyTools } from "./tools/daily.js";
+import { registerDevTools } from "./tools/dev.js";
+import { registerFileTools } from "./tools/files.js";
+import { registerPluginTools } from "./tools/plugins.js";
+import { registerPropertyTools } from "./tools/properties.js";
+import { registerSearchTools } from "./tools/search.js";
+import { registerTagTools } from "./tools/tags.js";
 import { registerTaskTools } from "./tools/tasks.js";
 import { registerTemplateTools } from "./tools/templates.js";
-import { registerPropertyTools } from "./tools/properties.js";
-import { registerTagTools } from "./tools/tags.js";
-import { registerPluginTools } from "./tools/plugins.js";
-import { registerDevTools } from "./tools/dev.js";
-import { registerContextTools } from "./tools/context.js";
 import { registerUriTools } from "./tools/uri.js";
-import { runObsidian } from "./cli.js";
 
 /** Number of always-present tools (includes vault_context + vault_context_set). */
 export const BASE_TOOL_COUNT = 34;
@@ -68,7 +68,7 @@ export async function createServer(iconUrl?: string): Promise<McpServer> {
 
   const serverInfo: ConstructorParameters<typeof McpServer>[0] = {
     name: "obsidian-vaultgate-mcp",
-    version: "0.1.0",
+    version: "0.1.2",
   };
 
   if (dataUri) {
@@ -89,9 +89,7 @@ export async function createServer(iconUrl?: string): Promise<McpServer> {
   try {
     const raw = await runObsidian(["read", "path=VAULTGATE.md"]);
     if (raw.trim()) {
-      vaultInstructions =
-        raw.trim() +
-        "\n\n> Vault context received. You do not need to call `vault_context`.";
+      vaultInstructions = `${raw.trim()}\n\n> Vault context received. You do not need to call \`vault_context\`.`;
     }
   } catch {
     // File absent or vault not reachable — skip silently.
@@ -99,17 +97,17 @@ export async function createServer(iconUrl?: string): Promise<McpServer> {
 
   const server = new McpServer(serverInfo, { instructions: vaultInstructions });
 
-  registerFileTools(server);      // files_list, files_read, note_create, note_append, note_prepend, note_update, note_trash
-  registerSearchTools(server);    // search
-  registerDailyTools(server);     // daily_read, daily_append
-  registerTaskTools(server);      // tasks_all, tasks_pending, tasks_daily
-  registerTemplateTools(server);  // templates_list, templates_apply
-  registerPropertyTools(server);  // property_read, property_set
-  registerTagTools(server);       // tags, backlinks, unresolved
-  registerPluginTools(server);    // plugins_list, plugin_reload
-  registerDevTools(server);       // eval, dev_errors, dev_console, dev_css, dev_dom, dev_screenshot, dev_mobile
-  registerContextTools(server);   // vault_context, vault_context_set
-  registerUriTools(server);       // note_open, search_open, daily_open
+  registerFileTools(server); // files_list, files_read, note_create, note_append, note_prepend, note_update, note_trash
+  registerSearchTools(server); // search
+  registerDailyTools(server); // daily_read, daily_append
+  registerTaskTools(server); // tasks_all, tasks_pending, tasks_daily
+  registerTemplateTools(server); // templates_list, templates_apply
+  registerPropertyTools(server); // property_read, property_set
+  registerTagTools(server); // tags, backlinks, unresolved
+  registerPluginTools(server); // plugins_list, plugin_reload
+  registerDevTools(server); // eval, dev_errors, dev_console, dev_css, dev_dom, dev_screenshot, dev_mobile
+  registerContextTools(server); // vault_context, vault_context_set
+  registerUriTools(server); // note_open, search_open, daily_open
 
   // Semantic search tools — optional, require @xenova/transformers ONNX runtime.
   // Only the import is guarded; if the module loads, registration errors propagate normally.

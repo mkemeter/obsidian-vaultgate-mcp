@@ -416,7 +416,7 @@ Install `xdg-utils` via your package manager (e.g. `sudo apt install xdg-utils`)
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for architecture overview, tool implementation guide, and the PR checklist.
+See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for architecture overview, tool implementation guide, and the PR checklist.
 
 ```bash
 git clone https://github.com/mkemeter/obsidian-vaultgate-mcp.git

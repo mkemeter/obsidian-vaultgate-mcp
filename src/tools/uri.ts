@@ -1,4 +1,4 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runUri } from "../uri.js";
 
@@ -32,14 +32,8 @@ export function registerUriTools(server: McpServer): void {
         .string()
         .optional()
         .describe("Vault-root path, e.g. 'Folder/Note.md'. Takes precedence over file."),
-      heading: z
-        .string()
-        .optional()
-        .describe("Heading to scroll to (without the # prefix)."),
-      block: z
-        .string()
-        .optional()
-        .describe("Block ID to jump to (without the ^ prefix)."),
+      heading: z.string().optional().describe("Heading to scroll to (without the # prefix)."),
+      block: z.string().optional().describe("Block ID to jump to (without the ^ prefix)."),
     },
     async ({ file, path, heading, block }) => {
       const fileValue = path ?? file;

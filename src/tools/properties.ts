@@ -1,7 +1,7 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
-import { dryRunPreview, buildFileArgs, dryRunSchema } from "./_helpers.js";
+import { buildFileArgs, dryRunPreview, dryRunSchema } from "./_helpers.js";
 
 /**
  * Registers frontmatter/properties tools on the MCP server.
@@ -20,19 +20,12 @@ export function registerPropertyTools(server: McpServer): void {
     "property_read",
     "Read a specific YAML frontmatter property from a note.",
     {
-      name: z
-        .string()
-        .describe("Property name (frontmatter key) to read, e.g. `status`, `tags`."),
+      name: z.string().describe("Property name (frontmatter key) to read, e.g. `status`, `tags`."),
       file: z
         .string()
         .optional()
-        .describe(
-          "Note name (wikilink-style). Uses the active file when omitted."
-        ),
-      path: z
-        .string()
-        .optional()
-        .describe("Exact vault-root path, e.g. `folder/note.md`."),
+        .describe("Note name (wikilink-style). Uses the active file when omitted."),
+      path: z.string().optional().describe("Exact vault-root path, e.g. `folder/note.md`."),
     },
     async ({ name, file, path }) => {
       const args = ["property:read", `name=${name}`, ...buildFileArgs(file, path)];
@@ -62,22 +55,12 @@ export function registerPropertyTools(server: McpServer): void {
       file: z
         .string()
         .optional()
-        .describe(
-          "Note name (wikilink-style). Uses the active file when omitted."
-        ),
-      path: z
-        .string()
-        .optional()
-        .describe("Exact vault-root path, e.g. `folder/note.md`."),
+        .describe("Note name (wikilink-style). Uses the active file when omitted."),
+      path: z.string().optional().describe("Exact vault-root path, e.g. `folder/note.md`."),
       dryRun: dryRunSchema,
     },
     async ({ name, value, file, path, dryRun }) => {
-      const args = [
-        "property:set",
-        `name=${name}`,
-        `value=${value}`,
-        ...buildFileArgs(file, path),
-      ];
+      const args = ["property:set", `name=${name}`, `value=${value}`, ...buildFileArgs(file, path)];
 
       if (dryRun) {
         return { content: [{ type: "text", text: dryRunPreview(args) }] };

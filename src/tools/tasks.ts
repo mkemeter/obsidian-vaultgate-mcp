@@ -1,4 +1,4 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
 import { buildFileArgs } from "./_helpers.js";
@@ -25,10 +25,7 @@ export function registerTaskTools(server: McpServer): void {
         "Scope results to a specific note (wikilink-style name). " +
           "Returns tasks from all notes when omitted."
       ),
-    path: z
-      .string()
-      .optional()
-      .describe("Exact vault-root path, e.g. `folder/note.md`."),
+    path: z.string().optional().describe("Exact vault-root path, e.g. `folder/note.md`."),
   };
 
   // ---------------------------------------------------------------------------
@@ -76,20 +73,15 @@ export function registerTaskTools(server: McpServer): void {
   // ---------------------------------------------------------------------------
   // tasks_daily — read-only
   // ---------------------------------------------------------------------------
-  server.tool(
-    "tasks_daily",
-    "List pending tasks in today's daily note.",
-    {},
-    async () => {
-      try {
-        const output = await runObsidian(["tasks", "daily", "todo"]);
-        return { content: [{ type: "text", text: output }] };
-      } catch (error) {
-        return {
-          content: [{ type: "text", text: (error as Error).message }],
-          isError: true,
-        };
-      }
+  server.tool("tasks_daily", "List pending tasks in today's daily note.", {}, async () => {
+    try {
+      const output = await runObsidian(["tasks", "daily", "todo"]);
+      return { content: [{ type: "text", text: output }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: (error as Error).message }],
+        isError: true,
+      };
     }
-  );
+  });
 }
