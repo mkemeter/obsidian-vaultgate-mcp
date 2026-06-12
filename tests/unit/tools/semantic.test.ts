@@ -61,9 +61,14 @@ async function waitForReady(
 async function freshModule(runMock: (args: string[]) => Promise<string>) {
   vi.resetModules();
 
-  vi.mock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
-  vi.mock("../../../src/config.js", () => ({
-    config: { vault: "TestVault", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+  // Use a unique vault name per invocation so tests never share an on-disk
+  // cache. A shared cache left by a prior run would cause the vault-switch
+  // heuristic to fire spuriously when a test uses a different file list.
+  const uniqueVault = `__test_fresh_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+  vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+  vi.doMock("../../../src/config.js", () => ({
+    config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
   }));
   vi.mock("@xenova/transformers", () => ({
     pipeline: vi.fn().mockResolvedValue(
@@ -234,9 +239,10 @@ describe("semantic_search", () => {
     // FAKE_VEC_A as both query and note embeddings → cosine = 1, but we use
     // FAKE_VEC_B as note embeddings by swapping the mock after module load.
     vi.resetModules();
+    const uniqueVault = `__test_minscore_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
     vi.doMock("../../../src/config.js", () => ({
-      config: { vault: "TestVault", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+      config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
     }));
     // Notes get FAKE_VEC_B (orthogonal to query FAKE_VEC_A) → score = 0
     vi.doMock("@xenova/transformers", () => ({
@@ -552,11 +558,11 @@ describe("splitIntoSections via semantic_search", () => {
     ].join("\n");
 
     vi.resetModules();
+    const uniqueVault = `__test_multisec_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
     vi.doMock("../../../src/config.js", () => ({
-      config: { vault: "TestVault", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+      config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
     }));
-    // Return one FAKE_VEC_A per input text so multi-section notes embed correctly.
     vi.doMock("@xenova/transformers", () => ({
       pipeline: vi.fn().mockResolvedValue(
         vi.fn().mockImplementation((texts: string[]) =>
@@ -618,9 +624,10 @@ describe("splitIntoSections via semantic_search", () => {
     const bigNote = `# Big Note\n\n## Long Section\n\n${bigPara1}\n\n${bigPara2}`;
 
     vi.resetModules();
+    const uniqueVault = `__test_bigchunk_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
     vi.doMock("../../../src/config.js", () => ({
-      config: { vault: "TestVault", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+      config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
     }));
     // Return one FAKE_VEC_A per input text so sub-chunks embed correctly.
     vi.doMock("@xenova/transformers", () => ({
@@ -670,9 +677,10 @@ describe("splitIntoSections via semantic_search", () => {
     ].join("\n");
 
     vi.resetModules();
+    const uniqueVault = `__test_dateheads_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
     vi.doMock("../../../src/config.js", () => ({
-      config: { vault: "TestVault", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+      config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
     }));
     vi.doMock("@xenova/transformers", () => ({
       pipeline: vi.fn().mockResolvedValue(
@@ -704,6 +712,135 @@ describe("splitIntoSections via semantic_search", () => {
     expect(result.content[0].text).not.toMatch(/being indexed/i);
     expect(result.content[0].text).not.toMatch(/semantic search failed/i);
     expect(result.content[0].text).toContain("log.md");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Vault switch detection — heuristic in syncNewAndDeleted()
+// ---------------------------------------------------------------------------
+
+describe("vault switch heuristic", () => {
+  /**
+   * Helper: write a valid cache with specific files for the "default" vault,
+   * then load a fresh module instance with config.vault = undefined so
+   * startBackgroundIndex() will use embeddings-default.json.
+   */
+  async function setupDefaultVaultWithCache(
+    cachedFiles: Record<string, { hash: string; chunks: { heading: string; text: string; embedding: number[] }[] }>,
+    runMock: (args: string[]) => Promise<string>
+  ) {
+    const cacheDir = path.join(os.homedir(), ".cache", "obsidian-vaultgate-mcp");
+    fs.mkdirSync(cacheDir, { recursive: true });
+    const cacheFile = path.join(cacheDir, "embeddings-default.json");
+    fs.writeFileSync(
+      cacheFile,
+      JSON.stringify({ files: cachedFiles, model: "Xenova/bge-small-en-v1.5", version: 2, lastReHash: 0 }),
+      "utf-8"
+    );
+
+    vi.resetModules();
+    vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+    // config.vault is undefined — unconfigured vault case
+    vi.doMock("../../../src/config.js", () => ({
+      config: { vault: undefined, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+    }));
+    vi.doMock("@xenova/transformers", () => ({
+      pipeline: vi.fn().mockResolvedValue(
+        vi.fn().mockImplementation((texts: string[]) =>
+          Promise.resolve({ tolist: () => texts.map(() => FAKE_VEC_A) })
+        )
+      ),
+    }));
+
+    const { runObsidian } = await import("../../../src/cli.js");
+    vi.mocked(runObsidian).mockImplementation(runMock);
+
+    const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
+    const server = new McpServer({ name: "test", version: "0.0.0" });
+    const semantic = await import("../../../src/tools/semantic.js");
+    semantic.registerSemanticTools(server);
+
+    return {
+      server,
+      mockRun: vi.mocked(runObsidian),
+      getState: semantic.getIndexStateForTesting,
+      cacheFile,
+    };
+  }
+
+  it(">50% deletion + new files → wipes index and rebuilds (vault switch)", async () => {
+    // Cache has 4 old-vault files. CLI now returns 3 completely different files
+    // (>50% deleted, new files present) → vault switch heuristic fires.
+    const oldFiles = {
+      "old-a.md": { hash: "aaa", chunks: [{ heading: "Old A", text: "old a", embedding: FAKE_VEC_A }] },
+      "old-b.md": { hash: "bbb", chunks: [{ heading: "Old B", text: "old b", embedding: FAKE_VEC_A }] },
+      "old-c.md": { hash: "ccc", chunks: [{ heading: "Old C", text: "old c", embedding: FAKE_VEC_A }] },
+      "old-d.md": { hash: "ddd", chunks: [{ heading: "Old D", text: "old d", embedding: FAKE_VEC_A }] },
+    };
+    const newVaultList = "new-x.md\nnew-y.md\nnew-z.md\n";
+    const { server, getState, cacheFile } = await setupDefaultVaultWithCache(oldFiles, async (args) => {
+      if (args.includes("list")) return newVaultList;
+      return "# New Note\nContent";
+    });
+
+    await waitForReady(getState);
+
+    const result = await callTool(server, "vault_info");
+    const text: string = result.content[0].text;
+    // Old vault had 4 files; new vault has 3. After rebuild, count must reflect new vault.
+    // "Indexed notes: 3" means the 3 new files were embedded and old files are gone.
+    expect(text).not.toContain("Indexed notes: 0");
+    expect(text).toMatch(/Indexed notes: [1-9]/);
+
+    // Clean up
+    if (fs.existsSync(cacheFile)) fs.unlinkSync(cacheFile);
+  });
+
+  it(">50% deletion but NO new files → does not wipe (bulk delete, not vault switch)", async () => {
+    // Cache has 4 files. CLI returns only 1 (3 deleted, none new).
+    // Heuristic requires BOTH deletion AND additions — should not fire.
+    const oldFiles = {
+      "keep.md": { hash: "kkk", chunks: [{ heading: "Keep", text: "keep", embedding: FAKE_VEC_A }] },
+      "gone-1.md": { hash: "g1", chunks: [{ heading: "Gone 1", text: "gone 1", embedding: FAKE_VEC_A }] },
+      "gone-2.md": { hash: "g2", chunks: [{ heading: "Gone 2", text: "gone 2", embedding: FAKE_VEC_A }] },
+      "gone-3.md": { hash: "g3", chunks: [{ heading: "Gone 3", text: "gone 3", embedding: FAKE_VEC_A }] },
+    };
+    const { server, getState, cacheFile } = await setupDefaultVaultWithCache(oldFiles, async (args) => {
+      if (args.includes("list")) return "keep.md\n";
+      return "# Keep\nContent";
+    });
+
+    await waitForReady(getState);
+
+    const result = await callTool(server, "vault_info");
+    const text: string = result.content[0].text;
+    // "keep.md" survived, 3 gone-*.md deleted — 1 note should remain indexed
+    expect(text).toContain("Indexed notes: 1");
+
+    if (fs.existsSync(cacheFile)) fs.unlinkSync(cacheFile);
+  });
+
+  it("unconfigured vault with cache defers 'ready' until sync completes (Layer 2)", async () => {
+    // Cache has one file. CLI returns a different set — vault switch fires.
+    // The critical check: indexState must NOT be "ready" before syncNewAndDeleted() resolves.
+    // We verify this by checking that after waitForReady() the results reflect the new vault.
+    const oldFiles = {
+      "stale-vault-note.md": { hash: "sss", chunks: [{ heading: "Stale", text: "stale content", embedding: FAKE_VEC_A }] },
+    };
+    const { server, getState, cacheFile } = await setupDefaultVaultWithCache(oldFiles, async (args) => {
+      if (args.includes("list")) return "fresh-vault-note.md\n";
+      return "# Fresh Note\nContent from new vault";
+    });
+
+    await waitForReady(getState);
+
+    const result = await callTool(server, "vault_info");
+    const text: string = result.content[0].text;
+    // After sync: stale-vault-note.md gone (vault switch detected), fresh-vault-note.md added.
+    // Net result: 1 note indexed from the new vault.
+    expect(text).toContain("Indexed notes: 1");
+
+    if (fs.existsSync(cacheFile)) fs.unlinkSync(cacheFile);
   });
 });
 

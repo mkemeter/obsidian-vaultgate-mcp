@@ -12,9 +12,15 @@
  *   vault_info      — note count + last indexed timestamp
  *
  * The embedding index is maintained automatically:
- *   - Built in the background at server startup (cache-first: existing caches
- *     become ready immediately; syncNewAndDeleted() runs on the first search).
- *   - New / deleted notes detected instantly on each search call (path diff).
+ *   - Built in the background at server startup (cache-first):
+ *     - Configured vault (OBSIDIAN_VAULT set): cache becomes ready immediately;
+ *       syncNewAndDeleted() runs on the first search call.
+ *     - Unconfigured vault: cache loads, but syncNewAndDeleted() runs immediately
+ *       at startup before "ready" — guards against cross-session vault switches
+ *       (shared embeddings-default.json).
+ *   - New / deleted notes detected on each search call (path diff).
+ *   - Vault switch detected heuristically: if >50% of indexed paths disappear AND
+ *     new paths arrive in the same sync, the index is wiped and rebuilt from scratch.
  *   - Modified notes detected lazily: full re-hash triggered async if last
  *     re-hash was more than 24 h ago.
  *
@@ -303,14 +309,26 @@ async function syncNewAndDeleted(idx: VaultIndex): Promise<void> {
   const paths = await listVaultPaths();
   const pathSet = new Set(paths);
 
+  // Vault switch heuristic: if >50% of indexed files are absent AND there are
+  // incoming new paths, assume the user switched vaults rather than deleted
+  // a large portion of the current vault. Wipe the index so stale embeddings
+  // from the previous vault are not mixed with fresh ones.
+  const previousTotal = Object.keys(idx.files).length;
+  const deletedCount = Object.keys(idx.files).filter((p) => !pathSet.has(p)).length;
+  const newPaths = paths.filter((p) => !(p in idx.files));
+  if (previousTotal > 0 && deletedCount / previousTotal > 0.5 && newPaths.length > 0) {
+    console.error("[VaultGate] Vault switch detected — rebuilding semantic index from scratch.");
+    idx.files = {};
+  }
+
   // Prune deleted
   for (const p of Object.keys(idx.files)) {
     if (!pathSet.has(p)) delete idx.files[p];
   }
 
   // Embed new (no hash yet)
-  const newPaths = paths.filter((p) => !(p in idx.files));
-  for (const p of newPaths) {
+  const freshNewPaths = paths.filter((p) => !(p in idx.files));
+  for (const p of freshNewPaths) {
     try {
       const content = await readNote(p);
       const hash = md5(content);
@@ -380,11 +398,20 @@ function startBackgroundIndex(): void {
       const idx = loadIndex();
 
       if (Object.keys(idx.files).length > 0) {
-        // Existing cache: become ready immediately so searches are not
-        // blocked by a startup CLI round-trip. syncNewAndDeleted() runs
-        // on the first search call inside semanticQuery() anyway.
-        liveIndex = idx;
-        indexState = "ready";
+        if (config.vault) {
+          // Configured vault: every CLI call is scoped to that vault by name,
+          // so the cache is always correct. Become ready immediately.
+          liveIndex = idx;
+          indexState = "ready";
+        } else {
+          // No configured vault: the cache key is "default" and is shared
+          // across all vaults the user may have open. Run syncNewAndDeleted()
+          // now to detect a cross-session vault switch before serving results.
+          liveIndex = idx;
+          await syncNewAndDeleted(idx);
+          saveIndex(idx);
+          indexState = "ready";
+        }
       } else {
         // No cache yet: embed all notes before becoming ready.
         await syncNewAndDeleted(idx);
