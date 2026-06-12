@@ -1,4 +1,4 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
 import { buildFileArgs, optionalBoolSchema } from "./_helpers.js";
@@ -23,10 +23,7 @@ export function registerTagTools(server: McpServer): void {
     "tags",
     "List all tags in the vault, optionally with usage counts.",
     {
-      sort: z
-        .enum(["name", "count"])
-        .optional()
-        .describe("Sort order: by name or by usage count."),
+      sort: z.enum(["name", "count"]).optional().describe("Sort order: by name or by usage count."),
       counts: optionalBoolSchema.describe("Include usage count next to each tag."),
     },
     async ({ sort, counts }) => {
@@ -56,13 +53,8 @@ export function registerTagTools(server: McpServer): void {
       file: z
         .string()
         .optional()
-        .describe(
-          "Note name (wikilink-style). Uses the active file when omitted."
-        ),
-      path: z
-        .string()
-        .optional()
-        .describe("Exact vault-root path, e.g. `folder/note.md`."),
+        .describe("Note name (wikilink-style). Uses the active file when omitted."),
+      path: z.string().optional().describe("Exact vault-root path, e.g. `folder/note.md`."),
     },
     async ({ file, path }) => {
       const args = ["backlinks", ...buildFileArgs(file, path)];

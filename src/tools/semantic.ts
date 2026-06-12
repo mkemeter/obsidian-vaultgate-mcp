@@ -23,13 +23,13 @@
  * matched section heading so users know which part of a note to open.
  */
 
-import * as fs from "node:fs";
-import * as path from "node:path";
 import * as crypto from "node:crypto";
+import * as fs from "node:fs";
 import * as os from "node:os";
+import * as path from "node:path";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { pipeline } from "@xenova/transformers";
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { runObsidian } from "../cli.js";
 import { config } from "../config.js";
 
@@ -162,9 +162,7 @@ function isDateOnlyHeading(heading: string): boolean {
   return DATE_HEADING_RE.test(heading.replace(/^#+\s*/, "").trim());
 }
 
-function splitIntoSections(
-  text: string
-): Array<{ heading: string; text: string }> {
+function splitIntoSections(text: string): Array<{ heading: string; text: string }> {
   const lines = text.split("\n");
   const headingRe = /^#{1,3}\s+(.+)/;
 
@@ -192,8 +190,9 @@ function splitIntoSections(
   const sections = rawSections.map((section, i) => {
     if (/^###\s/.test(section.heading)) {
       for (let j = i - 1; j >= 0; j--) {
-        if (/^#{1,2}\s/.test(rawSections[j].heading)) {
-          return { ...section, parentHeading: rawSections[j].heading };
+        const ancestor = rawSections[j];
+        if (ancestor && /^#{1,2}\s/.test(ancestor.heading)) {
+          return { ...section, parentHeading: ancestor.heading };
         }
       }
     }
@@ -244,21 +243,25 @@ export function cosineSimilarity(a: number[], b: number[]): number {
   let normA = 0;
   let normB = 0;
   for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i];
-    normA += a[i] * a[i];
-    normB += b[i] * b[i];
+    const ai = a[i] ?? 0;
+    const bi = b[i] ?? 0;
+    dot += ai * bi;
+    normA += ai * ai;
+    normB += bi * bi;
   }
   const denom = Math.sqrt(normA) * Math.sqrt(normB);
   return denom === 0 ? 0 : dot / denom;
 }
 
 function averageAndNormalise(vectors: number[][]): number[] {
-  const dim = vectors[0].length;
+  const first = vectors[0];
+  if (!first) return [];
+  const dim = first.length;
   const avg = new Array<number>(dim).fill(0);
   for (const v of vectors) {
-    for (let i = 0; i < dim; i++) avg[i] += v[i];
+    for (let i = 0; i < dim; i++) avg[i] = (avg[i] ?? 0) + (v[i] ?? 0);
   }
-  for (let i = 0; i < dim; i++) avg[i] /= vectors.length;
+  for (let i = 0; i < dim; i++) avg[i] = (avg[i] ?? 0) / vectors.length;
   // L2 normalise
   const norm = Math.sqrt(avg.reduce((s, x) => s + x * x, 0));
   return norm === 0 ? avg : avg.map((x) => x / norm);
@@ -289,7 +292,7 @@ async function embedNote(content: string): Promise<ChunkEntry[]> {
   if (!cleaned) return [];
   const sections = splitIntoSections(cleaned);
   const vectors = await embed(sections.map((s) => s.text));
-  return sections.map((s, i) => ({ heading: s.heading, embedding: vectors[i] }));
+  return sections.map((s, i) => ({ heading: s.heading, embedding: vectors[i] ?? [] }));
 }
 
 // ---------------------------------------------------------------------------
@@ -420,10 +423,7 @@ async function semanticQuery(
   await syncNewAndDeleted(liveIndex);
 
   // Lazy re-hash — detect modified notes, triggered at most once per 24 h.
-  if (
-    !isReHashing &&
-    Date.now() - (liveIndex.lastReHash ?? 0) > REHASH_INTERVAL_MS
-  ) {
+  if (!isReHashing && Date.now() - (liveIndex.lastReHash ?? 0) > REHASH_INTERVAL_MS) {
     fullReHash(liveIndex).catch(() => {}); // fire-and-forget
   }
 
@@ -481,9 +481,7 @@ export function registerSemanticTools(server: McpServer): void {
       min_score: z
         .preprocess((v) => (typeof v === "string" ? Number(v) : v), z.number().min(0).max(1))
         .default(DEFAULT_MIN_SCORE)
-        .describe(
-          "Minimum similarity score 0–1 to include a result (default 0.25)"
-        ),
+        .describe("Minimum similarity score 0–1 to include a result (default 0.25)"),
     },
     async ({ query, top_n, min_score }) => {
       if (indexState !== "ready") {
@@ -498,22 +496,21 @@ export function registerSemanticTools(server: McpServer): void {
       }
 
       try {
-        const [queryVec] = await embed([query]);
+        const embeddings = await embed([query]);
+        const queryVec = embeddings[0];
+        if (!queryVec) throw new Error("Embedding returned no vector");
         const results = await semanticQuery(queryVec, top_n, min_score);
 
         if (results.length === 0) {
           return {
-            content: [
-              { type: "text", text: "No notes found matching your query." },
-            ],
+            content: [{ type: "text", text: "No notes found matching your query." }],
           };
         }
 
         const lines = results.map((r, i) => {
-          const label =
-            r.matchedHeading
-              ? `${r.path} > ${r.matchedHeading.replace(/^#+\s*/, "").trim()}`
-              : r.path;
+          const label = r.matchedHeading
+            ? `${r.path} > ${r.matchedHeading.replace(/^#+\s*/, "").trim()}`
+            : r.path;
           return `${i + 1}. ${label} (score: ${r.score.toFixed(3)})\n   ${r.preview}`;
         });
         return {
@@ -588,17 +585,14 @@ export function registerSemanticTools(server: McpServer): void {
 
         if (results.length === 0) {
           return {
-            content: [
-              { type: "text", text: "No similar notes found." },
-            ],
+            content: [{ type: "text", text: "No similar notes found." }],
           };
         }
 
         const lines = results.map((r, i) => {
-          const label =
-            r.matchedHeading
-              ? `${r.path} > ${r.matchedHeading.replace(/^#+\s*/, "").trim()}`
-              : r.path;
+          const label = r.matchedHeading
+            ? `${r.path} > ${r.matchedHeading.replace(/^#+\s*/, "").trim()}`
+            : r.path;
           return `${i + 1}. ${label} (score: ${r.score.toFixed(3)})\n   ${r.preview}`;
         });
         return {
@@ -742,9 +736,7 @@ export function registerSemanticTools(server: McpServer): void {
       }
 
       const count = Object.keys(liveIndex.files).length;
-      const ts = liveIndex.lastReHash
-        ? new Date(liveIndex.lastReHash).toLocaleString()
-        : "unknown";
+      const ts = liveIndex.lastReHash ? new Date(liveIndex.lastReHash).toLocaleString() : "unknown";
 
       return {
         content: [

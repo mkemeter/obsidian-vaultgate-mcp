@@ -1,4 +1,4 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
 import { dryRunPreview, dryRunSchema } from "./_helpers.js";
@@ -16,22 +16,17 @@ export function registerDailyTools(server: McpServer): void {
   // ---------------------------------------------------------------------------
   // daily_read — read-only
   // ---------------------------------------------------------------------------
-  server.tool(
-    "daily_read",
-    "Read today's daily note from the vault.",
-    {},
-    async () => {
-      try {
-        const output = await runObsidian(["daily:read"]);
-        return { content: [{ type: "text", text: output }] };
-      } catch (error) {
-        return {
-          content: [{ type: "text", text: (error as Error).message }],
-          isError: true,
-        };
-      }
+  server.tool("daily_read", "Read today's daily note from the vault.", {}, async () => {
+    try {
+      const output = await runObsidian(["daily:read"]);
+      return { content: [{ type: "text", text: output }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: (error as Error).message }],
+        isError: true,
+      };
     }
-  );
+  });
 
   // ---------------------------------------------------------------------------
   // daily_append — destructive (dryRun gated)

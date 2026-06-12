@@ -1,7 +1,7 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
-import { dryRunPreview, buildFileArgs, dryRunSchema, optionalBoolSchema } from "./_helpers.js";
+import { buildFileArgs, dryRunPreview, dryRunSchema, optionalBoolSchema } from "./_helpers.js";
 
 /**
  * Registers file and note operation tools on the MCP server.
@@ -13,6 +13,7 @@ import { dryRunPreview, buildFileArgs, dryRunSchema, optionalBoolSchema } from "
  * - `note_append`   — append content to an existing note (destructive, dryRun gated)
  * - `note_prepend`  — prepend content to an existing note (destructive, dryRun gated)
  * - `note_update`   — replace the full content of an existing note (destructive, dryRun gated)
+ * - `note_trash`    — move a note to the system trash (destructive, dryRun gated)
  *
  * @param server  The MCP server instance to register tools on.
  */
@@ -120,16 +121,13 @@ export function registerFileTools(server: McpServer): void {
             "Use this for notes inside subfolders. Takes precedence over `name`."
         ),
       content: z.string().optional().describe("Initial note content."),
-      template: z
-        .string()
-        .optional()
-        .describe("Template name to apply when creating the note."),
+      template: z.string().optional().describe("Template name to apply when creating the note."),
       overwrite: optionalBoolSchema.describe(
-          "Overwrite the note if it already exists. Defaults to false."
-        ),
+        "Overwrite the note if it already exists. Defaults to false."
+      ),
       silent: optionalBoolSchema.describe(
-          "Do not open the note after creation. Defaults to false."
-        ),
+        "Do not open the note after creation. Defaults to false."
+      ),
       dryRun: dryRunSchema,
     },
     async ({ name, path, content, template, overwrite, silent, dryRun }) => {
@@ -173,13 +171,8 @@ export function registerFileTools(server: McpServer): void {
       file: z
         .string()
         .optional()
-        .describe(
-          "Note name (wikilink-style). Uses the active file when omitted."
-        ),
-      path: z
-        .string()
-        .optional()
-        .describe("Exact path from vault root, e.g. `folder/note.md`."),
+        .describe("Note name (wikilink-style). Uses the active file when omitted."),
+      path: z.string().optional().describe("Exact path from vault root, e.g. `folder/note.md`."),
       dryRun: dryRunSchema,
     },
     async ({ content, file, path, dryRun }) => {
@@ -215,13 +208,8 @@ export function registerFileTools(server: McpServer): void {
       file: z
         .string()
         .optional()
-        .describe(
-          "Note name (wikilink-style). Uses the active file when omitted."
-        ),
-      path: z
-        .string()
-        .optional()
-        .describe("Exact path from vault root, e.g. `folder/note.md`."),
+        .describe("Note name (wikilink-style). Uses the active file when omitted."),
+      path: z.string().optional().describe("Exact path from vault root, e.g. `folder/note.md`."),
       dryRun: dryRunSchema,
     },
     async ({ content, file, path, dryRun }) => {

@@ -10,6 +10,9 @@
  * directly, which eliminates timing-sensitive failures.
  */
 
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
@@ -417,6 +420,85 @@ describe("clear_index", () => {
     expect(result.isError).toBeUndefined();
     expect(result.content[0].text).toMatch(/cache cleared/i);
   });
+
+  it("dry run reports 'nothing to delete' when no cache file exists", async () => {
+    // Use a unique vault name so no cache file is on disk.
+    vi.resetModules();
+    const uniqueVault = `__test_nodry_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+    vi.doMock("../../../src/config.js", () => ({
+      config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+    }));
+    vi.doMock("@xenova/transformers", () => ({
+      pipeline: vi.fn().mockResolvedValue(
+        vi.fn().mockImplementation(() => Promise.resolve({ tolist: () => [FAKE_VEC_A] }))
+      ),
+    }));
+    const { runObsidian } = await import("../../../src/cli.js");
+    vi.mocked(runObsidian).mockImplementation(async (args: string[]) => {
+      if (args.includes("list")) return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
+    const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
+    const server = new McpServer({ name: "test", version: "0.0.0" });
+    const semantic = await import("../../../src/tools/semantic.js");
+    semantic.registerSemanticTools(server);
+    await waitForReady(semantic.getIndexStateForTesting);
+
+    // Delete the cache file if it was created during indexing, so exists=false for the dry run.
+    const cacheDir = path.join(os.homedir(), ".cache", "obsidian-vaultgate-mcp");
+    const safe = uniqueVault.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const cacheFile = path.join(cacheDir, `embeddings-${safe}.json`);
+    if (fs.existsSync(cacheFile)) fs.unlinkSync(cacheFile);
+
+    const result = await callTool(server, "clear_index", {}); // dryRun defaults to true
+    expect(result.content[0].text).toMatch(/nothing to delete/i);
+  });
+
+  it("returns isError when fs.unlinkSync throws", async () => {
+    // Set up a module instance with a mocked fs that throws on unlinkSync.
+    vi.resetModules();
+    const uniqueVault = `__test_unlink_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+    vi.doMock("../../../src/config.js", () => ({
+      config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+    }));
+    vi.doMock("@xenova/transformers", () => ({
+      pipeline: vi.fn().mockResolvedValue(
+        vi.fn().mockImplementation(() => Promise.resolve({ tolist: () => [FAKE_VEC_A] }))
+      ),
+    }));
+    // Mock fs so existsSync returns true and unlinkSync throws.
+    vi.doMock("node:fs", async () => {
+      const real = await vi.importActual<typeof import("node:fs")>("node:fs");
+      return {
+        ...real,
+        existsSync: (p: string) => (p.includes(uniqueVault.replace(/[^a-zA-Z0-9_-]/g, "_")) ? true : real.existsSync(p)),
+        unlinkSync: (p: string) => {
+          if (p.includes(uniqueVault.replace(/[^a-zA-Z0-9_-]/g, "_"))) {
+            throw new Error("Permission denied");
+          }
+          real.unlinkSync(p);
+        },
+      };
+    });
+
+    const { runObsidian } = await import("../../../src/cli.js");
+    vi.mocked(runObsidian).mockImplementation(async (args: string[]) => {
+      if (args.includes("list")) return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
+
+    const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
+    const server = new McpServer({ name: "test", version: "0.0.0" });
+    const semantic = await import("../../../src/tools/semantic.js");
+    semantic.registerSemanticTools(server);
+    await waitForReady(semantic.getIndexStateForTesting);
+
+    const result = await callTool(server, "clear_index", { dryRun: false });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("Permission denied");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -622,5 +704,56 @@ describe("splitIntoSections via semantic_search", () => {
     expect(result.content[0].text).not.toMatch(/being indexed/i);
     expect(result.content[0].text).not.toMatch(/semantic search failed/i);
     expect(result.content[0].text).toContain("log.md");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// loadIndex — stale cache (wrong version or model) triggers a fresh index
+// ---------------------------------------------------------------------------
+
+describe("loadIndex stale cache", () => {
+  it("treats an on-disk cache with wrong INDEX_VERSION as empty and re-indexes", async () => {
+    // Write a stale cache file (version 0) for a unique vault name.
+    const uniqueVault = `__test_stale_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const cacheDir = path.join(os.homedir(), ".cache", "obsidian-vaultgate-mcp");
+    fs.mkdirSync(cacheDir, { recursive: true });
+    const safe = uniqueVault.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const cacheFile = path.join(cacheDir, `embeddings-${safe}.json`);
+    fs.writeFileSync(
+      cacheFile,
+      JSON.stringify({ files: { "stale.md": { hash: "abc", chunks: [] } }, model: "Xenova/bge-small-en-v1.5", version: 0, lastReHash: 0 }),
+      "utf-8"
+    );
+
+    vi.resetModules();
+    vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+    vi.doMock("../../../src/config.js", () => ({
+      config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+    }));
+    vi.doMock("@xenova/transformers", () => ({
+      pipeline: vi.fn().mockResolvedValue(
+        vi.fn().mockImplementation((texts: string[]) =>
+          Promise.resolve({ tolist: () => texts.map(() => FAKE_VEC_A) })
+        )
+      ),
+    }));
+
+    const { runObsidian } = await import("../../../src/cli.js");
+    // Fresh index: no notes — so syncNewAndDeleted returns immediately.
+    vi.mocked(runObsidian).mockResolvedValue("");
+
+    const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
+    const server = new McpServer({ name: "test", version: "0.0.0" });
+    const semantic = await import("../../../src/tools/semantic.js");
+    semantic.registerSemanticTools(server);
+
+    await waitForReady(semantic.getIndexStateForTesting);
+
+    // "stale.md" from the old cache must not appear — index was rebuilt from scratch.
+    const result = await callTool(server, "vault_info");
+    expect(result.content[0].text).not.toContain("stale.md");
+
+    // Clean up
+    if (fs.existsSync(cacheFile)) fs.unlinkSync(cacheFile);
   });
 });

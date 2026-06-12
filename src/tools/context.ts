@@ -1,4 +1,4 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
 import { dryRunPreview, dryRunSchema } from "./_helpers.js";
@@ -9,7 +9,7 @@ const NOT_FOUND_MESSAGE =
   "No VAULTGATE.md found in the vault root.\n\n" +
   "VAULTGATE.md is an optional file that documents vault conventions for AI assistants " +
   "(folder structure, naming rules, tag taxonomy, frontmatter schema, template usage, etc.).\n\n" +
-  "To create one, ask your AI assistant: \"Help me set up vault conventions\" — " +
+  'To create one, ask your AI assistant: "Help me set up vault conventions" — ' +
   "it will analyse your vault and draft a VAULTGATE.md using `vault_context_set`.";
 
 /**
@@ -67,9 +67,7 @@ export function registerContextTools(server: McpServer): void {
       "IMPORTANT: Always call with dryRun=true first, show the user the preview, " +
       "and ask for explicit confirmation before calling with dryRun=false.",
     {
-      content: z
-        .string()
-        .describe("Full Markdown content to write to VAULTGATE.md."),
+      content: z.string().describe("Full Markdown content to write to VAULTGATE.md."),
       dryRun: dryRunSchema,
     },
     async ({ content, dryRun }) => {
