@@ -50,10 +50,10 @@ describe("tasks_all", () => {
 describe("tasks_pending", () => {
   beforeEach(() => vi.resetAllMocks());
 
-  it("calls obsidian tasks pending", async () => {
+  it("calls obsidian tasks todo", async () => {
     mockRun.mockResolvedValue("- [ ] Pending");
     await invoke(makeServer(), "tasks_pending", {});
-    expect(mockRun).toHaveBeenCalledWith(["tasks", "pending"]);
+    expect(mockRun).toHaveBeenCalledWith(["tasks", "todo"]);
   });
 
   it("returns isError on CLI failure", async () => {

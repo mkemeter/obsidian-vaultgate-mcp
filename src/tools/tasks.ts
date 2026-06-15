@@ -57,7 +57,7 @@ export function registerTaskTools(server: McpServer): void {
     "List only pending (uncompleted) tasks in the vault, or in a specific note.",
     fileSchema,
     async ({ file, path }) => {
-      const args = ["tasks", "pending", ...buildFileArgs(file, path)];
+      const args = ["tasks", "todo", ...buildFileArgs(file, path)];
       try {
         const output = await runObsidian(args);
         return { content: [{ type: "text", text: output }] };
