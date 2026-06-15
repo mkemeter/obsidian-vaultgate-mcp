@@ -1,6 +1,6 @@
 {
   "name": "obsidian-vaultgate-mcp",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Connect your Obsidian vault to any AI assistant — zero plugins, full privacy. An MCP server powered by the official Obsidian CLI.",
   "keywords": [
     "obsidian",
@@ -64,8 +64,14 @@
     "vitest": "^4.1.8"
   },
   "knip": {
-    "entry": ["src/index.ts"],
-    "project": ["src/**/*.ts"],
-    "ignoreDependencies": ["@xenova/transformers"]
+    "entry": [
+      "src/index.ts"
+    ],
+    "project": [
+      "src/**/*.ts"
+    ],
+    "ignoreDependencies": [
+      "@xenova/transformers"
+    ]
   }
 }
