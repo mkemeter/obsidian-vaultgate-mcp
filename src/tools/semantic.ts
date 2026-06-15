@@ -38,6 +38,7 @@ import { pipeline } from "@xenova/transformers";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
 import { config } from "../config.js";
+import { dryRunSchema } from "./_helpers.js";
 
 // ---------------------------------------------------------------------------
 // TypeScript interfaces
@@ -478,7 +479,8 @@ async function semanticQuery(
   for (const r of top) {
     try {
       const content = await readNote(r.path);
-      r.preview = cleanNote(content).slice(0, 300).replace(/\n+/g, " ").trim();
+      const cleaned = cleanNote(content).replace(/\n+/g, " ").trim();
+      r.preview = cleaned.length > 300 ? `${cleaned.slice(0, 297)}...` : cleaned;
     } catch {
       r.preview = "";
     }
@@ -694,12 +696,7 @@ export function registerSemanticTools(server: McpServer): void {
       "'being indexed' until it completes.",
     ].join(" "),
     {
-      dryRun: z
-        .boolean()
-        .default(true)
-        .describe(
-          "When true (default), shows what would be deleted without doing it. Pass false to actually clear."
-        ),
+      dryRun: dryRunSchema,
     },
     async ({ dryRun }) => {
       const cachePath = getIndexPath();

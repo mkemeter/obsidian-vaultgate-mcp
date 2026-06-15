@@ -5,7 +5,7 @@
 [![npm version](https://img.shields.io/npm/v/obsidian-vaultgate-mcp)](https://www.npmjs.com/package/obsidian-vaultgate-mcp)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-brightgreen)](https://nodejs.org)
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](#)
+[![Tests](https://github.com/mkemeter/obsidian-vaultgate-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/mkemeter/obsidian-vaultgate-mcp/actions/workflows/ci.yml)
 
 VaultGate is a local [Model Context Protocol](https://modelcontextprotocol.io) server that bridges any MCP-compatible AI client with your Obsidian vault. It's built on Obsidian's native integration APIs — no community plugins, no cloud relay, no API keys.
 
@@ -312,11 +312,6 @@ These tools dispatch `obsidian://` URIs through the OS to trigger navigation ins
 | `files_list` | List all notes in the vault |
 | `files_read` | Read the full content of a note |
 | `search` | Full-text search across the vault |
-| `semantic_search` | Natural language search ranked by meaning (requires `@xenova/transformers`) |
-| `find_similar` | Find notes semantically similar to a given path |
-| `vault_info` | Indexed note count and last-indexed timestamp |
-| `index_vault` | Force a full re-index without discarding the existing cache |
-| `clear_index` | Delete the cache and rebuild from scratch (last-resort reset) |
 | `daily_read` | Read today's daily note |
 | `tasks_all` | All tasks (complete and incomplete) |
 | `tasks_pending` | Incomplete tasks only |
@@ -366,6 +361,8 @@ When `@xenova/transformers` is available (installed as an optional dependency), 
 - `clear_index` — delete the cache file entirely and rebuild from scratch; use only when the cache is corrupted or after a version change. **Do not use before `index_vault`** — `index_vault` already handles incremental updates without data loss.
 
 The embedding model (`bge-small-en-v1.5`, ~100 MB) downloads once to `~/.cache/huggingface/`. All subsequent operations are fully offline. If `@xenova/transformers` fails to load on the current platform, VaultGate starts normally with the base tool set — no configuration change required.
+
+> **Security note:** The `@xenova/transformers` package depends on `onnxruntime-web`, which in turn depends on `protobufjs` v6.x. The v6.x branch of protobufjs has [known vulnerabilities](https://github.com/protobufjs/protobuf.js/security/advisories). Your vault content is never sent to the network — the only external traffic is the one-time model download from HuggingFace. The risk is limited to the model download path and is inherited from the supply chain; it cannot be patched from this package until upstream updates.
 
 ---
 

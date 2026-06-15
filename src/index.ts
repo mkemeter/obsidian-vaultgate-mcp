@@ -36,6 +36,8 @@ function isAllowedOrigin(origin: string | undefined): boolean {
     `http://localhost:${config.port}`,
     "http://127.0.0.1",
     `http://127.0.0.1:${config.port}`,
+    "http://[::1]",
+    `http://[::1]:${config.port}`,
   ];
   return allowed.includes(origin);
 }

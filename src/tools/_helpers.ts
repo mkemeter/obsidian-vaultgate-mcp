@@ -82,7 +82,7 @@ export function dryRunPreview(args: string[]): string {
  * @returns     Zero or one CLI argument strings.
  */
 export function buildFileArgs(file: string | undefined, path: string | undefined): string[] {
-  if (path !== undefined) return [`path=${path}`];
-  if (file !== undefined) return [`file=${file}`];
+  if (path?.trim()) return [`path=${path}`];
+  if (file?.trim()) return [`file=${file}`];
   return [];
 }

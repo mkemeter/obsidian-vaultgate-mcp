@@ -12,6 +12,10 @@
   ],
   "license": "GPL-3.0-or-later",
   "author": "Mathias Kemeter",
+  "homepage": "https://github.com/mkemeter/obsidian-vaultgate-mcp",
+  "bugs": {
+    "url": "https://github.com/mkemeter/obsidian-vaultgate-mcp/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/mkemeter/obsidian-vaultgate-mcp.git"
