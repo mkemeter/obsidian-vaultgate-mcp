@@ -53,11 +53,11 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.16",
-    "@types/node": "^20.0.0",
-    "@vitest/coverage-v8": "^2.0.0",
+    "@types/node": "^25.9.3",
+    "@vitest/coverage-v8": "^4.1.8",
     "knip": "^6.16.1",
-    "typescript": "^5.4.0",
-    "vitest": "^2.0.0"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
   },
   "knip": {
     "entry": ["src/index.ts"],
