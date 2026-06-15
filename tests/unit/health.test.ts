@@ -1,11 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import * as nodefs from "node:fs";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("node:fs");
 vi.mock("../../src/config.js", () => ({
   config: { vault: undefined, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
 }));
 
-import * as nodefs from "node:fs";
 const mockExistsSync = vi.mocked(nodefs.existsSync);
 
 describe("runHealthCheck", () => {
@@ -24,12 +24,14 @@ describe("runHealthCheck", () => {
     mockExistsSync.mockReturnValue(false);
 
     const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
-    const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {}) as any);
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {}) as never);
 
     const { runHealthCheck } = await import("../../src/health.js?v=fail");
     await runHealthCheck();
 
-    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("ERROR: Obsidian CLI binary not found"));
+    expect(stderrSpy).toHaveBeenCalledWith(
+      expect.stringContaining("ERROR: Obsidian CLI binary not found")
+    );
     expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("Register CLI"));
     expect(exitSpy).toHaveBeenCalledWith(1);
 

@@ -2,7 +2,11 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as url from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { InitializeRequestSchema, LATEST_PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from "@modelcontextprotocol/sdk/types.js";
+import {
+  InitializeRequestSchema,
+  LATEST_PROTOCOL_VERSION,
+  SUPPORTED_PROTOCOL_VERSIONS,
+} from "@modelcontextprotocol/sdk/types.js";
 import { runObsidian } from "./cli.js";
 import { registerContextTools } from "./tools/context.js";
 import { registerDailyTools } from "./tools/daily.js";
@@ -103,9 +107,9 @@ export async function createServer(iconUrl?: string): Promise<McpServer> {
     const protocolVersion = SUPPORTED_PROTOCOL_VERSIONS.includes(requestedVersion)
       ? requestedVersion
       : LATEST_PROTOCOL_VERSION;
-    // Access capabilities via the underlying Server (typed as any to reach the
+    // Access capabilities via the underlying Server (typed as unknown to reach the
     // public-at-runtime but type-private getCapabilities method).
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // biome-ignore lint/suspicious/noExplicitAny: getCapabilities() is public at runtime but private in TS types
     const capabilities = (server.server as any).getCapabilities();
     return {
       protocolVersion,
