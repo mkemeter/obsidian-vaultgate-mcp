@@ -27,10 +27,11 @@ export function registerContextTools(server: McpServer): void {
   // ---------------------------------------------------------------------------
   server.tool(
     "vault_context",
-    "Read vault conventions from VAULTGATE.md. " +
-      "Only call this if vault conventions were not already provided at session start. " +
-      "Returns guidance on folder structure, naming rules, tag taxonomy, frontmatter schema, " +
-      "template usage, and any other conventions the vault owner has documented.",
+    "Read the vault owner's conventions from VAULTGATE.md: folder structure, task format, " +
+      "naming rules, tag taxonomy, frontmatter schema, template usage, and writing style. " +
+      "Call this at the start of every session — before creating notes, appending tasks, or " +
+      "writing any content — so that all output matches the vault's established conventions. " +
+      "Skip only if vault conventions were already included in the server's system instructions.",
     {},
     async () => {
       try {

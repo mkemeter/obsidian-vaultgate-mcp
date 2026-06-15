@@ -116,7 +116,7 @@ export async function createServer(iconUrl?: string): Promise<McpServer> {
     return {
       protocolVersion,
       capabilities,
-      serverInfo: { name: "obsidian-vaultgate-mcp", version: "0.1.2" },
+      serverInfo: { name: "obsidian-vaultgate-mcp", version: serverInfo.version },
       ...(vaultInstructions && { instructions: vaultInstructions }),
     };
   });
