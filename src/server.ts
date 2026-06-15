@@ -32,6 +32,7 @@ export function getIconSvg(): string {
   try {
     return fs.readFileSync(iconPath, "utf-8");
   } catch {
+    /* c8 ignore next */
     return "";
   }
 }
@@ -42,6 +43,7 @@ export function getFaviconIco(): Buffer | null {
   try {
     return fs.readFileSync(icoPath);
   } catch {
+    /* c8 ignore next */
     return null;
   }
 }

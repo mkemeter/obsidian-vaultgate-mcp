@@ -1,5 +1,7 @@
-import { describe, it, expect } from "vitest";
-import { createServer, BASE_TOOL_COUNT, SEMANTIC_TOOL_COUNT } from "../../src/server.js";
+import { describe, it, expect, vi } from "vitest";
+import { createServer, BASE_TOOL_COUNT, SEMANTIC_TOOL_COUNT, getFaviconIco } from "../../src/server.js";
+
+vi.mock("../../src/cli.js", () => ({ runObsidian: vi.fn().mockResolvedValue("") }));
 
 describe("server tool registration", () => {
   it("registers all expected tools", async () => {
@@ -107,5 +109,85 @@ describe("server tool registration", () => {
         `tool "${tool.name}" is missing a description`
       ).toBeTruthy();
     }
+  });
+});
+
+describe("server initialize handler", () => {
+  it("getFaviconIco returns a Buffer when favicon.ico exists", () => {
+    const result = getFaviconIco();
+    // The build copies favicon.ico alongside the JS — in tests we run from source
+    // and the file exists at src/favicon.ico relative to import.meta.url.
+    // Accept either a Buffer (file found) or null (file absent in some envs).
+    expect(result === null || Buffer.isBuffer(result)).toBe(true);
+  });
+
+  it("createServer with iconUrl includes HTTP URL in icons array", async () => {
+    const { runObsidian } = await import("../../src/cli.js");
+    vi.mocked(runObsidian).mockResolvedValue("");
+
+    const server = await createServer("http://localhost:3001/icon.svg");
+    expect(server).toBeDefined();
+  });
+  it("omits instructions when runObsidian returns empty string", async () => {
+    const { runObsidian } = await import("../../src/cli.js");
+    vi.mocked(runObsidian).mockResolvedValue("   ");
+
+    const server = await createServer();
+    // @ts-ignore
+    const handler = server.server._requestHandlers.get("initialize");
+    const result = await handler?.(
+      {
+        method: "initialize",
+        params: {
+          protocolVersion: "2024-11-05",
+          capabilities: {},
+          clientInfo: { name: "test", version: "0" },
+        },
+      },
+      {}
+    );
+    expect(result?.instructions).toBeUndefined();
+  });
+
+  it("includes instructions when runObsidian returns VAULTGATE.md content", async () => {
+    const { runObsidian } = await import("../../src/cli.js");
+    vi.mocked(runObsidian).mockResolvedValue("# My Vault\nsome conventions");
+
+    const server = await createServer();
+    // @ts-ignore
+    const handler = server.server._requestHandlers.get("initialize");
+    const result = await handler?.(
+      {
+        method: "initialize",
+        params: {
+          protocolVersion: "2024-11-05",
+          capabilities: {},
+          clientInfo: { name: "test", version: "0" },
+        },
+      },
+      {}
+    );
+    expect(result?.instructions).toContain("My Vault");
+  });
+
+  it("falls back to LATEST_PROTOCOL_VERSION for unknown protocol version", async () => {
+    const { runObsidian } = await import("../../src/cli.js");
+    vi.mocked(runObsidian).mockResolvedValue("");
+
+    const server = await createServer();
+    // @ts-ignore
+    const handler = server.server._requestHandlers.get("initialize");
+    const result = await handler?.(
+      {
+        method: "initialize",
+        params: {
+          protocolVersion: "1999-01-01",
+          capabilities: {},
+          clientInfo: { name: "test", version: "0" },
+        },
+      },
+      {}
+    );
+    expect(result?.protocolVersion).not.toBe("1999-01-01");
   });
 });

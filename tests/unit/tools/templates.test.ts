@@ -74,4 +74,13 @@ describe("templates_apply (destructive)", () => {
     });
     expect(result.isError).toBe(true);
   });
+
+  it("uses fallback message when CLI returns empty output", async () => {
+    mockRun.mockResolvedValue("");
+    const result = await invoke(makeServer(), "templates_apply", {
+      template: "Daily",
+      dryRun: false,
+    });
+    expect(result.content[0].text).toContain("applied");
+  });
 });

@@ -178,8 +178,93 @@ async function freshModuleNoCache(runMock: (args: string[]) => Promise<string>) 
 }
 
 // ---------------------------------------------------------------------------
-// indexState guard — search returns "indexing" message before build completes
+// freshModuleWithCache — like freshModule but pre-seeds a valid index JSON on
+// disk so loadIndex() returns a non-empty index (cache-hit path).
+// Sets lastReHash=0 so the fullReHash interval fires on first search call.
+// Cleans up the written file after the test.
 // ---------------------------------------------------------------------------
+
+async function freshModuleWithCache(runMock: (args: string[]) => Promise<string>) {
+  vi.resetModules();
+
+  const vaultName = `__test_cached_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const safeKey = vaultName.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const cacheDir = path.join(os.homedir(), ".cache", "obsidian-vaultgate-mcp");
+  fs.mkdirSync(cacheDir, { recursive: true });
+  const indexPath = path.join(cacheDir, `embeddings-${safeKey}.json`);
+
+  // Pre-seed a minimal valid index: one note with one chunk embedding (FAKE_VEC_A),
+  // one note with empty chunks (exercises averageAndNormalise([]) guard),
+  // lastReHash=0 so REHASH_INTERVAL_MS has elapsed → fullReHash fires.
+  const seededIndex = {
+    version: 2,
+    model: "Xenova/bge-small-en-v1.5",
+    lastReHash: 0,
+    files: {
+      "note-a.md": { hash: "abc123", chunks: [{ heading: "Note A", embedding: FAKE_VEC_A }] },
+      "note-empty-chunks.md": { hash: "def456", chunks: [] },
+    },
+  };
+  fs.writeFileSync(indexPath, JSON.stringify(seededIndex), "utf-8");
+
+  vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+  vi.doMock("../../../src/config.js", () => ({
+    config: { vault: vaultName, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+  }));
+  vi.doMock("@xenova/transformers", () => ({
+    pipeline: vi.fn().mockResolvedValue(
+      vi.fn().mockImplementation(() =>
+        Promise.resolve({ tolist: () => [FAKE_VEC_A] })
+      )
+    ),
+  }));
+
+  const { runObsidian } = await import("../../../src/cli.js");
+  vi.mocked(runObsidian).mockImplementation(runMock);
+
+  const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
+  const server = new McpServer({ name: "test", version: "0.0.0" });
+  const semantic = await import("../../../src/tools/semantic.js");
+  semantic.registerSemanticTools(server);
+
+  return {
+    server,
+    mockRun: vi.mocked(runObsidian),
+    getState: semantic.getIndexStateForTesting,
+    cleanup: () => { try { fs.unlinkSync(indexPath); } catch { /* already gone */ } },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// cache-hit startup path (lines 404-405) + fullReHash interval (line 454)
+// ---------------------------------------------------------------------------
+
+describe("cache-hit startup path", () => {
+  it("loads from cache immediately and triggers fullReHash on first search", async () => {
+    const { server, mockRun, getState, cleanup } = await freshModuleWithCache(
+      async (args) => {
+        if (args.includes("list")) return "note-a.md\nnote-empty-chunks.md\n";
+        return NOTE_A_CONTENT;
+      }
+    );
+
+    // With a non-empty cache and config.vault set, indexState goes "ready" immediately
+    // (lines 404-405) without waiting for syncNewAndDeleted.
+    await waitForReady(getState);
+
+    // Now trigger a search — this calls semanticQuery → syncNewAndDeleted → fullReHash
+    // (lastReHash=0, so REHASH_INTERVAL_MS has elapsed → line 454 fires).
+    mockRun.mockImplementation(async (args: string[]) => {
+      if (args.includes("list")) return "note-a.md\nnote-empty-chunks.md\n";
+      return NOTE_A_CONTENT;
+    });
+
+    const result = await callTool(server, "semantic_search", { query: "test", min_score: 0 });
+    expect(result.isError).toBeFalsy();
+
+    cleanup();
+  });
+});
 
 describe("indexState guard", () => {
   it("semantic_search returns indexing message while building", async () => {
@@ -290,6 +375,48 @@ describe("semantic_search", () => {
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("CLI unavailable");
   });
+
+  it("accepts top_n and min_score as strings (preprocessor coercion)", async () => {
+    const { server, mockRun, getState } = await freshModule(async (args) => {
+      if (args.includes("list")) return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
+
+    await waitForReady(getState);
+
+    mockRun.mockImplementation(async (args: string[]) => {
+      if (args.includes("list")) return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
+
+    // Pass numeric params as strings — Zod preprocessor coerces them
+    const result = await callTool(server, "semantic_search", {
+      query: "test",
+      top_n: "5",
+      min_score: "0.1",
+    });
+    expect(result.isError).toBeFalsy();
+  });
+
+  it("still returns results when preview fetch fails for a result", async () => {
+    const { server, mockRun, getState } = await freshModule(async (args) => {
+      if (args.includes("list")) return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
+
+    await waitForReady(getState);
+
+    // Index OK, but preview reads throw → catch sets preview=""
+    mockRun.mockImplementation(async (args: string[]) => {
+      if (args.includes("list")) return FILE_LIST;
+      throw new Error("read failed");
+    });
+
+    const result = await callTool(server, "semantic_search", { query: "test", min_score: 0 });
+    // Results are still returned, previews are empty
+    expect(result.isError).toBeFalsy();
+    expect(result.content[0].text).toMatch(/score/i);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -330,6 +457,62 @@ describe("find_similar", () => {
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("does-not-exist.md");
   });
+
+  it("returns 'no similar notes' when all candidates score below threshold", async () => {
+    // Single-note vault: source note is excluded, leaving no candidates → empty results.
+    const { server, mockRun, getState } = await freshModule(async (args) => {
+      if (args.includes("list")) return "only-note.md\n";
+      return NOTE_A_CONTENT;
+    });
+
+    await waitForReady(getState);
+
+    mockRun.mockImplementation(async (args: string[]) => {
+      if (args.includes("list")) return "only-note.md\n";
+      return NOTE_A_CONTENT;
+    });
+
+    const result = await callTool(server, "find_similar", { note_path: "only-note.md" });
+    expect(result.content[0].text).toMatch(/no similar notes/i);
+  });
+
+  it("returns isError when find_similar throws during query", async () => {
+    const { server, mockRun, getState } = await freshModule(async (args) => {
+      if (args.includes("list")) return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
+
+    await waitForReady(getState);
+
+    // Force CLI failure so syncNewAndDeleted inside semanticQuery throws
+    mockRun.mockRejectedValue(new Error("Embedding error"));
+
+    const result = await callTool(server, "find_similar", { note_path: "note-a.md" });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("Embedding error");
+  });
+
+  it("accepts top_n and min_score as strings (preprocessor coercion)", async () => {
+    const { server, mockRun, getState } = await freshModule(async (args) => {
+      if (args.includes("list")) return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
+
+    await waitForReady(getState);
+
+    mockRun.mockImplementation(async (args: string[]) => {
+      if (args.includes("list")) return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
+
+    // Pass numeric params as strings — Zod preprocessor coerces them
+    const result = await callTool(server, "find_similar", {
+      note_path: "note-a.md",
+      top_n: "3",
+      min_score: "0.1",
+    });
+    expect(result.isError).toBeFalsy();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -368,6 +551,13 @@ describe("index_vault", () => {
     const result = await callTool(server, "index_vault");
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("CLI unavailable");
+  });
+
+  it("returns guard message when index is not yet ready", async () => {
+    const { server } = await freshModuleNoCache(() => new Promise(() => {}));
+
+    const result = await callTool(server, "index_vault");
+    expect(result.content[0].text).toMatch(/still in progress/i);
   });
 });
 
@@ -615,6 +805,35 @@ describe("splitIntoSections via semantic_search", () => {
     expect(text).toContain("topic.md");
     // Score format still present
     expect(text).toMatch(/score:\s*[\d.]+/);
+  });
+
+  it("attaches H2 parent context to H3 sections (parentHeading branch)", async () => {
+    // Note with H2 → H3 nesting — exercises the ancestor-lookup loop (line 198-201)
+    const nestedNote = [
+      "## Parent Section",
+      "",
+      "Intro text.",
+      "",
+      "### Child Section",
+      "",
+      "Detailed child content that is long enough to be indexed.",
+    ].join("\n");
+
+    const { server, mockRun, getState } = await freshModule(async (args) => {
+      if (args.includes("list")) return "nested.md\n";
+      return nestedNote;
+    });
+
+    await waitForReady(getState);
+
+    mockRun.mockImplementation(async (args: string[]) => {
+      if (args.includes("list")) return "nested.md\n";
+      return nestedNote;
+    });
+
+    const result = await callTool(server, "semantic_search", { query: "child content", min_score: 0 });
+    expect(result.isError).toBeFalsy();
+    expect(result.content[0].text).toContain("nested.md");
   });
 
   it("correctly indexes a note larger than CHUNK_SIZE (2000 chars) via sub-chunking", async () => {

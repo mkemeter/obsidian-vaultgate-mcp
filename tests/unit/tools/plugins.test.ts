@@ -57,6 +57,12 @@ describe("plugin_reload (destructive)", () => {
     expect(mockRun).toHaveBeenCalledWith(["plugin:reload", "id=dataview"]);
   });
 
+  it("uses fallback message when CLI returns empty output", async () => {
+    mockRun.mockResolvedValue("");
+    const result = await invoke(makeServer(), "plugin_reload", { id: "dataview", dryRun: false });
+    expect(result.content[0].text).toContain("reloaded");
+  });
+
   it("returns isError on CLI failure when dryRun=false", async () => {
     mockRun.mockRejectedValue(new Error("plugin not found"));
     const result = await invoke(makeServer(), "plugin_reload", { id: "unknown", dryRun: false });
