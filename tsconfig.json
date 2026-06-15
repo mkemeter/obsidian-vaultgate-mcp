@@ -12,6 +12,7 @@
     "allowUnreachableCode": false,
     "allowUnusedLabels": false,
     "esModuleInterop": true,
+    "types": ["node"],
     "skipLibCheck": true,
     "declaration": true,
     "declarationMap": true,
