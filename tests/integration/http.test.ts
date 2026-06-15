@@ -2,7 +2,7 @@
  * HTTP integration tests.
  *
  * Starts a real `http.createServer` bound to 127.0.0.1 on a random port
- * so tests never conflict with a running obsidian-cli-mcp instance.
+ * so tests never conflict with a running obsidian-vaultgate-mcp instance.
  *
  * These tests exercise the routing and security layer in `src/index.ts`
  * without invoking the actual Obsidian CLI binary.

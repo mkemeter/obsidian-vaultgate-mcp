@@ -10,10 +10,9 @@
   install.sh uses `node -e "console.log(process.execPath)"` instead,
   which correctly resolves the active Node.js binary under nvm, Homebrew, etc.
 
-  Side effect: the startup health check runs `obsidian help` which will
-  auto-launch Obsidian if it isn't running. With this plist installed,
-  Obsidian will open automatically at every login. This is intentional
-  for daily-use setups — see launchd/README.md for details.
+  The startup health check only verifies that the Obsidian CLI binary exists
+  on disk (fs.existsSync) — it does NOT execute Obsidian. Obsidian is only
+  contacted when a client connects and a tool is first invoked.
 -->
 <plist version="1.0">
 <dict>
@@ -47,6 +46,13 @@
     -->
     <key>OBSIDIAN_MCP_TRANSPORT</key>
     <string>http</string>
+
+    <!--
+      Use port 3002 for the launchd-managed instance so it doesn't clash
+      with a manually-run instance on the default port 3001.
+    -->
+    <key>OBSIDIAN_MCP_PORT</key>
+    <string>3002</string>
   </dict>
 
   <!-- Start automatically at login -->

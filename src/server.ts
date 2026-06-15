@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as url from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { InitializeRequestSchema, LATEST_PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from "@modelcontextprotocol/sdk/types.js";
 import { runObsidian } from "./cli.js";
 import { registerContextTools } from "./tools/context.js";
 import { registerDailyTools } from "./tools/daily.js";
@@ -83,19 +84,36 @@ export async function createServer(iconUrl?: string): Promise<McpServer> {
     ];
   }
 
-  // Read VAULTGATE.md and inject as instructions so compliant MCP clients
-  // receive vault conventions automatically at session start.
-  let vaultInstructions: string | undefined;
-  try {
-    const raw = await runObsidian(["read", "path=VAULTGATE.md"]);
-    if (raw.trim()) {
-      vaultInstructions = `${raw.trim()}\n\n> Vault context received. You do not need to call \`vault_context\`.`;
-    }
-  } catch {
-    // File absent or vault not reachable — skip silently.
-  }
+  const server = new McpServer(serverInfo);
 
-  const server = new McpServer(serverInfo, { instructions: vaultInstructions });
+  // Lazily inject VAULTGATE.md as MCP instructions when a client initialises.
+  // Overrides the default initialize handler on the inner Server so Obsidian is
+  // only contacted when a client actually connects — not at server startup.
+  server.server.setRequestHandler(InitializeRequestSchema, async (request) => {
+    let vaultInstructions: string | undefined;
+    try {
+      const raw = await runObsidian(["read", "path=VAULTGATE.md"]);
+      if (raw.trim()) {
+        vaultInstructions = `${raw.trim()}\n\n> Vault context received. You do not need to call \`vault_context\`.`;
+      }
+    } catch {
+      // File absent or vault not reachable — skip silently.
+    }
+    const requestedVersion = request.params.protocolVersion;
+    const protocolVersion = SUPPORTED_PROTOCOL_VERSIONS.includes(requestedVersion)
+      ? requestedVersion
+      : LATEST_PROTOCOL_VERSION;
+    // Access capabilities via the underlying Server (typed as any to reach the
+    // public-at-runtime but type-private getCapabilities method).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const capabilities = (server.server as any).getCapabilities();
+    return {
+      protocolVersion,
+      capabilities,
+      serverInfo: { name: "obsidian-vaultgate-mcp", version: "0.1.2" },
+      ...(vaultInstructions && { instructions: vaultInstructions }),
+    };
+  });
 
   registerFileTools(server); // files_list, files_read, note_create, note_append, note_prepend, note_update, note_trash
   registerSearchTools(server); // search

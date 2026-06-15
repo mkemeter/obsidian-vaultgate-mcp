@@ -17,15 +17,14 @@ The install script will:
 
 ## What "auto-start" means in practice
 
-The service starts obsidian-vaultgate-mcp at login and keeps it running. The startup
-health check runs `obsidian help` — if Obsidian isn't already open, this will
-**auto-launch Obsidian**. This means:
+The service starts obsidian-vaultgate-mcp at login and keeps it running. The server
+starts silently in the background — it does **not** open Obsidian. The startup health
+check only verifies that the Obsidian CLI binary exists on disk.
 
-> **Obsidian will open automatically at every login** when this service is installed.
-
-This is intentional for daily-use setups where you want your AI assistant
-ready the moment you sit down. If you prefer to start obsidian-vaultgate-mcp
-manually instead, skip the systemd install and run:
+Obsidian is contacted the first time a client connects and invokes a tool. If Obsidian
+is not running at that point, the CLI will launch it. If you prefer Obsidian not to
+open automatically at all, start obsidian-vaultgate-mcp manually instead of using
+the systemd service:
 
 ```bash
 OBSIDIAN_VAULT="My Vault" obsidian-vaultgate-mcp

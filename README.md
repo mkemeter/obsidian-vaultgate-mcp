@@ -223,8 +223,6 @@ bash "$(npm root -g)/obsidian-vaultgate-mcp/deploy/install.sh"
 
 Installs a `launchd` agent under `~/Library/LaunchAgents/` that starts VaultGate at login and restarts it on failure. The install script resolves all paths automatically (compatible with nvm, Homebrew, system Node).
 
-> Note: Obsidian is also launched at login, because the startup health check communicates with the running instance.
-
 To uninstall: see [Uninstall](#uninstall) below.
 
 ### Linux (systemd user service)
@@ -234,8 +232,6 @@ bash "$(npm root -g)/obsidian-vaultgate-mcp/deploy/install.sh"
 ```
 
 Installs a systemd user service under `~/.config/systemd/user/` that starts VaultGate at login and restarts it on failure. The install script resolves all paths automatically (compatible with nvm, volta, system Node).
-
-> Note: Obsidian is also launched at login, because the startup health check communicates with the running instance.
 
 To uninstall: see [Uninstall](#uninstall) below.
 
@@ -392,7 +388,7 @@ The embedding index is built asynchronously at startup. For large vaults this ca
 Set `OBSIDIAN_MCP_PORT=3002` and update the URL in your AI client.
 
 **Obsidian launches at login**
-Side effect of the launchd agent — the startup health check communicates with the running Obsidian instance. See [Uninstall](#uninstall) to remove the agent.
+This no longer happens. The startup health check only verifies the CLI binary exists on disk — it does not execute Obsidian. If Obsidian is opening at login for you, check your Login Items in System Settings.
 
 **`note_open` / `search_open` / `daily_open` brings Obsidian to the foreground**
 This is intentional — these tools are designed to hand work off to you in the UI.

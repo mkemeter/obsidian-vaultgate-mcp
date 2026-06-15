@@ -11,8 +11,6 @@
 #
 # After installation: obsidian-vaultgate-mcp starts automatically at every login
 # on port 3001 (or your configured port).
-# Side effect: the startup health check runs `obsidian help` — if Obsidian isn't
-# already open, this will auto-launch Obsidian.
 
 set -euo pipefail
 
@@ -112,6 +110,6 @@ echo "  MCP URL:       http://127.0.0.1:3001/mcp"
 echo "  Check status:  systemctl --user status ${SERVICE_NAME}"
 echo "  View logs:     journalctl --user -u ${SERVICE_NAME} -f"
 echo ""
-echo "  Note: Obsidian will open automatically at every login because the"
-echo "  startup health check auto-launches it if it isn't already running."
-echo "  See systemd/README.md for details."
+echo "  Obsidian is NOT auto-launched at login — the health check only"
+echo "  verifies the binary exists. Tool calls will fail gracefully if"
+echo "  Obsidian is not running when they are invoked."
