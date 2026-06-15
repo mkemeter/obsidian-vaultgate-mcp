@@ -23,7 +23,9 @@ export function registerUriTools(server: McpServer): void {
   server.tool(
     "note_open",
     "Open a note in the Obsidian GUI, bringing Obsidian to the foreground. " +
-      "Use after reading or writing a note to show it to the user. " +
+      "Call this whenever the user says 'open', 'show', 'view', or 'go to' a note or file — " +
+      "in a vault context these phrases mean navigate to it in Obsidian, not just read the content. " +
+      "Also call automatically after creating or writing a note so the user can see the result. " +
       "Provide `path` (vault-root path, e.g. 'Projects/My Note.md') or `file` (wikilink name). " +
       "`path` takes precedence. Use `heading` or `block` to scroll to a specific location.",
     {
