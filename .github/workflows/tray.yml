@@ -1,0 +1,80 @@
+name: Tray CI / Release
+
+# Build and (optionally) release the VaultGate tray companion app.
+# Path-filtered so failures here NEVER block the npm package release pipeline.
+
+on:
+  push:
+    branches: [main, feature/tray-initial]
+    paths:
+      - "tray/**"
+      - ".github/workflows/tray.yml"
+    tags:
+      - "tray/v*"
+  pull_request:
+    branches: [main]
+    paths:
+      - "tray/**"
+      - ".github/workflows/tray.yml"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14         # Apple Silicon — produces arm64 DMG
+            platform: mac
+          - os: windows-latest   # x64
+            platform: win
+    runs-on: ${{ matrix.os }}
+    name: Build (${{ matrix.platform }})
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: |
+            server/package-lock.json
+            tray/package-lock.json
+
+      - name: Install server deps + compile server
+        run: |
+          npm ci
+          npm run build
+        working-directory: server
+
+      - name: Cache embedding model
+        uses: actions/cache@v4
+        with:
+          path: tray/assets/models
+          key: models-bge-small-en-v1.5
+
+      - name: Install tray deps (rebuilds onnxruntime-node via @electron/rebuild postinstall)
+        run: npm ci
+        working-directory: tray
+
+      - name: Download embedding model (skipped on cache hit)
+        run: node scripts/download-models.js
+        working-directory: tray
+
+      - name: Build tray sources
+        run: npm run build
+        working-directory: tray
+
+      - name: Package
+        run: npx electron-builder --${{ matrix.platform }} --publish ${{ startsWith(github.ref, 'refs/tags/tray/') && 'always' || 'never' }}
+        working-directory: tray
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tray-${{ matrix.platform }}
+          path: |
+            tray/dist/*.dmg
+            tray/dist/*.exe
