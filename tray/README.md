@@ -1,6 +1,6 @@
 # VaultGate Tray Companion
 
-> A menu-bar / system-tray app that runs the VaultGate MCP server in the background, with a one-click Smart Search index, autostart, and a "copy connection URL" button.
+> A menu-bar app that runs the VaultGate MCP server in the background, with a one-click Smart Search index, autostart, and a "copy connection URL" button.
 
 The tray companion is **optional**. The headless [`obsidian-vaultgate-mcp`](https://www.npmjs.com/package/obsidian-vaultgate-mcp) npm package remains the reference distribution and is unaffected by anything in this folder. Use the tray app if you want a GUI for what the npm package does on the command line.
 
@@ -12,21 +12,20 @@ The tray companion is **optional**. The headless [`obsidian-vaultgate-mcp`](http
 |----------|----------------|----------------------|
 | macOS (Apple Silicon) | ✅ DMG | ✅ |
 | macOS (Intel) | ❌ Phase 2 (universal build) — use the npm package | ✅ |
-| Windows (x64) | ✅ NSIS installer | ✅ |
+| Windows | ❌ Use the npm package | ✅ |
 | Linux | ❌ Use the npm package + `deploy/systemd/` | ✅ |
 
-The tray app drops Linux because system-tray APIs there are too fragmented to support reliably. The headless npm path continues to support Linux via the `deploy/systemd/` install script.
+The tray app targets macOS Apple Silicon only. The headless npm path supports Linux and Windows via the `deploy/` install scripts.
 
 ---
 
 ## What it gives you
 
-- **Menu bar / system tray icon** — at-a-glance "is the server running?".
+- **Menu bar icon** — at-a-glance "is the server running?".
 - **Pre-bundled Smart Search** — the embedding model (~34 MB) ships inside the app, indexes silently on first run, and works fully offline.
 - **Copy Connection URL** — click once to put `http://127.0.0.1:3001/mcp` on your clipboard for pasting into Claude Code, Cursor, Windsurf, Zed, etc.
-- **Open at Login toggle** — uses the OS's native login-items registration (System Settings → Login Items on macOS, registry `Run` key on Windows). No `launchctl`/Task Scheduler tweaking needed.
+- **Open at Login toggle** — uses macOS's native login-items registration (System Settings → General → Login Items). No `launchctl` tweaking needed.
 - **Logs in two clicks** — the server's stdout / stderr are forwarded to a rotating log file; "Open Logs…" opens it in your default editor.
-- **Built-in update check** — non-blocking, queries the npm registry once at startup, surfaces an "Update available — vX.Y.Z" menu item that links to the release page. No auto-download.
 
 ---
 
@@ -47,23 +46,14 @@ The tray app drops Linux because system-tray APIs there are too fragmented to su
    On macOS 15.1 and later this terminal command is **required** — Apple removed the "Open Anyway" GUI button in System Settings. On older macOS you can still right-click → Open the app the first time and click "Open" in the dialog.
 4. Launch VaultGate from Applications. The tray icon appears in the menu bar.
 
-### Windows (x64)
-
-1. Download `VaultGate-X.Y.Z-win-x64-setup.exe` from the latest `tray/v*` release.
-2. Run the installer.
-3. **SmartScreen warning** (the installer is unsigned): click **More info → Run anyway**.
-4. Choose an install location and finish the wizard.
-5. VaultGate launches automatically (if you left "Run after finish" checked) and adds an icon to the system tray.
-
 ---
 
 ## First run
 
 On first launch VaultGate will:
 
-1. **Auto-detect Obsidian.** It probes the standard install paths:
+1. **Auto-detect Obsidian.** It probes the standard install path:
    - macOS: `/Applications/Obsidian.app/Contents/MacOS/obsidian`
-   - Windows: `%LOCALAPPDATA%\Obsidian\Obsidian.exe`, then `%ProgramFiles%\Obsidian\Obsidian.exe`
 2. **Auto-detect your vault.** It reads Obsidian's `obsidian.json` to enumerate registered vaults. If exactly one vault is registered, that one is selected silently. If multiple vaults exist, the active one is used (you can pin a specific vault from Preferences).
 3. **Start the bundled MCP server** on `http://127.0.0.1:3001/mcp`.
 4. **Begin indexing** for Smart Search in the background. The tray menu shows "○ Building index (N/M)…" while this runs, then flips to "✓ Smart search ready — N notes". A native notification fires once when this completes.
@@ -101,7 +91,7 @@ Opens via the tray menu → **Preferences…**.
 | **Vault** | Drop-down of vaults registered with Obsidian. Pick a specific vault, or leave on **Active vault (default)** to use whichever vault is currently focused in Obsidian. |
 | **Local server port** | The HTTP port VaultGate binds to. Default `3001`. Change this if another process owns the port. |
 | **Obsidian binary** | Auto-detected; override with **Browse…** if your install lives in a non-standard location. |
-| **Open VaultGate at login** | Native OS login-item registration. macOS surfaces this in System Settings → General → Login Items. Windows uses `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`. |
+| **Open VaultGate at login** | Native macOS login-item registration (System Settings → General → Login Items). |
 
 Saving any change **restarts the server** so the new settings take effect immediately. The connection URL on the menu bar updates the moment the new server is up.
 
@@ -128,7 +118,6 @@ The tray menu's **Open Logs…** opens `vaultgate.log` from the user-data direct
 | Platform | Log file |
 |----------|----------|
 | macOS | `~/Library/Application Support/VaultGate/vaultgate.log` |
-| Windows | `%APPDATA%\VaultGate\vaultgate.log` |
 
 Logs rotate at 10 MB; up to three files are retained (`vaultgate.log`, `.log.1`, `.log.2`).
 
@@ -137,23 +126,17 @@ Logs rotate at 10 MB; up to three files are retained (`vaultgate.log`, `.log.1`,
 ## Quitting and uninstalling
 
 - **Quit**: tray menu → **Quit VaultGate**. Sends `SIGTERM` to the bundled server, waits up to 3 s for in-flight HTTP requests to drain, then exits.
-- **Uninstall (macOS)**: drag `VaultGate.app` to the Trash. Optionally delete `~/Library/Application Support/VaultGate/` to remove logs and config.
-- **Uninstall (Windows)**: use **Settings → Apps → Installed apps → VaultGate → Uninstall**.
+- **Uninstall**: drag `VaultGate.app` to the Trash. Optionally delete `~/Library/Application Support/VaultGate/` to remove logs and config.
 
 ---
 
 ## Code signing
 
-VaultGate's tray app is **currently unsigned** for both macOS and Windows. We don't ship code-signing certificates because:
+VaultGate's tray app is **currently unsigned**. We don't ship a code-signing certificate because an Apple Developer Program membership ($99 / year) is out of scope for an early release.
 
-- Apple Developer Program: $99 / year — out of scope for an early release.
-- Windows EV certificates: $200–$500 / year, plus USB token logistics.
+The audience for this app — developers building MCP integrations — handles unsigned binaries routinely. The trade-off is a one-time `xattr` command on first install.
 
-The audience for this app — developers building MCP integrations — handles unsigned binaries routinely. The trade-off is a one-time `xattr` command on macOS and a "More info → Run anyway" click on Windows.
-
-**Future plans**:
-- **Windows**: [SignPath.io Foundation](https://signpath.io/product/open-source) offers free code signing for OSS projects. We'll evaluate this once SmartScreen friction becomes a recurring complaint.
-- **macOS**: notarization via the Apple Developer Program when broader distribution is needed.
+**Future plans**: notarization via the Apple Developer Program when broader distribution is needed.
 
 ---
 
@@ -161,14 +144,14 @@ The audience for this app — developers building MCP integrations — handles u
 
 | | Tray app | `obsidian-vaultgate-mcp` (npm) |
 |---|----------|---------------------------------|
-| Install | Drag-and-drop / installer | `npm install -g …` |
-| UI | Menu bar / system tray | None (CLI only) |
-| Autostart | Toggle in tray menu | Manual via launchd / systemd / Task Scheduler |
+| Install | Drag-and-drop DMG | `npm install -g …` |
+| UI | Menu bar | None (CLI only) |
+| Autostart | Toggle in tray menu | Manual via launchd / systemd |
 | Smart Search model | Pre-bundled (offline) | Downloaded on first use |
 | Updates | Manual download from GitHub releases | `npm update -g obsidian-vaultgate-mcp` |
-| Linux | ❌ | ✅ |
+| Linux / Windows | ❌ | ✅ |
 | Bundle size | ~150 MB | ~ 6 MB + lazily-loaded model |
-| Best for | Day-to-day use, semi-technical users | Headless servers, Claude Code via stdio, Linux, scripting |
+| Best for | Day-to-day use on macOS | Headless servers, Claude Code via stdio, Linux, Windows, scripting |
 
 You can mix the two: stop the tray app (or quit it), then run the npm package on the same machine — they don't fight as long as they don't bind the same port.
 

@@ -163,21 +163,6 @@ describe("detectObsidianPath", () => {
     expect(detectObsidianPath()).toBe("");
   });
 
-  it("probes Windows install paths under LOCALAPPDATA when set", async () => {
-    setPlatform("win32");
-    const tmpLocal = "C:\\Users\\Test\\AppData\\Local";
-    const previous = process.env.LOCALAPPDATA;
-    process.env.LOCALAPPDATA = tmpLocal;
-    const expected = realPath.join(tmpLocal, "Obsidian", "Obsidian.exe");
-    mockState.fsExistsSync = (c) => c === expected;
-
-    const { detectObsidianPath } = await import("../../src/config-store.js");
-    expect(detectObsidianPath()).toBe(expected);
-
-    if (previous === undefined) delete process.env.LOCALAPPDATA;
-    else process.env.LOCALAPPDATA = previous;
-  });
-
   it("returns the empty string on Linux when no binary is found", async () => {
     setPlatform("linux");
     mockState.fsExistsSync = () => false;

@@ -37,7 +37,7 @@ The reference distribution: `npm install -g obsidian-vaultgate-mcp`. Runs as a s
 
 An Electron menu-bar / system-tray app that runs the MCP server in the background, with a one-click Smart Search index, autostart toggle, and a "copy connection URL" button. Pre-bundled embedding model — works fully offline on first launch.
 
-**Best for:** day-to-day use with a GUI. macOS Apple Silicon + Windows x64.
+**Best for:** day-to-day use with a GUI. macOS Apple Silicon.
 
 → **Install and usage:** [`tray/README.md`](tray/README.md)
 
@@ -45,12 +45,12 @@ An Electron menu-bar / system-tray app that runs the MCP server in the backgroun
 
 | | Headless npm package | Tray companion |
 |---|---|---|
-| Install | `npm install -g obsidian-vaultgate-mcp` | DMG / NSIS installer |
-| UI | None (CLI only) | Menu bar / system tray |
+| Install | `npm install -g obsidian-vaultgate-mcp` | DMG |
+| UI | None (CLI only) | Menu bar |
 | Autostart | launchd / systemd / Task Scheduler | Toggle in tray menu |
 | Smart Search model | Downloaded on first use | Pre-bundled (offline) |
 | macOS | ✅ | ✅ Apple Silicon only |
-| Windows | ✅ | ✅ x64 |
+| Windows | ✅ | ❌ |
 | Linux | ✅ | ❌ |
 | Bundle size | ~6 MB + lazy model | ~150 MB DMG |
 

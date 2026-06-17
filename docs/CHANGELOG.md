@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Internal `emitProgress()` IPC: when running under Electron `utilityProcess.fork()`, semantic-index state and per-file progress are forwarded to the parent process via `process.parentPort.postMessage`. No-op in plain Node
 
 ### Tray companion app (separate distribution channel)
-- New Electron-based tray / menu-bar companion app under [`tray/`](../tray/) for macOS (Apple Silicon) and Windows (x64)
+- New Electron-based menu-bar companion app under [`tray/`](../tray/) for macOS (Apple Silicon)
 - Pre-bundled embedding model — Smart Search works offline on first launch with no download
 - Auto-detection of Obsidian binary and registered vaults (parses `obsidian.json`)
 - Native autostart toggle (in Preferences), port + vault preferences, rotating logs

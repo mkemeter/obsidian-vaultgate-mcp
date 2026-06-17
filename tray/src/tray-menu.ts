@@ -42,10 +42,9 @@ function assetDir(): string {
   return path.join(__dirname, "..", "assets");
 }
 
-/** Loads the platform-appropriate tray icon, falling back to an empty image. */
+/** Loads the tray icon, falling back to an empty image. */
 function loadTrayIcon(): Electron.NativeImage {
-  const file =
-    process.platform === "win32" ? "icon-win.ico" : "icon.png";
+  const file = "icon.png";
   const fullPath = path.join(assetDir(), file);
   const image = nativeImage.createFromPath(fullPath);
   if (process.platform === "darwin" && !image.isEmpty()) {

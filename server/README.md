@@ -108,7 +108,7 @@ VaultGate ships in two flavours that share the same MCP server core. Pick whiche
 | | Headless npm package (this README) | Tray companion app |
 |---|---|---|
 | **Best for** | Headless servers, Claude Code via stdio, Linux, scripted setups | Day-to-day use with a menu-bar / system-tray UI |
-| **Install** | `npm install -g obsidian-vaultgate-mcp` | DMG (macOS arm64) or NSIS installer (Windows x64) |
+| **Install** | `npm install -g obsidian-vaultgate-mcp` | DMG (macOS arm64) |
 | **Autostart** | Manual via launchd / systemd / Task Scheduler (`deploy/`) | Toggle in the tray menu |
 | **Smart Search model** | Downloaded on first use | Pre-bundled, fully offline |
 | **Linux** | ✅ supported (`deploy/systemd/`) | ❌ not supported |

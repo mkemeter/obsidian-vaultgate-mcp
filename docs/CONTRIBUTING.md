@@ -54,10 +54,7 @@ npm test
 | `npm run typecheck` | Type-check without building |
 | `npm run knip` | Dead-code check locally — server only |
 
-The `npm` commands work identically on macOS, Linux, and Windows (PowerShell or
-cmd). Use the shell you are comfortable with.
-
-You do **not** need Obsidian installed to develop or run tests — the test suite
+The `npm` commands work identically on macOS and Linux. You do **not** need Obsidian installed to develop or run tests — the test suite
 mocks the CLI binary entirely.
 
 ---
@@ -175,7 +172,6 @@ Key design decisions:
   CLI registration setting rather than a raw Node.js error. The message includes
   platform-appropriate path hints:
   - macOS: `/Applications/Obsidian.app/Contents/MacOS/obsidian`
-  - Windows: `C:\Users\<you>\AppData\Local\Obsidian\Obsidian.exe`
   - Linux: typically on `PATH` after CLI registration
 
 ### dryRun consent mechanism

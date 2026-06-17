@@ -29,7 +29,7 @@ tray/
 │   ├── prefs-window.ts      Preferences BrowserWindow lifecycle + `prefs:*` IPC handlers.
 │   ├── preload.ts           contextBridge surface exposed to the prefs renderer.
 │   ├── config-store.ts      JSON persistence + Obsidian-path / vault auto-detection.
-│   ├── autostart.ts         Cross-platform login-item toggle wrapper.
+│   ├── autostart.ts         macOS login-item toggle wrapper.
 ├── renderer/
 │   ├── prefs.html           Preferences markup (CSP-locked, sandbox: true).
 │   └── prefs.js             Renderer logic; talks to main exclusively via window.vaultgate.
@@ -38,11 +38,10 @@ tray/
 │   └── copy-renderer.js     Copies renderer/ into dist/renderer/ during build.
 ├── assets/
 │   ├── icon.png / icon@2x.png   Menu bar icons (22×22 / 44×44, template image on macOS).
-│   ├── icon-win.ico             Windows tray icon.
 │   ├── icon.svg                 Source SVG (also used as the macOS app icon).
 │   └── models/                  Pre-downloaded embedding model — gitignored, populated by CI.
 ├── tests/unit/                  Vitest tests for non-Electron-bound modules.
-├── electron-builder.yml         Packaging config (DMG arm64, NSIS x64).
+├── electron-builder.yml         Packaging config (DMG arm64).
 ├── package.json                 Tray-only dependencies — no overlap with root package.json.
 ├── tsconfig.json
 └── vitest.config.ts             Test thresholds + Electron-bound exclusions.
@@ -110,7 +109,7 @@ This:
 4. Copies `renderer/` into `dist/renderer/`.
 5. Launches Electron pointing at `dist/main.js`.
 
-You should see a tray icon in the menu bar (macOS) / notification area (Windows). The icon will reflect server state — wait for `● Running — <vault>`.
+You should see a tray icon in the menu bar. The icon will reflect server state — wait for `● Running — <vault>`.
 
 ### Testing
 
@@ -149,7 +148,6 @@ npm run package        # builds + electron-builder for the host platform
 
 Output lands in `tray/dist/`:
 - `VaultGate-X.Y.Z-mac-arm64.dmg` (when run on Apple Silicon)
-- `VaultGate-X.Y.Z-win-x64-setup.exe` (when run on Windows)
 
 Builds are intentionally **per-host-arch**: `onnxruntime-node`'s postinstall only downloads the native binary for the host platform, so producing a true universal macOS DMG requires a separate CI job per architecture (deferred to a later phase).
 
@@ -162,7 +160,7 @@ git tag tray/v0.1.0
 git push origin tray/v0.1.0
 ```
 
-This triggers `.github/workflows/tray.yml` which builds for macOS arm64 + Windows x64 in parallel and publishes to a GitHub release. `GITHUB_TOKEN` is the only secret required.
+This triggers `.github/workflows/tray.yml` which builds the macOS arm64 DMG and publishes to a GitHub release. `GITHUB_TOKEN` is the only secret required.
 
 ---
 
@@ -222,7 +220,7 @@ asarUnpack:
   - "node_modules/sharp/**"
 ```
 
-The full `node_modules/onnxruntime-node/**` glob is needed because Windows ships `onnxruntime.dll` and other shared libraries alongside the `.node` file.
+The full `node_modules/onnxruntime-node/**` glob is needed because `onnxruntime-node` ships multiple shared libraries alongside the `.node` file.
 
 ### Server bundle (esbuild)
 
@@ -309,7 +307,7 @@ If your item triggers a server change, call `void serverManager.restart()` from 
 
 | Symptom | First place to look |
 |---------|---------------------|
-| Tray icon never appears | macOS Console.app → filter "VaultGate"; on Windows `eventvwr` → Application |
+| Tray icon never appears | macOS Console.app → filter "VaultGate" |
 | Server says "stdio mode" in logs | The `OBSIDIAN_MCP_TRANSPORT=http` env var is missing on the fork — check `server-manager.ts` `start()` |
 | Smart Search stays "warming up" forever | `Open Logs…` then look for `[server:err]` entries from `@xenova/transformers`; confirm `assets/models/` populated |
 | Build fails with "node_modules/.cache" mismatch | Run `cd tray && npx @electron/rebuild` to recompile native addons against the current Electron ABI |

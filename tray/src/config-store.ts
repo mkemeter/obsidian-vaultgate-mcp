@@ -76,15 +76,6 @@ export function detectObsidianPath(): string {
   const candidates: string[] = [];
   if (process.platform === "darwin") {
     candidates.push("/Applications/Obsidian.app/Contents/MacOS/obsidian");
-  } else if (process.platform === "win32") {
-    const localAppData = process.env.LOCALAPPDATA ?? "";
-    if (localAppData) {
-      candidates.push(path.join(localAppData, "Obsidian", "Obsidian.exe"));
-    }
-    const programFiles = process.env.ProgramFiles ?? "";
-    if (programFiles) {
-      candidates.push(path.join(programFiles, "Obsidian", "Obsidian.exe"));
-    }
   } else {
     // Linux: tray app is unsupported, but allow detection for dev runs
     candidates.push("/usr/bin/obsidian", "/usr/local/bin/obsidian");
@@ -109,7 +100,6 @@ export function getRegisteredVaults(): RegisteredVault[] {
   const home = os.homedir();
   const platformPaths: Record<string, string> = {
     darwin: path.join(home, "Library/Application Support/obsidian/obsidian.json"),
-    win32: path.join(process.env.APPDATA ?? path.join(home, "AppData/Roaming"), "obsidian/obsidian.json"),
     linux: path.join(process.env.XDG_CONFIG_HOME ?? path.join(home, ".config"), "obsidian/obsidian.json"),
   };
   const filePath = platformPaths[process.platform];

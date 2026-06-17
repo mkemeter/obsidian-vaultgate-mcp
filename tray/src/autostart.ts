@@ -1,10 +1,9 @@
 /**
- * Cross-platform autostart toggle.
+ * macOS autostart toggle.
  *
- * Electron's `app.setLoginItemSettings()` handles platform differences:
+ * Electron's `app.setLoginItemSettings()` handles macOS version differences:
  *   macOS 13+ → SMAppService entry under System Settings → Login Items
  *   macOS ≤12 → LSSharedFileList
- *   Windows   → HKCU\Software\Microsoft\Windows\CurrentVersion\Run
  *
  * `openAsHidden: true` keeps the app silent on launch — the tray icon
  * appears, but no window opens.
