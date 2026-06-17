@@ -283,6 +283,39 @@ describe("indexState guard", () => {
   });
 });
 
+describe("startBackgroundIndex retry on error", () => {
+  it("resets to idle after a failed build and schedules a 60 s retry", async () => {
+    // regression: startBackgroundIndex previously stayed in "building" forever
+    // after an error (e.g. Obsidian plugin not ready at launch). Now it resets
+    // to "idle" and schedules a retry via setTimeout so the next call succeeds.
+
+    // Spy on setTimeout to capture the retry registration without fake timers.
+    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+
+    let callCount = 0;
+    const { getState } = await freshModuleNoCache(async (args) => {
+      if (args.includes("list")) {
+        callCount++;
+        if (callCount === 1) throw new Error("Obsidian not ready");
+        return FILE_LIST;
+      }
+      return NOTE_A_CONTENT;
+    });
+
+    // Give the async IIFE time to reject and run the catch handler.
+    await new Promise((r) => { globalThis.setTimeout(r, 50); });
+
+    // Index must be reset to idle so a retry can run.
+    expect(getState()).toBe("idle");
+
+    // A setTimeout of 60 000 ms must have been registered for the retry.
+    const retryCall = setTimeoutSpy.mock.calls.find(([, delay]) => delay === 60_000);
+    expect(retryCall).toBeDefined();
+
+    setTimeoutSpy.mockRestore();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // semantic_search
 // ---------------------------------------------------------------------------

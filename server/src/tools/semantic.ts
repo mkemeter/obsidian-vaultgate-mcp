@@ -526,12 +526,16 @@ function startBackgroundIndex(): void {
         filesProcessed: Object.keys(idx.files).length,
       });
     } catch (err) {
-      // If build fails, stay in "building" so callers return the "indexing" message
-      // rather than crashing. A server restart will retry.
+      // Build failed (e.g. Obsidian plugin not yet ready at startup).
+      // Emit the error so the tray can show it, then reset to idle and retry
+      // after 60 s — the plugin typically initialises within a minute of launch.
       emitProgress({
         type: "error",
+        state: "error",
         error: err instanceof Error ? err.message : String(err),
       });
+      indexState = "idle";
+      setTimeout(() => startBackgroundIndex(), 60_000);
     }
   })();
 }
