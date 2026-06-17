@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New Electron-based tray / menu-bar companion app under [`tray/`](../tray/) for macOS (Apple Silicon) and Windows (x64)
 - Pre-bundled embedding model — Smart Search works offline on first launch with no download
 - Auto-detection of Obsidian binary and registered vaults (parses `obsidian.json`)
-- Native autostart toggle, port + vault preferences, rotating logs, npm-registry update check
+- Native autostart toggle (in Preferences), port + vault preferences, rotating logs
 - Ships under the `tray/v*` git tag — independent of npm package releases
 - Headless npm path is unaffected; root `package.json` `"files"` allowlist excludes `tray/`
 - Documentation: [tray/README.md](../tray/README.md) (users), [docs/TRAY-DEV.md](TRAY-DEV.md) (contributors)

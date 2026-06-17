@@ -6,8 +6,7 @@
  *   2. dock.hide on macOS (LSUIElement is the primary lever; this is belt-and-suspenders)
  *   3. App-ready: register IPC, run vault auto-detection, start server
  *   4. Create tray icon and wire state listeners
- *   5. Update check (non-blocking)
- *   6. First-connection notification (one-time)
+ *   5. First-connection notification (one-time)
  */
 
 import { app, Notification } from "electron";
@@ -16,7 +15,6 @@ import { hasConfig, loadConfig } from "./config-store.js";
 import { openPrefsWindow, registerPrefsIpc } from "./prefs-window.js";
 import * as serverManager from "./server-manager.js";
 import { createTrayMenu } from "./tray-menu.js";
-import { checkOnce } from "./update-check.js";
 
 // 1. Single-instance lock --------------------------------------------------
 // If another tray instance is already running, exit immediately. Without this
@@ -52,10 +50,7 @@ void app.whenReady().then(async () => {
     openPrefsWindow();
   }
 
-  // 5. Update check (silent, non-blocking) -------------------------------
-  void checkOnce();
-
-  // 6. First-launch notification (one-time per install) -------------------
+  // 5. First-launch notification (one-time per install) -------------------
   if (isFirstLaunch) {
     const config = loadConfig();
     if (Notification.isSupported()) {

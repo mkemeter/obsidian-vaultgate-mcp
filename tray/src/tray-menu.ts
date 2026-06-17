@@ -5,8 +5,6 @@
  * partial menu updates and rebuilding is cheap. The menu reflects:
  *   - server lifecycle state (running, stopped, error, port-conflict, pre-flight failures)
  *   - smart search state (idle / building / ready / error) with note count
- *   - update availability (only shown when a newer version is on the registry)
- *   - autostart toggle
  */
 
 import * as path from "node:path";
@@ -20,7 +18,6 @@ import {
   shell,
   Tray,
 } from "electron";
-import { isAutostartEnabled, setAutostart } from "./autostart.js";
 import { loadConfig, saveConfig } from "./config-store.js";
 import { openPrefsWindow } from "./prefs-window.js";
 import * as serverManager from "./server-manager.js";
@@ -31,9 +28,6 @@ import {
   smartSearchReadyNotificationBody,
   stoppedHeaderLabel,
 } from "./tray-labels.js";
-import { getLatestUpdate, onUpdateAvailable } from "./update-check.js";
-
-const RELEASES_URL = "https://github.com/mkemeter/obsidian-vaultgate-mcp/releases";
 
 let tray: Tray | undefined;
 let copyFeedbackTimer: NodeJS.Timeout | undefined;
@@ -120,26 +114,6 @@ function buildMenu(): Menu {
   items.push({ label: "Preferences…", click: () => openPrefsWindow() });
 
   items.push({ type: "separator" });
-
-  // Autostart -----------------------------------------------------------------
-  items.push({
-    label: "Open at Login",
-    type: "checkbox",
-    checked: isAutostartEnabled(),
-    click: (item) => setAutostart(item.checked),
-  });
-
-  // Update notice -------------------------------------------------------------
-  const update = getLatestUpdate();
-  if (update) {
-    items.push({ type: "separator" });
-    items.push({
-      label: `Update available — v${update}`,
-      click: () => void shell.openExternal(RELEASES_URL),
-    });
-  }
-
-  items.push({ type: "separator" });
   items.push({ label: "Quit VaultGate", click: () => app.quit() });
 
   return Menu.buildFromTemplate(items);
@@ -180,8 +154,6 @@ export function createTrayMenu(): void {
     rebuildMenu();
     if (event.state === "ready") notifySmartSearchReadyOnce(event.filesProcessed ?? 0);
   });
-
-  onUpdateAvailable(() => rebuildMenu());
 }
 
 /** One-time native notification when the index first becomes ready. */

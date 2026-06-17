@@ -11,7 +11,7 @@ A small Electron 35 app that:
 1. Forks the existing `obsidian-vaultgate-mcp` server as a child process.
 2. Renders a system-tray icon and context menu reflecting server state and the semantic-index lifecycle.
 3. Exposes a Preferences window for vault / port / Obsidian-binary configuration.
-4. Manages OS-level autostart via Electron's `app.setLoginItemSettings`.
+4. Manages OS-level autostart via Electron's `app.setLoginItemSettings` (configurable from Preferences).
 
 It is **layered on top of** the npm package — the same `src/index.ts` runs inside the tray, just spawned via `utilityProcess.fork()` instead of as a stdio child of an MCP client.
 
@@ -30,7 +30,6 @@ tray/
 │   ├── preload.ts           contextBridge surface exposed to the prefs renderer.
 │   ├── config-store.ts      JSON persistence + Obsidian-path / vault auto-detection.
 │   ├── autostart.ts         Cross-platform login-item toggle wrapper.
-│   └── update-check.ts      One-shot npm registry version probe.
 ├── renderer/
 │   ├── prefs.html           Preferences markup (CSP-locked, sandbox: true).
 │   └── prefs.js             Renderer logic; talks to main exclusively via window.vaultgate.
@@ -268,7 +267,7 @@ The factory runs **once** per test file (it's hoisted before all tests). Per-tes
 
 - **Excluded** (no coverage, no tests): `main.ts`, `prefs-window.ts`, `preload.ts`, `tray-menu.ts`. These are thin Electron wiring — `npm run dev` is the canonical verification.
 - **Excluded but unit-tested**: `server-manager.ts`. Has 11 tests covering its public surface (state machine, pre-flight, on/off subscription) but the fork lifecycle itself is excluded from coverage gating because it requires a live `utilityProcess`.
-- **Coverage-gated**: `config-store.ts`, `update-check.ts`, `autostart.ts`. Pure logic, fully testable in vitest.
+- **Coverage-gated**: `config-store.ts`, `autostart.ts`. Pure logic, fully testable in vitest.
 
 When you add a new file, decide which bucket it belongs in and update `tray/vitest.config.ts` accordingly.
 
