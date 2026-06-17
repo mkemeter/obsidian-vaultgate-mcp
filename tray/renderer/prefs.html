@@ -7,20 +7,21 @@
     <style>
       :root {
         color-scheme: light dark;
-        --bg: #ffffff;
+        --bg: #fafafa;
         --fg: #1a1a1a;
-        --muted: #6b6b6b;
-        --border: #d8d8d8;
-        --accent: #7c3aed;
-        --error: #c0392b;
+        --muted: #71717a;
+        --border: #e4e4e7;
+        --accent: #8b5cf6;
+        --accent-dark: #7c3aed;
+        --success: #10b981;
+        --error: #ef4444;
       }
       @media (prefers-color-scheme: dark) {
         :root {
-          --bg: #1f1f22;
-          --fg: #f0f0f0;
-          --muted: #9b9b9b;
-          --border: #3a3a40;
-          --error: #e74c3c;
+          --bg: #18181b;
+          --fg: #f4f4f5;
+          --muted: #a1a1aa;
+          --border: #3f3f46;
         }
       }
       body {
@@ -31,11 +32,29 @@
         color: var(--fg);
         user-select: none;
       }
-      h1 {
+      .status-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+      .status-bar h1 {
         font-size: 14px;
-        margin: 0 0 14px;
+        margin: 0;
         font-weight: 600;
       }
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        background: var(--muted);
+        transition: background 0.2s;
+      }
+      .status-dot[data-state="running"] { background: var(--success); }
+      .status-dot[data-state="error"],
+      .status-dot[data-state="port-conflict"],
+      .status-dot[data-state="obsidian-missing"] { background: var(--error); }
       label {
         display: block;
         margin: 10px 0 4px;
@@ -51,7 +70,14 @@
         color: var(--fg);
         background: var(--bg);
         border: 1px solid var(--border);
-        border-radius: 4px;
+        border-radius: 6px;
+      }
+      input[type="text"]:focus,
+      input[type="number"]:focus,
+      select:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
       }
       input.error {
         border-color: var(--error);
@@ -76,13 +102,20 @@
         background: var(--bg);
         color: var(--fg);
         border: 1px solid var(--border);
-        border-radius: 4px;
+        border-radius: 6px;
         cursor: pointer;
       }
       button.primary {
         background: var(--accent);
         color: #fff;
-        border-color: var(--accent);
+        border: none;
+      }
+      button:hover:not(:disabled) {
+        opacity: 0.85;
+      }
+      button.primary:hover:not(:disabled) {
+        background: var(--accent-dark);
+        opacity: 1;
       }
       button:disabled {
         opacity: 0.5;
@@ -94,6 +127,11 @@
         align-items: center;
         margin-top: 14px;
       }
+      .section-divider {
+        border: none;
+        border-top: 1px solid var(--border);
+        margin: 16px 0 10px;
+      }
       .footer {
         display: flex;
         justify-content: flex-end;
@@ -103,7 +141,10 @@
     </style>
   </head>
   <body>
-    <h1>VaultGate</h1>
+    <div class="status-bar">
+      <span id="status-dot" class="status-dot" data-state="loading"></span>
+      <h1>VaultGate</h1>
+    </div>
 
     <label for="vault">Vault</label>
     <select id="vault"></select>
@@ -117,6 +158,8 @@
       <input type="text" id="obsidian" placeholder="/Applications/Obsidian.app/Contents/MacOS/obsidian" />
       <button id="browse">Browse…</button>
     </div>
+
+    <hr class="section-divider" />
 
     <div class="checkbox">
       <input type="checkbox" id="autostart" />

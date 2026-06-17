@@ -53,6 +53,7 @@ export function registerPrefsIpc(): void {
   });
   ipcMain.handle("prefs:isAutostartEnabled", () => isAutostartEnabled());
   ipcMain.handle("prefs:setAutostart", (_event, enabled: boolean) => setAutostart(enabled));
+  ipcMain.handle("prefs:getServerState", () => serverManager.getState());
   ipcMain.on("prefs:close", () => prefsWindow?.close());
 }
 
@@ -65,7 +66,7 @@ export function openPrefsWindow(): void {
 
   prefsWindow = new BrowserWindow({
     width: 420,
-    height: 360,
+    height: 380,
     resizable: false,
     minimizable: false,
     maximizable: false,

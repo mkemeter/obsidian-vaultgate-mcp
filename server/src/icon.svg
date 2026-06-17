@@ -5,30 +5,29 @@
       <stop offset="0%" stop-color="#7c3aed"/>
       <stop offset="100%" stop-color="#4c1d95"/>
     </linearGradient>
-    <linearGradient id="gem-light" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#c4b5fd"/>
-      <stop offset="100%" stop-color="#8b5cf6"/>
+    <linearGradient id="gem-top" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ede9fe"/>
+      <stop offset="100%" stop-color="#c4b5fd"/>
     </linearGradient>
-    <linearGradient id="gem-dark" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#6d28d9"/>
-      <stop offset="100%" stop-color="#3b0764"/>
+    <linearGradient id="gem-mid" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#6d28d9"/>
     </linearGradient>
   </defs>
   <!-- Background circle -->
   <circle cx="32" cy="32" r="30" fill="url(#bg)"/>
-  <!-- Crystal / diamond facets -->
-  <!-- Top facet (lightest) -->
-  <polygon points="32,10 44,26 32,22" fill="#ede9fe" opacity="0.95"/>
-  <!-- Left facet -->
-  <polygon points="32,10 20,26 32,22" fill="url(#gem-light)"/>
-  <!-- Right facet -->
-  <polygon points="44,26 32,22 40,42" fill="#7c3aed" opacity="0.85"/>
-  <!-- Bottom-left facet -->
-  <polygon points="20,26 32,22 24,42" fill="url(#gem-light)" opacity="0.9"/>
-  <!-- Center facet -->
-  <polygon points="32,22 44,26 40,42 24,42 20,26" fill="#a78bfa" opacity="0.75"/>
-  <!-- Bottom point -->
-  <polygon points="24,42 40,42 32,54" fill="url(#gem-dark)"/>
-  <!-- Subtle highlight -->
-  <polygon points="32,10 38,20 32,18" fill="white" opacity="0.35"/>
+  <!-- Gate ring — subtle portal metaphor, inset 4px from background edge -->
+  <circle cx="32" cy="32" r="26" fill="none" stroke="#a78bfa" stroke-width="1" opacity="0.45"/>
+  <!-- Crystal crown (top, lightest — catches light from above) -->
+  <polygon points="32,11 42,25 32,21 22,25" fill="url(#gem-top)"/>
+  <!-- Crystal left facet -->
+  <polygon points="22,25 32,21 28,41" fill="#a78bfa" opacity="0.9"/>
+  <!-- Crystal right facet -->
+  <polygon points="42,25 36,41 32,21" fill="#7c3aed" opacity="0.85"/>
+  <!-- Crystal center girdle (symmetric pentagon) -->
+  <polygon points="22,25 28,41 36,41 42,25 32,21" fill="url(#gem-mid)" opacity="0.7"/>
+  <!-- Crystal base point -->
+  <polygon points="28,41 36,41 32,53" fill="#4c1d95"/>
+  <!-- Specular highlight on crown -->
+  <polygon points="32,11 37,20 32,18 27,20" fill="white" opacity="0.28"/>
 </svg>

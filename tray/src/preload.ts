@@ -18,6 +18,7 @@ export interface PrefsBridge {
   checkPort: (port: number) => Promise<"free" | "vaultgate" | "conflict">;
   isAutostartEnabled: () => Promise<boolean>;
   setAutostart: (enabled: boolean) => Promise<void>;
+  getServerState: () => Promise<string>;
   close: () => void;
 }
 
@@ -31,6 +32,7 @@ const bridge: PrefsBridge = {
   checkPort: (port) => ipcRenderer.invoke("prefs:checkPort", port),
   isAutostartEnabled: () => ipcRenderer.invoke("prefs:isAutostartEnabled"),
   setAutostart: (enabled) => ipcRenderer.invoke("prefs:setAutostart", enabled),
+  getServerState: () => ipcRenderer.invoke("prefs:getServerState"),
   close: () => ipcRenderer.send("prefs:close"),
 };
 

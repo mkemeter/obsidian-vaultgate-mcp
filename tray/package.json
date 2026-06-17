@@ -11,6 +11,7 @@
     "build:tray": "tsc",
     "build:renderer": "node scripts/copy-renderer.js",
     "download-models": "node scripts/download-models.js",
+    "generate-icons": "node scripts/generate-icons.js",
     "build": "npm run build:server && npm run bundle:server && npm run bundle:deps && npm run build:tray && npm run build:renderer",
     "package": "npm run build && electron-builder",
     "dev": "npm run build && electron .",

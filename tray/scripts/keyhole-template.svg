@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44">
+  <!--
+    Monochrome keyhole for macOS menu-bar template icon.
+    fill-rule="evenodd" on a compound <path> creates transparent holes
+    inside the circle for the three Obsidian-graph reference dots.
+    Background must remain fully transparent (no <rect>).
+    Rasterised to icon@2x.png (44×44) and icon.png (22×22) by generate-icons.js.
+  -->
+  <path fill="black" fill-rule="evenodd" d="
+    M 22 5
+    C 28.07 5 33 9.93 33 16
+    C 33 22.07 28.07 27 22 27
+    C 15.93 27 11 22.07 11 16
+    C 11 9.93 15.93 5 22 5 Z
+
+    M 22 9.2
+    C 23.0 9.2 23.8 10.0 23.8 11
+    C 23.8 12.0 23.0 12.8 22 12.8
+    C 21.0 12.8 20.2 12.0 20.2 11
+    C 20.2 10.0 21.0 9.2 22 9.2 Z
+
+    M 17.5 16.7
+    C 18.5 16.7 19.3 17.5 19.3 18.5
+    C 19.3 19.5 18.5 20.3 17.5 20.3
+    C 16.5 20.3 15.7 19.5 15.7 18.5
+    C 15.7 17.5 16.5 16.7 17.5 16.7 Z
+
+    M 26.5 16.7
+    C 27.5 16.7 28.3 17.5 28.3 18.5
+    C 28.3 19.5 27.5 20.3 26.5 20.3
+    C 25.5 20.3 24.7 19.5 24.7 18.5
+    C 24.7 17.5 25.5 16.7 26.5 16.7 Z
+  "/>
+  <!-- Stem -->
+  <rect x="17" y="27" width="10" height="12" rx="2" ry="2" fill="black"/>
+</svg>

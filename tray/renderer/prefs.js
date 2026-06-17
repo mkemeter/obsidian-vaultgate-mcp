@@ -21,11 +21,12 @@
   const saveBtn = document.getElementById("save");
   const cancelBtn = document.getElementById("cancel");
 
-  const [config, vaults, autostart, suggestedPort] = await Promise.all([
+  const [config, vaults, autostart, suggestedPort, serverState] = await Promise.all([
     api.loadConfig(),
     api.listVaults(),
     api.isAutostartEnabled(),
     api.suggestPort(),
+    api.getServerState(),
   ]);
 
   // Populate vault dropdown ----------------------------------------------------
@@ -46,6 +47,10 @@
   obsidianInput.value =
     config.obsidianPath || (await api.detectObsidianPath()) || "";
   autostartInput.checked = Boolean(autostart);
+
+  // Wire server state into status indicator ------------------------------------
+  const dot = document.getElementById("status-dot");
+  if (dot) dot.dataset.state = serverState ?? "loading";
 
   // Port validation ------------------------------------------------------------
   let portCheckTimer = null;

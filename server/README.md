@@ -31,6 +31,17 @@ Ask your AI to read notes, run full-text or semantic search, manage tasks, apply
 
 ---
 
+## What it looks like
+
+The **tray companion app** sits in your macOS menu bar as a small keyhole icon.
+Right-click to see server status, copy the MCP connection URL, and monitor semantic
+index progress in real time. The preferences window lets you switch vaults, change
+the port, and locate the Obsidian binary — no config files to edit manually.
+
+> _Screenshot — to be added after first public tray release._
+
+---
+
 ```
   Your AI Assistant
   (Claude · Cursor · Windsurf · Zed · …)
