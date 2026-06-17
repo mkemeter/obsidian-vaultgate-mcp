@@ -48,7 +48,7 @@ void app.whenReady().then(async () => {
 
   // If pre-flight failed, surface preferences immediately so the user can fix things.
   const state = serverManager.getState();
-  if (state === "obsidian-missing" || state === "cli-not-registered") {
+  if (state === "obsidian-missing" || state === "port-conflict") {
     openPrefsWindow();
   }
 

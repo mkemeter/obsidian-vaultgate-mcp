@@ -15,6 +15,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dependabot for npm and GitHub Actions
 - CI restructured with dedicated `lint`, `audit`, `test`, and `ci-passed` jobs
 - `.editorconfig` for consistent editor defaults
+- Graceful HTTP shutdown: `startHttp()` now installs `SIGTERM` and `SIGINT` handlers that drain in-flight connections before exit (5 s safety timeout). Backwards-compatible with all existing distribution paths
+- `VAULTGATE_MODEL_CACHE_DIR` env var: when set, points `@xenova/transformers` at a pre-populated HuggingFace cache directory and disables remote downloads. Used by the tray companion app to ship the embedding model offline. Unset = unchanged headless behaviour
+- Internal `emitProgress()` IPC: when running under Electron `utilityProcess.fork()`, semantic-index state and per-file progress are forwarded to the parent process via `process.parentPort.postMessage`. No-op in plain Node
+
+### Tray companion app (separate distribution channel)
+- New Electron-based tray / menu-bar companion app under [`tray/`](../tray/) for macOS (Apple Silicon) and Windows (x64)
+- Pre-bundled embedding model — Smart Search works offline on first launch with no download
+- Auto-detection of Obsidian binary and registered vaults (parses `obsidian.json`)
+- Native autostart toggle, port + vault preferences, rotating logs, npm-registry update check
+- Ships under the `tray/v*` git tag — independent of npm package releases
+- Headless npm path is unaffected; root `package.json` `"files"` allowlist excludes `tray/`
+- Documentation: [tray/README.md](../tray/README.md) (users), [docs/TRAY-DEV.md](TRAY-DEV.md) (contributors)
 
 ## [0.1.2] — 2026-05-22
 

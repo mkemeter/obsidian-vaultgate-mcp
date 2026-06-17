@@ -17,6 +17,7 @@ import {
   type VaultGateConfig,
 } from "./config-store.js";
 import * as serverManager from "./server-manager.js";
+import { findFreePort } from "./port-utils.js";
 
 let prefsWindow: BrowserWindow | undefined;
 
@@ -38,6 +39,10 @@ export function registerPrefsIpc(): void {
   });
   ipcMain.handle("prefs:listVaults", () => getRegisteredVaults());
   ipcMain.handle("prefs:detectObsidianPath", () => detectObsidianPath());
+  ipcMain.handle("prefs:suggestPort", () => findFreePort(loadConfig().port));
+  ipcMain.handle("prefs:checkPort", async (_event, port: number) => {
+    return serverManager.checkPortAvailability(port);
+  });
   ipcMain.handle("prefs:pickObsidianPath", async () => {
     const result = await dialog.showOpenDialog({
       title: "Locate Obsidian",

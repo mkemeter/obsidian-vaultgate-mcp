@@ -54,16 +54,20 @@ describe("stoppedHeaderLabel", () => {
     expect(stoppedHeaderLabel("error")).toBe("○ Error — server crashed");
   });
 
-  it("renders 'Error — port in use' for the port-conflict state", () => {
-    expect(stoppedHeaderLabel("port-conflict")).toBe("○ Error — port in use");
+  it("renders generic port-in-use message when no port is provided", () => {
+    expect(stoppedHeaderLabel("port-conflict")).toBe("○ Error — port already in use");
+  });
+
+  it("renders the specific port number when provided (regression: port-conflict shows wrong port)", () => {
+    expect(stoppedHeaderLabel("port-conflict", 3001)).toBe("○ Port 3001 in use — change in Preferences");
+  });
+
+  it("renders the specific port number for any port", () => {
+    expect(stoppedHeaderLabel("port-conflict", 4242)).toBe("○ Port 4242 in use — change in Preferences");
   });
 
   it("renders 'Obsidian not found' when the binary is missing", () => {
     expect(stoppedHeaderLabel("obsidian-missing")).toBe("○ Obsidian not found");
-  });
-
-  it("renders 'Obsidian CLI not registered' when the smoke test fails", () => {
-    expect(stoppedHeaderLabel("cli-not-registered")).toBe("○ Obsidian CLI not registered");
   });
 });
 
@@ -96,6 +100,18 @@ describe("smartSearchLabel", () => {
       totalFiles: 500,
     };
     expect(smartSearchLabel(ev)).toBe("○ Building index (142/500)…");
+  });
+
+  it("preserves state:building from a prior event when merged with a raw progress event (regression: per-note IPC events carry no state field and must not clobber it)", () => {
+    // The server emits two kinds of events:
+    //   { type:"state", state:"building" }                          — once, at build start
+    //   { type:"progress", filesProcessed:N, totalFiles:M }        — per note, no `state`
+    // server-manager merges them: latestIndex = { ...latestIndex, ...ev }
+    // Without the merge, `state` would be lost and the label would fall back to "warming up…".
+    const buildingEvent: IndexProgressEvent = { type: "state", state: "building" };
+    const progressEvent: IndexProgressEvent = { type: "progress", filesProcessed: 5, totalFiles: 10 };
+    const merged = { ...buildingEvent, ...progressEvent };
+    expect(smartSearchLabel(merged)).toBe("○ Building index (5/10)…");
   });
 
   it("falls back to a generic build label when totalFiles is unknown", () => {

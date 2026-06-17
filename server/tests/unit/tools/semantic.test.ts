@@ -13,7 +13,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 // ---------------------------------------------------------------------------
@@ -939,6 +939,36 @@ describe("splitIntoSections via semantic_search", () => {
 // ---------------------------------------------------------------------------
 
 describe("vault switch heuristic", () => {
+  // Preserve the real production index (embeddings-default.json) so running
+  // tests on a dev machine does not destroy the live semantic index.
+  const defaultCachePath = path.join(
+    os.homedir(),
+    ".cache",
+    "obsidian-vaultgate-mcp",
+    "embeddings-default.json"
+  );
+  let savedIndex: Buffer | null = null;
+
+  beforeAll(() => {
+    try {
+      savedIndex = fs.readFileSync(defaultCachePath);
+    } catch {
+      savedIndex = null;
+    }
+  });
+
+  afterAll(() => {
+    if (savedIndex !== null) {
+      fs.writeFileSync(defaultCachePath, savedIndex);
+    } else {
+      try {
+        fs.unlinkSync(defaultCachePath);
+      } catch {
+        /* already gone */
+      }
+    }
+  });
+
   /**
    * Helper: write a valid cache with specific files for the "default" vault,
    * then load a fresh module instance with config.vault = undefined so
@@ -1010,9 +1040,6 @@ describe("vault switch heuristic", () => {
     // "Indexed notes: 3" means the 3 new files were embedded and old files are gone.
     expect(text).not.toContain("Indexed notes: 0");
     expect(text).toMatch(/Indexed notes: [1-9]/);
-
-    // Clean up
-    if (fs.existsSync(cacheFile)) fs.unlinkSync(cacheFile);
   });
 
   it(">50% deletion but NO new files → does not wipe (bulk delete, not vault switch)", async () => {
@@ -1035,8 +1062,6 @@ describe("vault switch heuristic", () => {
     const text: string = result.content[0].text;
     // "keep.md" survived, 3 gone-*.md deleted — 1 note should remain indexed
     expect(text).toContain("Indexed notes: 1");
-
-    if (fs.existsSync(cacheFile)) fs.unlinkSync(cacheFile);
   });
 
   it("unconfigured vault with cache defers 'ready' until sync completes (Layer 2)", async () => {
@@ -1058,13 +1083,47 @@ describe("vault switch heuristic", () => {
     // After sync: stale-vault-note.md gone (vault switch detected), fresh-vault-note.md added.
     // Net result: 1 note indexed from the new vault.
     expect(text).toContain("Indexed notes: 1");
-
-    if (fs.existsSync(cacheFile)) fs.unlinkSync(cacheFile);
   });
 });
 
 // ---------------------------------------------------------------------------
 // loadIndex — stale cache (wrong version or model) triggers a fresh index
+// ---------------------------------------------------------------------------
+
+describe("listVaultPaths — non-markdown file filtering", () => {
+  // regression: semantic index hangs forever when vault contains image/attachment
+  // files because listVaultPaths returned ALL files and syncNewAndDeleted tried
+  // to read each one via the CLI, causing 30-second timeouts on binary files.
+  it("only indexes .md files, skipping images and attachments (regression: index hangs on binary files)", async () => {
+    const fileList = [
+      "note-a.md",
+      "Daily/_attachments/Pasted image 20251117114958.png",
+      "note-b.md",
+      "Assets/diagram.svg",
+      "Templates/weekly.md",
+    ].join("\n");
+
+    const { server, mockRun, getState } = await freshModule(async (args) => {
+      if (args[0] === "files" && args[1] === "list") return fileList;
+      if (args[0] === "read") return `# ${args[1]}\n\nContent.`;
+      return "";
+    });
+
+    await waitForReady(getState);
+
+    // Only the three .md files should have been read — never the .png or .svg.
+    // Each call is runObsidian(["read", "path=<file>"]) so args[0] is the array.
+    const readArgArrays = mockRun.mock.calls
+      .map((call) => call[0] as string[])
+      .filter((args) => args[0] === "read");
+
+    const readPaths = readArgArrays.map((args) => args[1] ?? "");
+    expect(readPaths.some((p) => p.includes(".png"))).toBe(false);
+    expect(readPaths.some((p) => p.includes(".svg"))).toBe(false);
+    expect(readPaths.filter((p) => p.includes(".md")).length).toBe(3);
+  });
+});
+
 // ---------------------------------------------------------------------------
 
 describe("loadIndex stale cache", () => {
@@ -1111,5 +1170,162 @@ describe("loadIndex stale cache", () => {
 
     // Clean up
     if (fs.existsSync(cacheFile)) fs.unlinkSync(cacheFile);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// VaultGate tray app integration:
+//   - VAULTGATE_MODEL_CACHE_DIR rewires env.cacheDir at module load
+//   - emitProgress() posts to process.parentPort (Electron utilityProcess)
+//   - syncNewAndDeleted emits per-file progress events
+// ---------------------------------------------------------------------------
+
+describe("VAULTGATE_MODEL_CACHE_DIR — pre-bundled model cache wiring", () => {
+  // Module-level state means env mutation persists across tests; snapshot + restore.
+  const ORIGINAL_CACHE_DIR_ENV = process.env.VAULTGATE_MODEL_CACHE_DIR;
+  const ORIGINAL_REMOTE_FLAG_ENV = process.env.VAULTGATE_ALLOW_REMOTE_MODELS;
+
+  beforeEach(() => {
+    delete process.env.VAULTGATE_MODEL_CACHE_DIR;
+    delete process.env.VAULTGATE_ALLOW_REMOTE_MODELS;
+  });
+
+  afterAll(() => {
+    if (ORIGINAL_CACHE_DIR_ENV === undefined) delete process.env.VAULTGATE_MODEL_CACHE_DIR;
+    else process.env.VAULTGATE_MODEL_CACHE_DIR = ORIGINAL_CACHE_DIR_ENV;
+    if (ORIGINAL_REMOTE_FLAG_ENV === undefined) delete process.env.VAULTGATE_ALLOW_REMOTE_MODELS;
+    else process.env.VAULTGATE_ALLOW_REMOTE_MODELS = ORIGINAL_REMOTE_FLAG_ENV;
+  });
+
+  it("does not touch transformers.env when VAULTGATE_MODEL_CACHE_DIR is unset (headless npm path)", async () => {
+    const env = { cacheDir: "INITIAL", allowRemoteModels: true };
+    vi.resetModules();
+    vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+    vi.doMock("../../../src/config.js", () => ({
+      config: { vault: "v", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+    }));
+    vi.doMock("@xenova/transformers", () => ({ pipeline: vi.fn(), env }));
+
+    await import("../../../src/tools/semantic.js");
+
+    expect(env.cacheDir).toBe("INITIAL");
+    expect(env.allowRemoteModels).toBe(true);
+  });
+
+  it("sets transformers.env.cacheDir and disables remote models when VAULTGATE_MODEL_CACHE_DIR is set", async () => {
+    process.env.VAULTGATE_MODEL_CACHE_DIR = "/tmp/vaultgate-test-models";
+    process.env.VAULTGATE_ALLOW_REMOTE_MODELS = "false";
+    const env = { cacheDir: "INITIAL", allowRemoteModels: true };
+    vi.resetModules();
+    vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+    vi.doMock("../../../src/config.js", () => ({
+      config: { vault: "v", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+    }));
+    vi.doMock("@xenova/transformers", () => ({ pipeline: vi.fn(), env }));
+
+    await import("../../../src/tools/semantic.js");
+
+    expect(env.cacheDir).toBe("/tmp/vaultgate-test-models");
+    expect(env.allowRemoteModels).toBe(false);
+  });
+
+  it("keeps allowRemoteModels true when VAULTGATE_ALLOW_REMOTE_MODELS is anything other than 'false'", async () => {
+    process.env.VAULTGATE_MODEL_CACHE_DIR = "/tmp/vaultgate-test-models";
+    process.env.VAULTGATE_ALLOW_REMOTE_MODELS = "true";
+    const env = { cacheDir: "INITIAL", allowRemoteModels: false };
+    vi.resetModules();
+    vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+    vi.doMock("../../../src/config.js", () => ({
+      config: { vault: "v", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+    }));
+    vi.doMock("@xenova/transformers", () => ({ pipeline: vi.fn(), env }));
+
+    await import("../../../src/tools/semantic.js");
+
+    expect(env.allowRemoteModels).toBe(true);
+  });
+});
+
+describe("emitProgress — utilityProcess.fork() IPC", () => {
+  // Snapshot the Electron-only field; tests inject a fake parentPort.
+  const ORIGINAL_PARENT_PORT = (process as unknown as { parentPort?: unknown }).parentPort;
+
+  function setParentPort(value: unknown): void {
+    (process as unknown as { parentPort?: unknown }).parentPort = value;
+  }
+
+  beforeEach(() => {
+    setParentPort(undefined);
+  });
+
+  afterAll(() => {
+    setParentPort(ORIGINAL_PARENT_PORT);
+  });
+
+  it("forwards 'state' transitions to process.parentPort during a build", async () => {
+    const posted: unknown[] = [];
+    setParentPort({ postMessage: (msg: unknown) => posted.push(msg) });
+
+    const { getState } = await freshModule(async (args) => {
+      // Empty vault — sync resolves immediately.
+      if (args[0] === "files" && args[1] === "list") return "";
+      return "";
+    });
+    await waitForReady(getState);
+
+    const events = posted
+      .filter((m): m is { __vaultgate_index__: { type: string; state?: string } } =>
+        typeof m === "object" && m !== null && "__vaultgate_index__" in m
+      )
+      .map((m) => m.__vaultgate_index__);
+
+    // First event is "state: building", final is "state: ready".
+    expect(events[0]).toEqual({ type: "state", state: "building" });
+    const last = events[events.length - 1];
+    expect(last?.type).toBe("state");
+    expect(last?.state).toBe("ready");
+  });
+
+  it("emits per-file progress while embedding new notes", async () => {
+    const posted: unknown[] = [];
+    setParentPort({ postMessage: (msg: unknown) => posted.push(msg) });
+
+    // Three-note vault — yields three "progress" events at 33/67/100 percent.
+    const { getState } = await freshModule(async (args) => {
+      if (args[0] === "files" && args[1] === "list") return "n1.md\nn2.md\nn3.md\n";
+      if (args[0] === "read") return "# Note\n\ncontent";
+      return "";
+    });
+    await waitForReady(getState);
+
+    const progress = posted
+      .filter((m): m is { __vaultgate_index__: { type: string; progress?: number } } =>
+        typeof m === "object" && m !== null && "__vaultgate_index__" in m
+      )
+      .map((m) => m.__vaultgate_index__)
+      .filter((e) => e.type === "progress");
+
+    expect(progress.length).toBe(3);
+    expect(progress[0]?.progress).toBe(33);
+    expect(progress[1]?.progress).toBe(67);
+    expect(progress[2]?.progress).toBe(100);
+  });
+
+  it("is a no-op (no throw) when process.parentPort is undefined (headless npm path)", async () => {
+    setParentPort(undefined);
+
+    const { getState } = await freshModule(async () => "");
+    await expect(waitForReady(getState)).resolves.toBeUndefined();
+  });
+
+  it("swallows errors from a faulty parentPort.postMessage rather than crashing the build", async () => {
+    setParentPort({
+      postMessage: () => {
+        throw new Error("synthetic IPC failure");
+      },
+    });
+
+    const { getState } = await freshModule(async () => "");
+    await expect(waitForReady(getState)).resolves.toBeUndefined();
   });
 });

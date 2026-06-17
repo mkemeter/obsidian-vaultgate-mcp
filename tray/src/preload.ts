@@ -14,6 +14,8 @@ export interface PrefsBridge {
   listVaults: () => Promise<Array<{ name: string; path: string }>>;
   detectObsidianPath: () => Promise<string>;
   pickObsidianPath: () => Promise<string | undefined>;
+  suggestPort: () => Promise<number>;
+  checkPort: (port: number) => Promise<"free" | "vaultgate" | "conflict">;
   isAutostartEnabled: () => Promise<boolean>;
   setAutostart: (enabled: boolean) => Promise<void>;
   close: () => void;
@@ -25,6 +27,8 @@ const bridge: PrefsBridge = {
   listVaults: () => ipcRenderer.invoke("prefs:listVaults"),
   detectObsidianPath: () => ipcRenderer.invoke("prefs:detectObsidianPath"),
   pickObsidianPath: () => ipcRenderer.invoke("prefs:pickObsidianPath"),
+  suggestPort: () => ipcRenderer.invoke("prefs:suggestPort"),
+  checkPort: (port) => ipcRenderer.invoke("prefs:checkPort", port),
   isAutostartEnabled: () => ipcRenderer.invoke("prefs:isAutostartEnabled"),
   setAutostart: (enabled) => ipcRenderer.invoke("prefs:setAutostart", enabled),
   close: () => ipcRenderer.send("prefs:close"),

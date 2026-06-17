@@ -21,6 +21,7 @@ architecture, development workflow, and conventions for adding or changing tools
   - [Writing unit tests for a tool](#writing-unit-tests-for-a-tool)
   - [Mocking the CLI](#mocking-the-cli)
   - [Coverage thresholds](#coverage-thresholds)
+- [Tray companion app](#tray-companion-app)
 - [Code style](#code-style)
 - [Pull request checklist](#pull-request-checklist)
 
@@ -28,26 +29,30 @@ architecture, development workflow, and conventions for adding or changing tools
 
 ## Development setup
 
+This repository contains two distributions: the npm package under [`server/`](../server/) and the
+Electron tray companion under [`tray/`](../tray/). Each has its own `package.json`. There is no
+root-level `package.json` — `cd` into the directory you are working on.
+
 ```bash
 git clone https://github.com/mkemeter/obsidian-vaultgate-mcp.git
-cd obsidian-vaultgate-mcp
+cd obsidian-vaultgate-mcp/server   # or tray/
 npm install
-npm run build   # compiles TypeScript → build/
-npm test        # run the full test suite
+npm run build
+npm test
 ```
 
-### Development scripts
+### Development scripts (run inside `server/` or `tray/`)
 
 | Command | Purpose |
 |---------|---------|
-| `npm run build` | Compile TypeScript → `build/` |
+| `npm run build` | Compile TypeScript → `build/` (server) or `dist/` (tray) |
 | `npm test` | Run full test suite |
 | `npm run test:coverage` | Tests + coverage report |
-| `npm run check` | Biome lint + format check (CI-equivalent) |
-| `npm run lint:fix` | Auto-fix Biome lint violations |
-| `npm run format` | Auto-format source files |
+| `npm run check` | Biome lint + format check (CI-equivalent) — server only |
+| `npm run lint:fix` | Auto-fix Biome lint violations — server only |
+| `npm run format` | Auto-format source files — server only |
 | `npm run typecheck` | Type-check without building |
-| `npm run knip` | Dead-code check locally |
+| `npm run knip` | Dead-code check locally — server only |
 
 The `npm` commands work identically on macOS, Linux, and Windows (PowerShell or
 cmd). Use the shell you are comfortable with.
@@ -59,42 +64,48 @@ mocks the CLI binary entirely.
 
 ## Project structure
 
-```
-src/
-├── index.ts          Entry point — detects stdio vs HTTP mode, starts transport
-├── server.ts         Creates McpServer and registers all tool groups
-├── config.ts         Loads env vars (OBSIDIAN_VAULT, OBSIDIAN_CLI_PATH, OBSIDIAN_MCP_PORT)
-├── cli.ts            runObsidian() — the single point of contact with the CLI binary
-├── health.ts         Startup check — verifies the binary is reachable before serving
-├── uri.ts            openUri() / runUri() — OS-level URI dispatch (obsidian:// links)
-└── tools/
-    ├── _helpers.ts   Shared utilities: dryRunPreview(), buildFileArgs()
-    ├── files.ts      files_list, files_read, note_create, note_append,
-    │                 note_prepend, note_update, note_trash
-    ├── search.ts     search
-    ├── daily.ts      daily_read, daily_append
-    ├── tasks.ts      tasks_all, tasks_pending, tasks_daily
-    ├── templates.ts  templates_list, templates_apply
-    ├── properties.ts property_read, property_set
-    ├── tags.ts       tags, backlinks, unresolved
-    ├── plugins.ts    plugins_list, plugin_reload
-    ├── dev.ts        eval, dev_errors, dev_console, dev_css, dev_dom,
-    │                 dev_screenshot, dev_mobile
-    ├── context.ts    vault_context, vault_context_set
-    ├── uri.ts        note_open, search_open, daily_open
-    └── semantic.ts   semantic_search, find_similar, index_vault,
-                      clear_index, vault_info  (optional — requires @xenova/transformers)
+The npm-package source lives under [`server/`](../server/). All paths in this section
+are relative to that directory.
 
-tests/
-├── unit/
-│   ├── cli.test.ts
-│   ├── config.test.ts
-│   ├── health.test.ts
-│   └── tools/        one file per tool group, mirrors src/tools/
-└── integration/
-    ├── http.test.ts   real HTTP server, origin validation, endpoint smoke tests
-    └── server.test.ts tool registration count, all tools have names/descriptions
 ```
+server/
+├── src/
+│   ├── index.ts          Entry point — detects stdio vs HTTP mode, starts transport
+│   ├── server.ts         Creates McpServer and registers all tool groups
+│   ├── config.ts         Loads env vars (OBSIDIAN_VAULT, OBSIDIAN_CLI_PATH, OBSIDIAN_MCP_PORT)
+│   ├── cli.ts            runObsidian() — the single point of contact with the CLI binary
+│   ├── health.ts         Startup check — verifies the binary is reachable before serving
+│   ├── uri.ts            openUri() / runUri() — OS-level URI dispatch (obsidian:// links)
+│   └── tools/
+│       ├── _helpers.ts   Shared utilities: dryRunPreview(), buildFileArgs()
+│       ├── files.ts      files_list, files_read, note_create, note_append,
+│       │                 note_prepend, note_update, note_trash
+│       ├── search.ts     search
+│       ├── daily.ts      daily_read, daily_append
+│       ├── tasks.ts      tasks_all, tasks_pending, tasks_daily
+│       ├── templates.ts  templates_list, templates_apply
+│       ├── properties.ts property_read, property_set
+│       ├── tags.ts       tags, backlinks, unresolved
+│       ├── plugins.ts    plugins_list, plugin_reload
+│       ├── dev.ts        eval, dev_errors, dev_console, dev_css, dev_dom,
+│       │                 dev_screenshot, dev_mobile
+│       ├── context.ts    vault_context, vault_context_set
+│       ├── uri.ts        note_open, search_open, daily_open
+│       └── semantic.ts   semantic_search, find_similar, index_vault,
+│                         clear_index, vault_info  (optional — requires @xenova/transformers)
+│
+└── tests/
+    ├── unit/
+    │   ├── cli.test.ts
+    │   ├── config.test.ts
+    │   ├── health.test.ts
+    │   └── tools/        one file per tool group, mirrors src/tools/
+    └── integration/
+        ├── http.test.ts   real HTTP server, origin validation, endpoint smoke tests
+        └── server.test.ts tool registration count, all tools have names/descriptions
+```
+
+The Electron tray companion lives under [`tray/`](../tray/) — see [TRAY-DEV.md](TRAY-DEV.md) for its layout.
 
 ---
 
@@ -388,6 +399,48 @@ Enforced in `vitest.config.ts`:
 `npm run test:coverage` will exit non-zero if any threshold is not met.
 The most common cause of coverage gaps is an uncovered `catch` block — add an
 `isError` test for every tool.
+
+---
+
+## Tray companion app
+
+The repository also hosts a small Electron tray companion app under [`tray/`](../tray/).
+It is **optional** — the headless npm package described above is the canonical
+distribution and remains releasable independently.
+
+Key invariants for contributors:
+
+- **Isolation from the npm package.** The root `package.json` `"files"` allowlist
+  excludes `tray/`, so npm consumers never see it. The root `tsconfig.json`
+  excludes `tray` from compilation as belt-and-suspenders.
+- **Separate CI workflow.** [`.github/workflows/tray.yml`](../.github/workflows/tray.yml)
+  builds tray artifacts and is path-filtered to `tray/**`. It **never blocks
+  npm releases** — even if the tray build fails, `ci.yml` and `publish.yml`
+  proceed normally.
+- **Independent release tag.** Tray releases use the `tray/v*` tag prefix
+  (e.g. `tray/v0.1.0`). They are decoupled from npm package versions tagged `v*`.
+- **One server change for the tray app.** `server/src/index.ts` carries a SIGTERM/SIGINT
+  graceful-shutdown handler at the bottom of `startHttp()`. This is
+  backwards-compatible with all existing distribution paths (launchd, systemd,
+  manual CLI, Claude Code) — the handler simply drains in-flight HTTP requests
+  before exiting. No behaviour change for the npm package.
+- **Server bundling is build-time only.** The tray's build pipeline calls
+  `npm run build` inside `server/`, then esbuilds `server/build/index.js` into
+  a single ESM file. Native modules (`onnxruntime-node`, `sharp`) are externalised
+  and shipped via electron-builder's `asarUnpack`.
+- **Coverage thresholds match the root project.** Lines ≥ 90 %, functions ≥ 90 %,
+  branches ≥ 85 %. Five files are excluded from coverage gating — each with a
+  concrete justification (entry-point orchestration, `contextBridge` wiring,
+  `ipcMain.handle` thin wrappers, `Menu`/`Tray` construction, `utilityProcess`
+  lifecycle). Where logic was extractable into pure functions, it was —
+  [`tray/src/auto-detect.ts`](../tray/src/auto-detect.ts) and
+  [`tray/src/tray-labels.ts`](../tray/src/tray-labels.ts) carry the full
+  coverage burden for what would otherwise be uncovered behaviour. See
+  [docs/TRAY-DEV.md#testing](TRAY-DEV.md#testing) for the per-file rationale.
+
+For dev setup, architecture details, IPC patterns, packaging, and release
+mechanics see [docs/TRAY-DEV.md](TRAY-DEV.md). End-user install instructions
+live in [tray/README.md](../tray/README.md).
 
 ---
 

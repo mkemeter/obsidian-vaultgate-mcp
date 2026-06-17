@@ -19,7 +19,7 @@ export async function runHealthCheck(): Promise<void> {
       `\n` +
         `ERROR: Obsidian CLI binary not found at: ${config.cliBin}\n\n` +
         `Troubleshooting:\n` +
-        `  1. Ensure Obsidian v1.12.4+ is installed.\n` +
+        `  1. Ensure Obsidian v1.8.9+ is installed.\n` +
         `  2. Enable the CLI: Settings → General → Command line interface → Register CLI\n` +
         `  3. If the binary is not on PATH, set:\n` +
         `       OBSIDIAN_CLI_PATH=/Applications/Obsidian.app/Contents/MacOS/obsidian\n\n`

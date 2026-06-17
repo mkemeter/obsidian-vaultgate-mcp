@@ -62,6 +62,7 @@ Ask your AI to read notes, run full-text or semantic search, manage tasks, apply
 ## Contents
 
 - [Requirements](#requirements)
+- [Installation paths](#installation-paths)
 - [Setup](#setup)
   - [1. Register the Obsidian CLI](#1-register-the-obsidian-cli)
   - [2. Install](#2-install)
@@ -85,6 +86,24 @@ Ask your AI to read notes, run full-text or semantic search, manage tasks, apply
 
 - **Obsidian** v1.8.9 or later (CLI introduced in this release)
 - **Node.js** v18 or later
+
+---
+
+
+## Installation paths
+
+VaultGate ships in two flavours that share the same MCP server core. Pick whichever fits your setup; you don't need both.
+
+| | Headless npm package (this README) | Tray companion app |
+|---|---|---|
+| **Best for** | Headless servers, Claude Code via stdio, Linux, scripted setups | Day-to-day use with a menu-bar / system-tray UI |
+| **Install** | `npm install -g obsidian-vaultgate-mcp` | DMG (macOS arm64) or NSIS installer (Windows x64) |
+| **Autostart** | Manual via launchd / systemd / Task Scheduler (`deploy/`) | Toggle in the tray menu |
+| **Smart Search model** | Downloaded on first use | Pre-bundled, fully offline |
+| **Linux** | ✅ supported (`deploy/systemd/`) | ❌ not supported |
+| **Docs** | This README | [../tray/README.md](../tray/README.md) |
+
+The rest of this document covers the **headless npm path**. For the tray companion, see [../tray/README.md](../tray/README.md).
 
 ---
 
@@ -409,11 +428,11 @@ Install `xdg-utils` via your package manager (e.g. `sudo apt install xdg-utils`)
 
 ## Contributing
 
-See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for architecture overview, tool implementation guide, and the PR checklist.
+See [CONTRIBUTING.md](../docs/CONTRIBUTING.md) for architecture overview, tool implementation guide, and the PR checklist.
 
 ```bash
 git clone https://github.com/mkemeter/obsidian-vaultgate-mcp.git
-cd obsidian-vaultgate-mcp
+cd obsidian-vaultgate-mcp/server
 npm install
 npm test
 ```

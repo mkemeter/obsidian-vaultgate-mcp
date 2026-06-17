@@ -42,7 +42,8 @@ let copyLabel = "Copy Connection URL";
 /** Resolves the icon asset directory (dev vs packaged). */
 function assetDir(): string {
   if (app.isPackaged) {
-    return path.join(process.resourcesPath, "app.asar", "dist", "assets");
+    // Icons are in extraResources → <resourcesPath>/assets/ (outside the asar)
+    return path.join(process.resourcesPath, "assets");
   }
   return path.join(__dirname, "..", "assets");
 }
@@ -72,7 +73,9 @@ function buildMenu(): Menu {
 
   // Header --------------------------------------------------------------------
   items.push({
-    label: isRunning ? runningHeaderLabel(loadConfig().vault) : stoppedHeaderLabel(state),
+    label: isRunning
+      ? runningHeaderLabel(loadConfig().vault)
+      : stoppedHeaderLabel(state, loadConfig().port),
     enabled: false,
   });
   items.push({ type: "separator" });
@@ -100,7 +103,7 @@ function buildMenu(): Menu {
 
     items.push({ label: "Stop", click: () => void serverManager.stop() });
   } else {
-    if (state === "obsidian-missing" || state === "cli-not-registered") {
+    if (state === "obsidian-missing" || state === "port-conflict") {
       items.push({ label: "Open Preferences…", click: () => openPrefsWindow() });
     } else {
       items.push({ label: "Start", click: () => void serverManager.start() });

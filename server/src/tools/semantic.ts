@@ -34,11 +34,13 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { pipeline } from "@xenova/transformers";
+import * as transformers from "@xenova/transformers";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
 import { config } from "../config.js";
 import { dryRunSchema } from "./_helpers.js";
+
+const { pipeline } = transformers;
 
 // ---------------------------------------------------------------------------
 // TypeScript interfaces
@@ -76,6 +78,62 @@ const CHUNK_SIZE = 2000;
 const REHASH_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 h
 const DEFAULT_TOP_N = 10;
 const DEFAULT_MIN_SCORE = 0.25;
+
+// ---------------------------------------------------------------------------
+// Pre-bundled model cache (used by the VaultGate tray app)
+// ---------------------------------------------------------------------------
+// When `VAULTGATE_MODEL_CACHE_DIR` is set the server points @xenova/transformers
+// at a pre-populated HuggingFace snapshot directory shipped inside the Electron
+// app bundle, and disables remote downloads. The headless npm path leaves these
+// unset and `@xenova/transformers` uses its default download behaviour.
+//
+// The `env` namespace is resolved lazily — eager access at module top-level
+// would trip vitest's mock proxy in the unit tests (which only mocks `pipeline`).
+if (process.env.VAULTGATE_MODEL_CACHE_DIR) {
+  const transformersEnv = (
+    transformers as unknown as {
+      env: { cacheDir: string; allowRemoteModels: boolean };
+    }
+  ).env;
+  if (transformersEnv) {
+    transformersEnv.cacheDir = process.env.VAULTGATE_MODEL_CACHE_DIR;
+    transformersEnv.allowRemoteModels = process.env.VAULTGATE_ALLOW_REMOTE_MODELS !== "false";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Indexing-progress IPC (for the VaultGate tray app)
+// ---------------------------------------------------------------------------
+
+/** Progress event mirrored to the parent process when running under Electron. */
+interface IndexProgressEvent {
+  type: "state" | "progress" | "complete" | "error";
+  state?: "idle" | "building" | "ready" | "error";
+  progress?: number;
+  filesProcessed?: number;
+  totalFiles?: number;
+  error?: string;
+}
+
+/**
+ * Posts an indexing progress event to the parent process. No-op outside of
+ * Electron `utilityProcess.fork()` (the headless npm path).
+ *
+ * Electron's utility processes use MessagePort-based IPC, NOT the Node.js
+ * `process.send()` channel — `process.parentPort` is `undefined` in plain Node.
+ */
+function emitProgress(event: IndexProgressEvent): void {
+  try {
+    // `process.parentPort` is Electron-only; cast to satisfy the Node typings.
+    const parentPort = (process as unknown as { parentPort?: { postMessage(msg: unknown): void } })
+      .parentPort;
+    if (parentPort) {
+      parentPort.postMessage({ __vaultgate_index__: event });
+    }
+  } catch {
+    /* no-op */
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Index path helpers
@@ -117,7 +175,14 @@ function saveIndex(idx: VaultIndex): void {
 
 async function getEmbedder(): Promise<Awaited<ReturnType<typeof pipeline>>> {
   if (!embedderInstance) {
+    console.error(
+      `[VaultGate] Loading semantic model ${MODEL_ID} — first run may take several minutes while the model is compiled for your CPU...`
+    );
+    const t0 = Date.now();
     embedderInstance = await pipeline("feature-extraction", MODEL_ID);
+    console.error(
+      `[VaultGate] Semantic model ready (loaded in ${((Date.now() - t0) / 1000).toFixed(1)}s)`
+    );
   }
   return embedderInstance;
 }
@@ -283,7 +348,7 @@ async function listVaultPaths(): Promise<string[]> {
   return result
     .split("\n")
     .map((l) => l.trim())
-    .filter((l) => l.length > 0);
+    .filter((l) => l.endsWith(".md"));
 }
 
 async function readNote(filePath: string): Promise<string> {
@@ -298,8 +363,19 @@ async function embedNote(content: string): Promise<ChunkEntry[]> {
   const cleaned = cleanNote(content);
   if (!cleaned) return [];
   const sections = splitIntoSections(cleaned);
-  const vectors = await embed(sections.map((s) => s.text));
-  return sections.map((s, i) => ({ heading: s.heading, embedding: vectors[i] ?? [] }));
+  // Process sections in small batches to avoid overwhelming the ONNX runtime
+  // with a single large TypedArray allocation (which can trigger V8 heap assertions).
+  const BATCH = 8;
+  const chunks: ChunkEntry[] = [];
+  for (let i = 0; i < sections.length; i += BATCH) {
+    const batch = sections.slice(i, i + BATCH);
+    const vectors = await embed(batch.map((s) => s.text));
+    for (let j = 0; j < batch.length; j++) {
+      const s = batch[j];
+      if (s) chunks.push({ heading: s.heading, embedding: vectors[j] ?? [] });
+    }
+  }
+  return chunks;
 }
 
 // ---------------------------------------------------------------------------
@@ -329,7 +405,17 @@ async function syncNewAndDeleted(idx: VaultIndex): Promise<void> {
 
   // Embed new (no hash yet)
   const freshNewPaths = paths.filter((p) => !(p in idx.files));
+  const total = freshNewPaths.length;
+  if (total > 0) {
+    console.error(`[VaultGate] Embedding ${total} note(s) — loading model on first run...`);
+  }
+  let processed = 0;
   for (const p of freshNewPaths) {
+    // Yield to the event loop between notes so V8 GC can reclaim ONNX-allocated
+    // TypedArrays before the next inference run. Without this, rapid successive
+    // allocations can corrupt the V8 heap and trigger a SIGTRAP fatal assertion.
+    await new Promise<void>((r) => setTimeout(r, 0));
+    console.error(`[VaultGate] embedding: ${p}`);
     try {
       const content = await readNote(p);
       const hash = md5(content);
@@ -339,6 +425,18 @@ async function syncNewAndDeleted(idx: VaultIndex): Promise<void> {
       }
     } catch {
       // Skip notes that can't be read — non-fatal.
+    }
+    processed += 1;
+    // Checkpoint every 50 notes: flush to disk so a crash mid-build preserves
+    // progress and keeps peak heap usage bounded.
+    if (processed % 50 === 0) saveIndex(idx);
+    if (total > 0) {
+      emitProgress({
+        type: "progress",
+        progress: Math.round((processed / total) * 100),
+        filesProcessed: processed,
+        totalFiles: total,
+      });
     }
   }
 }
@@ -393,6 +491,7 @@ export function getIndexStateForTesting(): "idle" | "building" | "ready" {
 function startBackgroundIndex(): void {
   if (indexState !== "idle") return; // singleton guard
   indexState = "building";
+  emitProgress({ type: "state", state: "building" });
 
   (async () => {
     try {
@@ -421,9 +520,18 @@ function startBackgroundIndex(): void {
         liveIndex = idx;
         indexState = "ready";
       }
-    } catch {
+      emitProgress({
+        type: "state",
+        state: "ready",
+        filesProcessed: Object.keys(idx.files).length,
+      });
+    } catch (err) {
       // If build fails, stay in "building" so callers return the "indexing" message
       // rather than crashing. A server restart will retry.
+      emitProgress({
+        type: "error",
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   })();
 }

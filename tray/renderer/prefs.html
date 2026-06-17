@@ -12,6 +12,7 @@
         --muted: #6b6b6b;
         --border: #d8d8d8;
         --accent: #7c3aed;
+        --error: #c0392b;
       }
       @media (prefers-color-scheme: dark) {
         :root {
@@ -19,6 +20,7 @@
           --fg: #f0f0f0;
           --muted: #9b9b9b;
           --border: #3a3a40;
+          --error: #e74c3c;
         }
       }
       body {
@@ -51,6 +53,15 @@
         border: 1px solid var(--border);
         border-radius: 4px;
       }
+      input.error {
+        border-color: var(--error);
+      }
+      .field-error {
+        color: var(--error);
+        font-size: 11px;
+        margin: 3px 0 0;
+        min-height: 14px;
+      }
       .row {
         display: flex;
         gap: 8px;
@@ -72,6 +83,10 @@
         background: var(--accent);
         color: #fff;
         border-color: var(--accent);
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
       }
       .checkbox {
         display: flex;
@@ -95,6 +110,7 @@
 
     <label for="port">Local server port</label>
     <input type="number" id="port" min="1024" max="65535" />
+    <div class="field-error" id="port-error"></div>
 
     <label for="obsidian">Obsidian binary</label>
     <div class="row">

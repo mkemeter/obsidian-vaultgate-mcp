@@ -13,10 +13,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 
 const mockState = vi.hoisted(() => ({
   fsExistsSync: undefined as ((p: unknown) => boolean) | undefined,
-  childProcessExecFile: undefined as
-    | ((cmd: string, args: string[], opts: unknown, cb: (err: Error | null) => void) => void)
-    | undefined,
-  httpGetResult: "refused" as "ok" | "refused" | "timeout",
+  httpGetResult: "refused" as "vaultgate" | "other" | "refused" | "timeout",
   appIsPackaged: false,
   userDataDir: "",
 }));
@@ -31,25 +28,14 @@ vi.mock("node:fs", async () => {
   };
 });
 
-vi.mock("node:child_process", async () => {
-  const actual = await vi.importActual<typeof import("node:child_process")>("node:child_process");
-  return {
-    ...actual,
-    execFile: (cmd: string, args: string[], opts: unknown, cb: (err: Error | null) => void) => {
-      if (mockState.childProcessExecFile) {
-        mockState.childProcessExecFile(cmd, args, opts, cb);
-      } else {
-        cb(null);
-      }
-    },
-    default: actual,
-  };
-});
-
 vi.mock("node:http", () => ({
   get: (
     _opts: unknown,
-    cb: (res: { statusCode: number; resume: () => void }) => void
+    cb: (res: {
+      statusCode: number;
+      setEncoding: (enc: string) => void;
+      on: (event: string, h: (chunk?: string) => void) => void;
+    }) => void
   ): { on: (event: string, h: () => void) => unknown; destroy: () => void } => {
     const handlers: Record<string, () => void> = {};
     const req = {
@@ -62,8 +48,26 @@ vi.mock("node:http", () => ({
       },
     };
     queueMicrotask(() => {
-      if (mockState.httpGetResult === "ok") {
-        cb({ statusCode: 200, resume: () => {} });
+      if (mockState.httpGetResult === "vaultgate") {
+        // Simulate a VaultGate /health response: HTTP 200 + body "OK"
+        const resHandlers: Record<string, (chunk?: string) => void> = {};
+        cb({
+          statusCode: 200,
+          setEncoding: () => {},
+          on: (event, h) => { resHandlers[event] = h; },
+        });
+        resHandlers.data?.("OK");
+        resHandlers.end?.();
+      } else if (mockState.httpGetResult === "other") {
+        // Simulate another service: HTTP 200 + non-"OK" body
+        const resHandlers: Record<string, (chunk?: string) => void> = {};
+        cb({
+          statusCode: 200,
+          setEncoding: () => {},
+          on: (event, h) => { resHandlers[event] = h; },
+        });
+        resHandlers.data?.(`{"status":"ok"}`);
+        resHandlers.end?.();
       } else if (mockState.httpGetResult === "refused") {
         handlers.error?.();
       } else {
@@ -86,10 +90,6 @@ vi.mock("electron", () => ({
       throw new Error("utilityProcess.fork should not be reached in unit tests");
     },
   },
-  MessageChannelMain: class {
-    port1 = {};
-    port2 = { on: () => {}, start: () => {} };
-  },
 }));
 
 // One shared user-data dir for the whole file: server-manager opens an
@@ -107,7 +107,6 @@ afterAll(() => {
 beforeEach(() => {
   vi.resetModules();
   mockState.fsExistsSync = undefined;
-  mockState.childProcessExecFile = undefined;
   mockState.httpGetResult = "refused";
   mockState.appIsPackaged = false;
   // Wipe any previous test's config — the dir is reused.
@@ -161,21 +160,23 @@ describe("start() — pre-flight failures (no fork)", () => {
     expect(m.getState()).toBe("obsidian-missing");
   });
 
-  it("transitions to 'cli-not-registered' when the binary fails the version smoke test", async () => {
-    writeConfig(mockState.userDataDir, { obsidianPath: "/Applications/Obsidian" });
+  it("transitions to 'port-conflict' when another service is already on the configured port (regression)", async () => {
+    // Bug: previously checkHealth() returned true for any HTTP 200, causing VaultGate to
+    // silently "reuse" ports owned by other services (e.g. Perplexity MCP on 3001).
+    // Fix: checkHealth() now reads the response body and only returns "vaultgate" for "OK".
+    writeConfig(mockState.userDataDir, { obsidianPath: "/Applications/Obsidian", port: 3001 });
     mockState.fsExistsSync = (p) => p === "/Applications/Obsidian";
-    mockState.childProcessExecFile = (_cmd, _args, _opts, cb) => cb(new Error("not a CLI"));
+    mockState.httpGetResult = "other"; // another service is running on port 3001
 
     const m = await import("../../src/server-manager.js");
     await m.start();
-    expect(m.getState()).toBe("cli-not-registered");
+    expect(m.getState()).toBe("port-conflict");
   });
 
   it("transitions to 'running' when an existing server already responds on /health", async () => {
     writeConfig(mockState.userDataDir, { obsidianPath: "/Applications/Obsidian" });
     mockState.fsExistsSync = (p) => p === "/Applications/Obsidian";
-    mockState.childProcessExecFile = (_cmd, _args, _opts, cb) => cb(null);
-    mockState.httpGetResult = "ok";
+    mockState.httpGetResult = "vaultgate";
 
     const m = await import("../../src/server-manager.js");
     await m.start();
@@ -206,8 +207,7 @@ describe("start() — pre-flight failures (no fork)", () => {
   it("is idempotent — a second start() while running is a no-op", async () => {
     writeConfig(mockState.userDataDir, { obsidianPath: "/Applications/Obsidian" });
     mockState.fsExistsSync = (p) => p === "/Applications/Obsidian";
-    mockState.childProcessExecFile = (_cmd, _args, _opts, cb) => cb(null);
-    mockState.httpGetResult = "ok";
+    mockState.httpGetResult = "vaultgate";
 
     const m = await import("../../src/server-manager.js");
     await m.start();

@@ -222,6 +222,21 @@ async function startHttp(): Promise<void> {
       `  SSE (legacy):    GET  http://${config.host}:${config.port}/sse\n` +
       `  Health:          GET  http://${config.host}:${config.port}/health\n`
   );
+
+  // ---------------------------------------------------------------------------
+  // Graceful shutdown
+  // ---------------------------------------------------------------------------
+  // SIGTERM is sent by the VaultGate tray app (Phase 0 of the tray plan) and by
+  // launchd/systemd on stop. SIGINT is Ctrl-C in interactive terminals.
+  // Both close the HTTP listener so in-flight connections drain cleanly. A 5s
+  // safety timer force-exits if a connection refuses to close — `unref()` so it
+  // does not keep the event loop alive on its own.
+  const shutdown = (): void => {
+    httpServer.close(() => process.exit(0));
+    setTimeout(() => process.exit(1), 5000).unref();
+  };
+  process.on("SIGTERM", shutdown);
+  process.on("SIGINT", shutdown);
 }
 
 // -----------------------------------------------------------------------------

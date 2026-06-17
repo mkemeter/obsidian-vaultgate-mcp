@@ -45,16 +45,16 @@ export function runningHeaderLabel(vaultName: string): string {
 }
 
 /** Returns the stopped/error state header label. */
-export function stoppedHeaderLabel(state: ServerState): string {
+export function stoppedHeaderLabel(state: ServerState, port?: number): string {
   switch (state) {
     case "error":
       return "○ Error — server crashed";
     case "port-conflict":
-      return "○ Error — port in use";
+      return port !== undefined
+        ? `○ Port ${port} in use — change in Preferences`
+        : "○ Error — port already in use";
     case "obsidian-missing":
       return "○ Obsidian not found";
-    case "cli-not-registered":
-      return "○ Obsidian CLI not registered";
     case "starting":
       return "● Starting…";
     default:
