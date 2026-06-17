@@ -68,6 +68,8 @@ jobs:
           cache: npm
           cache-dependency-path: server/package-lock.json
       - run: npm ci
+      - name: Sync version from VERSION file
+        run: node ../scripts/sync-version.js
       - name: Build
         run: npm run build
       - name: Run tests with coverage

@@ -10,7 +10,7 @@ on:
       - "tray/**"
       - ".github/workflows/tray.yml"
     tags:
-      - "tray/v*"
+      - "v*"
   pull_request:
     branches: [main]
     paths:
@@ -32,6 +32,9 @@ jobs:
           cache-dependency-path: |
             server/package-lock.json
             tray/package-lock.json
+
+      - name: Sync version from VERSION file
+        run: node scripts/sync-version.js
 
       - name: Install server deps + compile server
         run: |
@@ -58,7 +61,7 @@ jobs:
         working-directory: tray
 
       - name: Package
-        run: npx electron-builder --mac --publish ${{ startsWith(github.ref, 'refs/tags/tray/') && 'always' || 'never' }}
+        run: npx electron-builder --mac --publish ${{ startsWith(github.ref, 'refs/tags/v') && 'always' || 'never' }}
         working-directory: tray
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

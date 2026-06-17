@@ -1,6 +1,6 @@
 {
   "name": "vaultgate",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "VaultGate tray companion — runs the obsidian-vaultgate-mcp server with a menu-bar UI.",
   "author": "Mathias Kemeter",

@@ -413,8 +413,9 @@ Key invariants for contributors:
   builds tray artifacts and is path-filtered to `tray/**`. It **never blocks
   npm releases** — even if the tray build fails, `ci.yml` and `publish.yml`
   proceed normally.
-- **Independent release tag.** Tray releases use the `tray/v*` tag prefix
-  (e.g. `tray/v0.1.0`). They are decoupled from npm package versions tagged `v*`.
+- **Unified versioning.** Both `server/package.json` and `tray/package.json` always share
+  the same version number. A single `v*` tag (e.g. `v0.2.0`) triggers both the npm publish
+  workflow and the tray DMG release. Bump both files together when releasing.
 - **One server change for the tray app.** `server/src/index.ts` carries a SIGTERM/SIGINT
   graceful-shutdown handler at the bottom of `startHttp()`. This is
   backwards-compatible with all existing distribution paths (launchd, systemd,
