@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "description": "VaultGate tray companion — runs the obsidian-vaultgate-mcp server with a menu-bar UI.",
+  "author": "Mathias Kemeter",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mkemeter/obsidian-vaultgate-mcp.git"
+  },
   "main": "dist/main.js",
   "scripts": {
     "build:server": "cd ../server && npm run build",
