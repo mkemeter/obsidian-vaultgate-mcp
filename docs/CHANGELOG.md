@@ -11,7 +11,7 @@ A section may be absent if that distribution had no changes in the release.
 
 ## [Unreleased]
 
-## [0.2.0] — 2026-06-17
+## [0.2.0] — 2026-06-18
 
 ### Server
 
@@ -24,9 +24,17 @@ A section may be absent if that distribution had no changes in the release.
 - Dependabot for npm and GitHub Actions
 - CI restructured with dedicated `lint`, `audit`, `test`, and `ci-passed` jobs
 - `.editorconfig` for consistent editor defaults
-- Graceful HTTP shutdown: `startHttp()` now installs `SIGTERM` and `SIGINT` handlers that drain in-flight connections before exit (5 s safety timeout). Backwards-compatible with all existing distribution paths
-- `VAULTGATE_MODEL_CACHE_DIR` env var: when set, points `@xenova/transformers` at a pre-populated HuggingFace cache directory and disables remote downloads. Unset = unchanged headless behaviour
-- Internal `emitProgress()` IPC: when running under Electron `utilityProcess.fork()`, semantic-index state and per-file progress are forwarded to the parent process via `process.parentPort.postMessage`. No-op in plain Node
+- Graceful HTTP shutdown: `startHttp()` installs `SIGTERM`/`SIGINT` handlers that drain in-flight connections before exit (5 s safety timeout)
+- `VAULTGATE_MODEL_CACHE_DIR` env var: points `@xenova/transformers` at a pre-populated HuggingFace cache directory and disables remote downloads
+- Internal `emitProgress()` IPC: when running under Electron `utilityProcess.fork()`, semantic-index state and per-file progress are forwarded to the parent via `process.parentPort.postMessage`
+- `index_vault` now accepts a `dryRun` parameter (default `true`, consistent with all other management tools) — preview re-index scope without executing
+
+#### Fixed
+
+- `files_read` with `file=""` or `path=""` now returns `isError: true` instead of silently resolving to the active file
+- Eager server creation in HTTP mode: `createServer()` is called at `startHttp()` startup so `startBackgroundIndex()` begins immediately, fixing stale vault stats displayed in the tray on startup
+- Semantic index: reset to idle and retry after a build failure instead of staying stuck in a non-ready state
+- `vault_context` / `vault_context_set`: MCP session preserved across vault changes; Smart Search note count reflects the correct vault immediately after switch
 
 ### Tray
 
@@ -36,7 +44,30 @@ A section may be absent if that distribution had no changes in the release.
 - Pre-bundled embedding model — Smart Search works offline on first launch with no download
 - Auto-detection of Obsidian binary and registered vaults (parses `obsidian.json`)
 - Native autostart toggle (in Preferences), port + vault preferences, rotating logs
-- Documentation: [README.md](../README.md#tray-companion-app) (users), [docs/CONTRIBUTING.md](CONTRIBUTING.md#tray-companion-app--developer-guide) (contributors)
+- Three-zone context menu with branded header and index progress display
+- Gem silhouette menu-bar icon
+
+## [0.1.4] — 2026-06-15
+
+### Server
+
+#### Fixed
+
+- `vault_context` tool description updated to prompt the LLM to call it at session start, improving first-response relevance
+
+## [0.1.3] — 2026-06-15
+
+### Server
+
+#### Added
+
+- Vault switch detection in semantic index: if >50% of indexed files disappear and new files arrive, index is wiped and rebuilt automatically
+
+#### Fixed
+
+- `tasks_pending` used wrong CLI filter flag — now correctly returns only incomplete tasks
+- VAULTGATE.md CLI call deferred to client `initialize` — Obsidian is not contacted at server startup, only when a client connects
+- Pre-release security audit: hardened config validation and dependency hygiene
 
 ## [0.1.2] — 2026-05-22
 
@@ -46,7 +77,7 @@ A section may be absent if that distribution had no changes in the release.
 
 - GUI navigation pillar: `note_open`, `search_open`, `daily_open` — dispatch `obsidian://` URIs via OS launcher
 - Per-section embeddings for semantic search (INDEX_VERSION 2) — H1/H2/H3 boundary splitting, max-score retrieval, H3 parent context injection, date heading stripping
-- `vault_context` and `vault_context_set` tools for per-session vault switching
+- `vault_context` and `vault_context_set` tools for reading and updating vault conventions
 - `note_prepend`, `note_update`, `note_trash` write tools
 - Favicon (ICO) and SVG icon served over HTTP
 - Linux systemd install script
