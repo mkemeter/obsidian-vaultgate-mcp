@@ -66,3 +66,8 @@ export function stoppedHeaderLabel(state: ServerState, port?: number): string {
 export function smartSearchReadyNotificationBody(noteCount: number): string {
   return `Smart search is ready (${noteCount} note${noteCount === 1 ? "" : "s"} indexed).`;
 }
+
+/** Returns the persistent branded header shown at the top of every menu state. */
+export function appHeaderLabel(version: string): string {
+  return `VaultGate ${version}`;
+}

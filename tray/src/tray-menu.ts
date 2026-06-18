@@ -22,6 +22,7 @@ import { loadConfig, saveConfig } from "./config-store.js";
 import { openPrefsWindow } from "./prefs-window.js";
 import * as serverManager from "./server-manager.js";
 import {
+  appHeaderLabel,
   connectionUrl as buildConnectionUrl,
   runningHeaderLabel,
   smartSearchLabel,
@@ -31,7 +32,7 @@ import {
 
 let tray: Tray | undefined;
 let copyFeedbackTimer: NodeJS.Timeout | undefined;
-let copyLabel = "Copy Connection URL";
+let copyLabel = "Copy URL";
 
 /** Resolves the icon asset directory (dev vs packaged). */
 function assetDir(): string {
@@ -64,18 +65,24 @@ function buildMenu(): Menu {
   const isRunning = state === "running";
   const items: MenuItemConstructorOptions[] = [];
 
-  // Header --------------------------------------------------------------------
+  // Zone 1: identity + status ------------------------------------------------
+  items.push({ label: appHeaderLabel(app.getVersion()), enabled: false });
+  items.push({ type: "separator" });
   items.push({
     label: isRunning
       ? runningHeaderLabel(loadConfig().vault)
       : stoppedHeaderLabel(state, loadConfig().port),
     enabled: false,
   });
-  items.push({ type: "separator" });
-
-  // Connection URL ------------------------------------------------------------
   if (isRunning) {
-    items.push({
+    items.push({ label: smartSearchLabel(serverManager.getIndexState()), enabled: false });
+  }
+
+  // Zone 2: primary actions --------------------------------------------------
+  // Omit the separator pair entirely when empty so no back-to-back separators appear.
+  const primaryItems: MenuItemConstructorOptions[] = [];
+  if (isRunning) {
+    primaryItems.push({
       label: copyLabel,
       click: () => {
         clipboard.writeText(connectionUrl());
@@ -83,37 +90,31 @@ function buildMenu(): Menu {
         rebuildMenu();
         if (copyFeedbackTimer) clearTimeout(copyFeedbackTimer);
         copyFeedbackTimer = setTimeout(() => {
-          copyLabel = "Copy Connection URL";
+          copyLabel = "Copy URL";
           rebuildMenu();
         }, 1500);
       },
     });
-    items.push({ type: "separator" });
-
-    // Smart search status -----------------------------------------------------
-    items.push({ label: smartSearchLabel(serverManager.getIndexState()), enabled: false });
-    items.push({ type: "separator" });
-
-    items.push({ label: "Stop", click: () => void serverManager.stop() });
-  } else {
-    if (state === "obsidian-missing" || state === "port-conflict") {
-      items.push({ label: "Open Preferences…", click: () => openPrefsWindow() });
-    } else {
-      items.push({ label: "Start", click: () => void serverManager.start() });
-    }
+    primaryItems.push({ label: "Stop", click: () => void serverManager.stop() });
+  } else if (state !== "starting" && state !== "obsidian-missing" && state !== "port-conflict") {
+    primaryItems.push({ label: "Start", click: () => void serverManager.start() });
   }
 
-  items.push({ type: "separator" });
+  if (primaryItems.length > 0) {
+    items.push({ type: "separator" });
+    items.push(...primaryItems);
+  }
 
-  // Diagnostics ---------------------------------------------------------------
+  // Zone 3: utilities --------------------------------------------------------
+  items.push({ type: "separator" });
+  items.push({ label: "Logs", click: () => void shell.openPath(serverManager.getLogPath()) });
+  items.push({ label: "Preferences", click: () => openPrefsWindow() });
   items.push({
-    label: "Open Logs…",
-    click: () => void shell.openPath(serverManager.getLogPath()),
+    label: "GitHub",
+    click: () => void shell.openExternal("https://github.com/mkemeter/obsidian-vaultgate-mcp"),
   });
-  items.push({ label: "Preferences…", click: () => openPrefsWindow() });
-
   items.push({ type: "separator" });
-  items.push({ label: "Quit VaultGate", click: () => app.quit() });
+  items.push({ label: "Quit", click: () => app.quit() });
 
   return Menu.buildFromTemplate(items);
 }

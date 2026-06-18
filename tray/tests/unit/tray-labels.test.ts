@@ -9,6 +9,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  appHeaderLabel,
   connectionUrl,
   runningHeaderLabel,
   smartSearchLabel,
@@ -156,5 +157,15 @@ describe("smartSearchReadyNotificationBody", () => {
 
   it("uses the plural noun for zero notes", () => {
     expect(smartSearchReadyNotificationBody(0)).toBe("Smart search is ready (0 notes indexed).");
+  });
+});
+
+describe("appHeaderLabel", () => {
+  it("includes the product name and version", () => {
+    expect(appHeaderLabel("0.2.0")).toBe("VaultGate 0.2.0");
+  });
+
+  it("reflects whatever version string is passed", () => {
+    expect(appHeaderLabel("1.0.0-beta")).toBe("VaultGate 1.0.0-beta");
   });
 });
