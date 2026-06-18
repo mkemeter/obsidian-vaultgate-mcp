@@ -19,9 +19,9 @@ Ask your AI to read notes, run full-text or semantic search, manage tasks, apply
 
 <div align="center">
 
-[![Tray app — macOS Apple Silicon](https://img.shields.io/badge/Tray_app-macOS_Apple_Silicon-7c3aed?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/mkemeter/obsidian-vaultgate-mcp/tree/feature/tray-initial/tray)
+[![Tray app — macOS Apple Silicon](https://img.shields.io/badge/Tray_app-macOS_Apple_Silicon-7c3aed?style=for-the-badge&logo=apple&logoColor=white)](README-TRAY.md)
 &nbsp;&nbsp;
-[![Headless npm package](https://img.shields.io/badge/Headless_npm_package-Linux_%7C_Windows_%7C_macOS-3b82f6?style=for-the-badge&logo=npm&logoColor=white)](https://github.com/mkemeter/obsidian-vaultgate-mcp/tree/feature/tray-initial/server)
+[![Headless npm package](https://img.shields.io/badge/Headless_npm_package-Linux_%7C_Windows_%7C_macOS-3b82f6?style=for-the-badge&logo=npm&logoColor=white)](README-SERVER.md)
 
 </div>
 
@@ -104,7 +104,7 @@ VaultGate ships in two distributions that share the same MCP server core. You do
 | **Windows** | ✅ | ❌ |
 | **Linux** | ✅ | ❌ |
 | **Bundle size** | ~6 MB + lazy model | ~200 MB DMG |
-| **Full docs** | [server/README.md](server/README.md) | [tray/README.md](tray/README.md) |
+| **Full docs** | [README-SERVER.md](README-SERVER.md) | [README-TRAY.md](README-TRAY.md) |
 
 > [!NOTE]
 > Requires **Obsidian 1.8.9 or later** on all paths. The npm package additionally requires **Node.js 18+**.
@@ -118,18 +118,18 @@ obsidian-vaultgate-mcp/
 ├── server/         The npm package (obsidian-vaultgate-mcp on npm)
 │   ├── src/        TypeScript sources
 │   ├── tests/      Vitest test suite
-│   ├── deploy/     launchd / systemd / Task Scheduler install scripts
-│   └── README.md   ← user docs for the npm distribution
+│   └── deploy/     launchd / systemd / Task Scheduler install scripts
 ├── tray/           VaultGate tray companion app (Electron, macOS arm64)
 │   ├── src/
 │   ├── renderer/   Preferences window HTML
-│   ├── assets/     Icons + pre-bundled embedding model
-│   └── README.md   ← user docs for the tray distribution
+│   └── assets/     Icons + pre-bundled embedding model
 ├── docs/           Shared cross-cutting documentation
 │   ├── CONTRIBUTING.md
 │   ├── TRAY-DEV.md
 │   ├── CHANGELOG.md
 │   └── SECURITY.md
+├── README-SERVER.md ← user docs for the npm distribution
+├── README-TRAY.md   ← user docs for the tray distribution
 └── .github/workflows/      CI (ci.yml = server, tray.yml = tray)
 ```
 
