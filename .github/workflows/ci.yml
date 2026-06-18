@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/tray-initial]
   pull_request:
     branches: [main]
 
@@ -12,12 +12,16 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    defaults:
+      run:
+        working-directory: server
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: server/package-lock.json
       - run: npm ci
       - name: Biome check
         run: npm run check
@@ -31,12 +35,16 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    defaults:
+      run:
+        working-directory: server
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: server/package-lock.json
       - run: npm ci
       - name: Audit dependencies
         run: npm audit --audit-level=high --omit=dev --omit=optional
@@ -46,6 +54,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    defaults:
+      run:
+        working-directory: server
     strategy:
       matrix:
         node-version: [20, 22]
@@ -55,7 +66,10 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
+          cache-dependency-path: server/package-lock.json
       - run: npm ci
+      - name: Sync version from VERSION file
+        run: node ../scripts/sync-version.js
       - name: Build
         run: npm run build
       - name: Run tests with coverage
@@ -65,7 +79,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
-          path: coverage/
+          path: server/coverage/
           retention-days: 7
 
   ci-passed:

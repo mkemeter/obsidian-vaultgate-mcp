@@ -1,0 +1,77 @@
+{
+  "name": "obsidian-vaultgate-mcp",
+  "version": "0.2.0",
+  "description": "Connect your Obsidian vault to any AI assistant — zero plugins, full privacy. An MCP server powered by the official Obsidian CLI.",
+  "keywords": [
+    "obsidian",
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "vault",
+    "cli"
+  ],
+  "license": "GPL-3.0-or-later",
+  "author": "Mathias Kemeter",
+  "homepage": "https://github.com/mkemeter/obsidian-vaultgate-mcp",
+  "bugs": {
+    "url": "https://github.com/mkemeter/obsidian-vaultgate-mcp/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mkemeter/obsidian-vaultgate-mcp.git"
+  },
+  "type": "module",
+  "main": "build/index.js",
+  "bin": {
+    "obsidian-vaultgate-mcp": "build/index.js"
+  },
+  "files": [
+    "build",
+    "deploy",
+    "docs/.env.example",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc && cp src/icon.svg build/icon.svg && cp src/favicon.ico build/favicon.ico",
+    "start": "node build/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome lint src/",
+    "lint:fix": "biome lint --write src/",
+    "format": "biome format --write src/",
+    "check": "biome check src/",
+    "knip": "knip",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": ">=1.10.0"
+  },
+  "optionalDependencies": {
+    "@xenova/transformers": "^2.17.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.16",
+    "@types/node": "^25.9.3",
+    "@vitest/coverage-v8": "^4.1.9",
+    "knip": "^6.16.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  },
+  "knip": {
+    "entry": [
+      "src/index.ts"
+    ],
+    "project": [
+      "src/**/*.ts"
+    ],
+    "ignoreDependencies": [
+      "@xenova/transformers"
+    ]
+  }
+}

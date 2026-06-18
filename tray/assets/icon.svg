@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>VaultGate</title>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#4c1d95"/>
+    </linearGradient>
+    <linearGradient id="gem-top" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ede9fe"/>
+      <stop offset="100%" stop-color="#c4b5fd"/>
+    </linearGradient>
+    <linearGradient id="gem-mid" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#6d28d9"/>
+    </linearGradient>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="32" cy="32" r="30" fill="url(#bg)"/>
+  <!-- Gate ring — subtle portal metaphor, inset 4px from background edge -->
+  <circle cx="32" cy="32" r="26" fill="none" stroke="#a78bfa" stroke-width="1" opacity="0.45"/>
+  <!-- Crystal crown (top, lightest — catches light from above) -->
+  <polygon points="32,11 42,25 32,21 22,25" fill="url(#gem-top)"/>
+  <!-- Crystal left facet -->
+  <polygon points="22,25 32,21 28,41" fill="#a78bfa" opacity="0.9"/>
+  <!-- Crystal right facet -->
+  <polygon points="42,25 36,41 32,21" fill="#7c3aed" opacity="0.85"/>
+  <!-- Crystal center girdle (symmetric pentagon) -->
+  <polygon points="22,25 28,41 36,41 42,25 32,21" fill="url(#gem-mid)" opacity="0.7"/>
+  <!-- Crystal base point -->
+  <polygon points="28,41 36,41 32,53" fill="#4c1d95"/>
+  <!-- Specular highlight on crown -->
+  <polygon points="32,11 37,20 32,18 27,20" fill="white" opacity="0.28"/>
+</svg>

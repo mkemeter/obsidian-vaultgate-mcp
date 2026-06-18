@@ -5,9 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+Both distributions — the headless npm package (`server/`) and the Electron tray companion
+(`tray/`) — share a single version line. Each release entry groups changes by distribution.
+A section may be absent if that distribution had no changes in the release.
+
 ## [Unreleased]
 
-### Added
+## [0.2.0] — 2026-06-17
+
+### Server
+
+#### Added
+
 - Biome 2.x lint + format enforcement in CI
 - TypeScript stricter compiler options (`noUncheckedIndexedAccess`, `noImplicitReturns`, `noImplicitOverride`, `allowUnreachableCode`, `allowUnusedLabels`)
 - knip dead-code detection in CI
@@ -15,10 +24,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dependabot for npm and GitHub Actions
 - CI restructured with dedicated `lint`, `audit`, `test`, and `ci-passed` jobs
 - `.editorconfig` for consistent editor defaults
+- Graceful HTTP shutdown: `startHttp()` now installs `SIGTERM` and `SIGINT` handlers that drain in-flight connections before exit (5 s safety timeout). Backwards-compatible with all existing distribution paths
+- `VAULTGATE_MODEL_CACHE_DIR` env var: when set, points `@xenova/transformers` at a pre-populated HuggingFace cache directory and disables remote downloads. Unset = unchanged headless behaviour
+- Internal `emitProgress()` IPC: when running under Electron `utilityProcess.fork()`, semantic-index state and per-file progress are forwarded to the parent process via `process.parentPort.postMessage`. No-op in plain Node
+
+### Tray
+
+#### Added
+
+- Initial release of the Electron menu-bar companion app for macOS (Apple Silicon)
+- Pre-bundled embedding model — Smart Search works offline on first launch with no download
+- Auto-detection of Obsidian binary and registered vaults (parses `obsidian.json`)
+- Native autostart toggle (in Preferences), port + vault preferences, rotating logs
+- Documentation: [README.md](../README.md#tray-companion-app) (users), [docs/CONTRIBUTING.md](CONTRIBUTING.md#tray-companion-app--developer-guide) (contributors)
 
 ## [0.1.2] — 2026-05-22
 
-### Added
+### Server
+
+#### Added
+
 - GUI navigation pillar: `note_open`, `search_open`, `daily_open` — dispatch `obsidian://` URIs via OS launcher
 - Per-section embeddings for semantic search (INDEX_VERSION 2) — H1/H2/H3 boundary splitting, max-score retrieval, H3 parent context injection, date heading stripping
 - `vault_context` and `vault_context_set` tools for per-session vault switching
@@ -28,13 +53,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - macOS/Linux uninstall scripts
 - npm publish workflow with OIDC Trusted Publishing (provenance)
 
-### Fixed
+#### Fixed
+
 - Accept string-serialised booleans and numbers from MCP clients (`"true"` → `true`, `"1"` → `1`)
 - CI Node version updated to 24 for npm >=11.5.1 compatibility
 
 ## [0.1.1] — 2025-12-01
 
-### Added
+### Server
+
+#### Added
+
 - Initial public release
 - stdio and HTTP (Streamable + SSE) transports
 - Core note tools: `note_read`, `note_create`, `note_append`, `note_delete`

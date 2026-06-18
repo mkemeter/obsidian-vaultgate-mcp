@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+    <title>VaultGate — Preferences</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #fafafa;
+        --fg: #1a1a1a;
+        --muted: #71717a;
+        --border: #e4e4e7;
+        --accent: #8b5cf6;
+        --accent-dark: #7c3aed;
+        --success: #10b981;
+        --error: #ef4444;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #18181b;
+          --fg: #f4f4f5;
+          --muted: #a1a1aa;
+          --border: #3f3f46;
+        }
+      }
+      body {
+        font: 13px -apple-system, "Segoe UI", system-ui, sans-serif;
+        margin: 0;
+        padding: 18px 20px 14px;
+        background: var(--bg);
+        color: var(--fg);
+        user-select: none;
+      }
+      .status-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+      .status-bar h1 {
+        font-size: 14px;
+        margin: 0;
+        font-weight: 600;
+      }
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        background: var(--muted);
+        transition: background 0.2s;
+      }
+      .status-dot[data-state="running"] { background: var(--success); }
+      .status-dot[data-state="error"],
+      .status-dot[data-state="port-conflict"],
+      .status-dot[data-state="obsidian-missing"] { background: var(--error); }
+      label {
+        display: block;
+        margin: 10px 0 4px;
+        color: var(--muted);
+      }
+      input[type="text"],
+      input[type="number"],
+      select {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 6px 8px;
+        font: inherit;
+        color: var(--fg);
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+      }
+      input[type="text"]:focus,
+      input[type="number"]:focus,
+      select:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
+      }
+      input.error {
+        border-color: var(--error);
+      }
+      .field-error {
+        color: var(--error);
+        font-size: 11px;
+        margin: 3px 0 0;
+        min-height: 14px;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .row input[type="text"] {
+        flex: 1;
+      }
+      button {
+        padding: 6px 12px;
+        font: inherit;
+        background: var(--bg);
+        color: var(--fg);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      button.primary {
+        background: var(--accent);
+        color: #fff;
+        border: none;
+      }
+      button:hover:not(:disabled) {
+        opacity: 0.85;
+      }
+      button.primary:hover:not(:disabled) {
+        background: var(--accent-dark);
+        opacity: 1;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      .checkbox {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-top: 14px;
+      }
+      .section-divider {
+        border: none;
+        border-top: 1px solid var(--border);
+        margin: 16px 0 10px;
+      }
+      .footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 18px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="status-bar">
+      <span id="status-dot" class="status-dot" data-state="loading"></span>
+      <h1>VaultGate</h1>
+    </div>
+
+    <label for="vault">Vault</label>
+    <select id="vault"></select>
+
+    <label for="port">Local server port</label>
+    <input type="number" id="port" min="1024" max="65535" />
+    <div class="field-error" id="port-error"></div>
+
+    <label for="obsidian">Obsidian binary</label>
+    <div class="row">
+      <input type="text" id="obsidian" placeholder="/Applications/Obsidian.app/Contents/MacOS/obsidian" />
+      <button id="browse">Browse…</button>
+    </div>
+
+    <hr class="section-divider" />
+
+    <div class="checkbox">
+      <input type="checkbox" id="autostart" />
+      <label for="autostart" style="margin: 0; color: var(--fg)">Open VaultGate at login</label>
+    </div>
+
+    <div class="footer">
+      <button id="cancel">Cancel</button>
+      <button id="save" class="primary">Save</button>
+    </div>
+
+    <script src="./prefs.js"></script>
+  </body>
+</html>

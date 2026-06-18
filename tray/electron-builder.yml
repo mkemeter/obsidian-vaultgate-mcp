@@ -1,0 +1,58 @@
+# VaultGate tray app — packaging configuration
+
+appId: com.obsidian-vaultgate-mcp.tray
+productName: VaultGate
+copyright: Copyright © 2026 Mathias Kemeter
+
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  # Tray compiled JS (main process, preload, labels, etc.)
+  - "dist/*.js"
+  - "dist/*.js.map"
+  - "dist/renderer/**"
+  - "assets/icon.png"
+  - "assets/icon@2x.png"
+  - "assets/icon.svg"
+
+extraResources:
+  # Ship the full unbundled server: build output + node_modules + package.json.
+  # Bundling with esbuild caused CJS/ESM interop failures (zod, onnxruntime-node).
+  - from: dist/server/build
+    to: server/build
+  - from: dist/server/node_modules
+    to: server/node_modules
+  - from: dist/server/package.json
+    to: server/package.json
+  - from: assets/models
+    to: models
+    filter: ["**/*.onnx", "**/*.json", "**/*.txt", "**/*.bin"]
+  - from: assets/icon.png
+    to: assets/icon.png
+  - from: assets/icon@2x.png
+    to: assets/icon@2x.png
+
+asar: true
+asarUnpack:
+  - "**/*.node"
+  # Native ML backends — must live on disk, not inside the asar archive.
+  - "node_modules/onnxruntime-node/**"
+  - "node_modules/sharp/**"
+
+mac:
+  category: public.app-category.productivity
+  icon: build/icon.png
+  target:
+    - target: dmg
+      arch: arm64   # Phase 1: arm64-only — see plan Phase 9 note for rationale
+  extendInfo:
+    LSUIElement: true   # background-only app: no Dock icon, no Cmd+Tab
+  # No identity / hardenedRuntime / entitlements — unsigned for now (see plan)
+
+dmg:
+  sign: false
+  artifactName: "${productName}-${version}-mac-arm64.${ext}"
+
+# No win or linux section → macOS arm64 DMG only
