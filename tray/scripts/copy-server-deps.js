@@ -10,6 +10,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { execSync } = require("node:child_process");
+const { copyRecursive } = require("./lib/copy.js");
 
 const root = path.resolve(__dirname, "..");
 const serverRoot = path.join(root, "..", "server");
@@ -44,19 +45,6 @@ try {
 } catch (e) {
   console.error("[copy-server-deps] npm ls failed:", e.message);
   process.exit(1);
-}
-
-function copyRecursive(src, dst) {
-  const stat = fs.statSync(src);
-  if (stat.isDirectory()) {
-    fs.mkdirSync(dst, { recursive: true });
-    for (const entry of fs.readdirSync(src)) {
-      copyRecursive(path.join(src, entry), path.join(dst, entry));
-    }
-  } else {
-    fs.mkdirSync(path.dirname(dst), { recursive: true });
-    fs.copyFileSync(src, dst);
-  }
 }
 
 if (fs.existsSync(dstBase)) fs.rmSync(dstBase, { recursive: true, force: true });

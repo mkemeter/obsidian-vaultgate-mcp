@@ -97,7 +97,7 @@ describe("loadConfig / saveConfig / hasConfig", () => {
     expect(hasConfig()).toBe(false);
     expect(loadConfig()).toEqual({
       vault: "",
-      port: 3001,
+      port: 3002,
       obsidianPath: "",
       smartSearchReadyNotified: false,
     });
@@ -130,7 +130,7 @@ describe("loadConfig / saveConfig / hasConfig", () => {
     realFs.writeFileSync(file, "{not-valid-json", "utf-8");
 
     const { loadConfig } = await import("../../src/config-store.js");
-    expect(loadConfig().port).toBe(3001);
+    expect(loadConfig().port).toBe(3002);
   });
 
   it("creates the userData directory if it does not exist yet", async () => {

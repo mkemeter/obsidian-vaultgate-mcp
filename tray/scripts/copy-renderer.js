@@ -6,23 +6,11 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { copyRecursive } = require("./lib/copy.js");
 
 const root = path.resolve(__dirname, "..");
 const src = path.join(root, "renderer");
 const dst = path.join(root, "dist", "renderer");
-
-function copyRecursive(srcPath, dstPath) {
-  const stat = fs.statSync(srcPath);
-  if (stat.isDirectory()) {
-    fs.mkdirSync(dstPath, { recursive: true });
-    for (const entry of fs.readdirSync(srcPath)) {
-      copyRecursive(path.join(srcPath, entry), path.join(dstPath, entry));
-    }
-  } else {
-    fs.mkdirSync(path.dirname(dstPath), { recursive: true });
-    fs.copyFileSync(srcPath, dstPath);
-  }
-}
 
 if (!fs.existsSync(src)) {
   console.error(`[copy-renderer] source not found: ${src}`);

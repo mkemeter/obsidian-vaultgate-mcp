@@ -56,6 +56,14 @@ jobs:
         run: node scripts/download-models.js
         working-directory: tray
 
+      - name: Type-check tray
+        run: npm run typecheck
+        working-directory: tray
+
+      - name: Test tray
+        run: npm test
+        working-directory: tray
+
       - name: Build tray sources
         run: npm run build
         working-directory: tray

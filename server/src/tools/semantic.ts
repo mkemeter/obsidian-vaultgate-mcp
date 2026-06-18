@@ -69,6 +69,10 @@ interface VaultIndex {
 let indexState: "idle" | "building" | "ready" = "idle";
 let isReHashing = false;
 let embedderInstance: Awaited<ReturnType<typeof pipeline>> | null = null;
+// By design: embedder lifetime is module lifetime. The transformer pipeline is
+// expensive to load (~several seconds on first run), so it is never released
+// once created — even after clear_index resets liveIndex and indexState. If a
+// future code path needs a fresh embedder, reset this to null explicitly.
 
 const MODEL_ID = "Xenova/bge-small-en-v1.5";
 const INDEX_VERSION = 2;

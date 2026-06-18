@@ -33,7 +33,7 @@ export interface RegisteredVault {
 
 const DEFAULTS: VaultGateConfig = {
   vault: "",
-  port: 3001,
+  port: 3002,
   obsidianPath: "",
   smartSearchReadyNotified: false,
 };
@@ -75,7 +75,11 @@ export function hasConfig(): boolean {
 export function detectObsidianPath(): string {
   const candidates: string[] = [];
   if (process.platform === "darwin") {
-    candidates.push("/Applications/Obsidian.app/Contents/MacOS/obsidian");
+    // Homebrew ARM64 (Apple Silicon) is the most common dev install path — check first
+    candidates.push(
+      "/opt/homebrew/bin/obsidian",
+      "/Applications/Obsidian.app/Contents/MacOS/obsidian"
+    );
   } else {
     // Linux: tray app is unsupported, but allow detection for dev runs
     candidates.push("/usr/bin/obsidian", "/usr/local/bin/obsidian");

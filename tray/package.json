@@ -8,6 +8,7 @@
     "type": "git",
     "url": "https://github.com/mkemeter/obsidian-vaultgate-mcp.git"
   },
+  "license": "GPL-3.0-or-later",
   "main": "dist/main.js",
   "scripts": {
     "build:server": "cd ../server && npm run build",

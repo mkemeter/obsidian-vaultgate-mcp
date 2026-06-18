@@ -75,7 +75,7 @@ export async function createServer(iconUrl?: string): Promise<McpServer> {
 
   const serverInfo: ConstructorParameters<typeof McpServer>[0] = {
     name: "obsidian-vaultgate-mcp",
-    version: "0.1.2",
+    version: "0.2.0",
   };
 
   if (dataUri) {

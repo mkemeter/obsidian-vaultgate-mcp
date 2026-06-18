@@ -10,7 +10,7 @@ import { runObsidian } from "../cli.js";
 export function registerSearchTools(server: McpServer): void {
   server.tool(
     "search",
-    "Search the Obsidian vault. Returns matching notes with context snippets.",
+    "Search the Obsidian vault using keyword matching. Returns matching notes with context snippets. For meaning-based or fuzzy queries, use semantic_search instead.",
     {
       query: z.string().describe("Search term or phrase to look for."),
       limit: z
