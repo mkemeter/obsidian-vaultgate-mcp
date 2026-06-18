@@ -21,6 +21,7 @@
  */
 
 import * as http from "node:http";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -61,6 +62,13 @@ async function startHttp(): Promise<void> {
   const iconUrl = `http://${config.host}:${config.port}/icon.svg`;
   const iconSvg = getIconSvg();
   const faviconIco = getFaviconIco();
+
+  // Create the MCP server eagerly so that startBackgroundIndex() runs immediately
+  // at HTTP-server startup. Without this, the tray would show "warming up…"
+  // indefinitely until the first MCP request triggered createServer().
+  // The instance is consumed by the first /mcp or /sse session; subsequent
+  // sessions each get a fresh server (each session is independent).
+  let defaultServer: McpServer | null = await createServer(iconUrl);
 
   const httpServer = http.createServer(
     async (req: http.IncomingMessage, res: http.ServerResponse) => {
@@ -149,7 +157,10 @@ async function startHttp(): Promise<void> {
             return;
           }
           // No session ID — new session. Create a server + transport and store it.
-          const server = await createServer(iconUrl);
+          // Reuse the eagerly-created defaultServer for the very first session so
+          // the background index that has already been warming up is not wasted.
+          const server = defaultServer ?? (await createServer(iconUrl));
+          defaultServer = null; // consumed — future sessions each get a fresh instance
           transport = new StreamableHTTPServerTransport({
             sessionIdGenerator: () => crypto.randomUUID(),
           });
@@ -169,7 +180,8 @@ async function startHttp(): Promise<void> {
 
       // --- SSE transport (legacy MCP, backward-compatible fallback) ------------
       if (req.method === "GET" && url.pathname === "/sse") {
-        const server = await createServer(iconUrl);
+        const server = defaultServer ?? (await createServer(iconUrl));
+        defaultServer = null; // consumed
         const transport = new SSEServerTransport("/messages", res);
         sseSessions.set(transport.sessionId, transport);
 

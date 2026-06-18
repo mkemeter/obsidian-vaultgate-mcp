@@ -266,6 +266,70 @@ describe("cache-hit startup path", () => {
   });
 });
 
+// regression: configured-vault cache-hit showed stale note count until first MCP request
+describe("cache-hit startup path — configured vault syncs immediately", () => {
+  it("runs syncNewAndDeleted on cache-hit so filesProcessed reflects the actual file list", async () => {
+    // Seed a cache with 2 notes, but CLI returns only 1 note (simulates vault change).
+    // Before the fix, startBackgroundIndex() on a configured-vault cache-hit became
+    // "ready" immediately without calling syncNewAndDeleted(). The tray would show the
+    // stale count (2) until the first MCP search request triggered a sync.
+    vi.resetModules();
+
+    const vaultName = `__test_sync_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const safeKey = vaultName.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const cacheDir = path.join(os.homedir(), ".cache", "obsidian-vaultgate-mcp");
+    const fs = await import("node:fs");
+    fs.mkdirSync(cacheDir, { recursive: true });
+    const indexPath = path.join(cacheDir, `embeddings-${safeKey}.json`);
+
+    // Cache has 2 notes, but the vault now contains only 1
+    const seededIndex = {
+      version: 2,
+      model: "Xenova/bge-small-en-v1.5",
+      lastReHash: Date.now(),
+      files: {
+        "note-a.md": { hash: "abc", chunks: [{ heading: "Note A", embedding: FAKE_VEC_A }] },
+        "note-b.md": { hash: "def", chunks: [{ heading: "Note B", embedding: FAKE_VEC_A }] },
+      },
+    };
+    fs.writeFileSync(indexPath, JSON.stringify(seededIndex), "utf-8");
+
+    vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+    vi.doMock("../../../src/config.js", () => ({
+      config: { vault: vaultName, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+    }));
+    vi.doMock("@xenova/transformers", () => ({
+      pipeline: vi.fn().mockResolvedValue(
+        vi.fn().mockImplementation(() =>
+          Promise.resolve({ tolist: () => [FAKE_VEC_A] })
+        )
+      ),
+    }));
+
+    const { runObsidian } = await import("../../../src/cli.js");
+    // CLI now reports only 1 note (note-b.md was deleted)
+    vi.mocked(runObsidian).mockImplementation(async (args: string[]) => {
+      if (args.includes("list")) return "note-a.md\n";
+      return NOTE_A_CONTENT;
+    });
+
+    const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
+    const server = new McpServer({ name: "test", version: "0.0.0" });
+    const semantic = await import("../../../src/tools/semantic.js");
+    semantic.registerSemanticTools(server);
+
+    await waitForReady(semantic.getIndexStateForTesting);
+
+    // vault_info must reflect the actual current count (1), not the stale cache count (2)
+    const result = await callTool(server, "vault_info", {});
+    expect(result.isError).toBeFalsy();
+    expect(result.content[0].text).toContain("1");
+    expect(result.content[0].text).not.toMatch(/\b2\b.*note/);
+
+    try { fs.unlinkSync(indexPath); } catch { /* already gone */ }
+  });
+});
+
 describe("indexState guard", () => {
   it("semantic_search returns indexing message while building", async () => {
     // Never-resolving file list + no cache on disk keeps indexState in "building"

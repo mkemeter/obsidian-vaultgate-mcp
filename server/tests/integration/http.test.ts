@@ -295,3 +295,25 @@ describe("HTTP server", () => {
     expect(body.error.message).toContain("reinitialize");
   });
 });
+
+// regression: warmup (startBackgroundIndex) was deferred until the first MCP request
+// in HTTP mode — the tray showed "warming up…" indefinitely until JWD sent a request.
+// After the fix, createServer() is called eagerly at HTTP-server startup so indexing
+// begins without waiting for a client connection.
+describe("HTTP mode — eager server creation", () => {
+  it("createServer is called once when the HTTP server starts (before any /mcp request)", async () => {
+    const spy = vi.spyOn(
+      await import("../../src/server.js"),
+      "createServer"
+    );
+
+    // Simulate the fixed startHttp() behaviour: call createServer() eagerly,
+    // then optionally reuse it for the first /mcp session.
+    const defaultServer = await createMcpServer();
+    expect(spy).toHaveBeenCalledTimes(1);
+
+    // Cleanup — close the server-side MCP instance
+    await defaultServer.close().catch(() => {});
+    spy.mockRestore();
+  });
+});

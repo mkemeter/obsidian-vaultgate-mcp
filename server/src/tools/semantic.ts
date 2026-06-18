@@ -13,11 +13,9 @@
  *
  * The embedding index is maintained automatically:
  *   - Built in the background at server startup (cache-first):
- *     - Configured vault (OBSIDIAN_VAULT set): cache becomes ready immediately;
- *       syncNewAndDeleted() runs on the first search call.
- *     - Unconfigured vault: cache loads, but syncNewAndDeleted() runs immediately
- *       at startup before "ready" — guards against cross-session vault switches
- *       (shared embeddings-default.json).
+ *     - Cache hit: syncNewAndDeleted() runs immediately so the tray shows an
+ *       accurate note count without waiting for the first MCP request.
+ *     - Cache miss: syncNewAndDeleted() + full embed before "ready".
  *   - New / deleted notes detected on each search call (path diff).
  *   - Vault switch detected heuristically: if >50% of indexed paths disappear AND
  *     new paths arrive in the same sync, the index is wiped and rebuilt from scratch.
@@ -498,20 +496,13 @@ function startBackgroundIndex(): void {
       const idx = loadIndex();
 
       if (Object.keys(idx.files).length > 0) {
-        if (config.vault) {
-          // Configured vault: every CLI call is scoped to that vault by name,
-          // so the cache is always correct. Become ready immediately.
-          liveIndex = idx;
-          indexState = "ready";
-        } else {
-          // No configured vault: the cache key is "default" and is shared
-          // across all vaults the user may have open. Run syncNewAndDeleted()
-          // now to detect a cross-session vault switch before serving results.
-          liveIndex = idx;
-          await syncNewAndDeleted(idx);
-          saveIndex(idx);
-          indexState = "ready";
-        }
+        // Cache hit: always run syncNewAndDeleted() before becoming ready so the
+        // tray shows an accurate note count immediately after startup or a vault
+        // change — without waiting for the first MCP request to trigger a sync.
+        liveIndex = idx;
+        await syncNewAndDeleted(idx);
+        saveIndex(idx);
+        indexState = "ready";
       } else {
         // No cache yet: embed all notes before becoming ready.
         await syncNewAndDeleted(idx);
