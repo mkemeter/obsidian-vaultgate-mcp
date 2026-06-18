@@ -1,11 +1,17 @@
-# Obsidian VaultGate MCP
+<div align="center">
+  <img src="../tray/assets/icon.svg" width="80" alt="VaultGate" />
 
-> Your Obsidian vault, accessible to any AI assistant — locally, privately, with no plugins.
+  <h1>VaultGate</h1>
 
-[![npm version](https://img.shields.io/npm/v/obsidian-vaultgate-mcp)](https://www.npmjs.com/package/obsidian-vaultgate-mcp)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-[![Node.js](https://img.shields.io/badge/Node.js-18+-brightgreen)](https://nodejs.org)
-[![Tests](https://github.com/mkemeter/obsidian-vaultgate-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/mkemeter/obsidian-vaultgate-mcp/actions/workflows/ci.yml)
+  <p><strong>Your Obsidian vault, accessible to any AI assistant — locally, privately, with no plugins.</strong></p>
+
+  <p>
+    <a href="https://www.npmjs.com/package/obsidian-vaultgate-mcp"><img src="https://img.shields.io/npm/v/obsidian-vaultgate-mcp" alt="npm version" /></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License: GPL v3" /></a>
+    <a href="https://nodejs.org"><img src="https://img.shields.io/badge/Node.js-18+-brightgreen" alt="Node.js" /></a>
+    <a href="https://github.com/mkemeter/obsidian-vaultgate-mcp/actions/workflows/ci.yml"><img src="https://github.com/mkemeter/obsidian-vaultgate-mcp/actions/workflows/ci.yml/badge.svg" alt="Tests" /></a>
+  </p>
+</div>
 
 VaultGate is a local [Model Context Protocol](https://modelcontextprotocol.io) server that bridges any MCP-compatible AI client with your Obsidian vault. It's built on Obsidian's native integration APIs — no community plugins, no cloud relay, no API keys.
 
@@ -33,7 +39,7 @@ Ask your AI to read notes, run full-text or semantic search, manage tasks, apply
 
 ## What it looks like
 
-The **tray companion app** sits in your macOS menu bar as a small keyhole icon.
+The **tray companion app** sits in your macOS menu bar as a small gem icon.
 Right-click to see server status, copy the MCP connection URL, and monitor semantic
 index progress in real time. The preferences window lets you switch vaults, change
 the port, and locate the Obsidian binary — no config files to edit manually.
