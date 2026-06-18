@@ -763,14 +763,28 @@ export function registerSemanticTools(server: McpServer): void {
   server.tool(
     "index_vault",
     "Force a full re-index of the vault. Normally not needed — the index is maintained automatically. Use only if you suspect the index is stale.",
-    {},
-    async () => {
+    {
+      dryRun: dryRunSchema,
+    },
+    async ({ dryRun }) => {
       if (!liveIndex || indexState !== "ready") {
         return {
           content: [
             {
               type: "text",
               text: "Initial indexing is still in progress. Please try again in a moment.",
+            },
+          ],
+        };
+      }
+
+      if (dryRun) {
+        const count = Object.keys(liveIndex.files).length;
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Dry run: would re-index ${count} note${count === 1 ? "" : "s"} in vault "${liveIndex.vault}".\nPass dryRun=false to proceed.`,
             },
           ],
         };

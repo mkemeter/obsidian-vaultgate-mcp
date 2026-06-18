@@ -74,6 +74,21 @@ describe("files_read", () => {
     await invoke(makeServer(), "files_read", {});
     expect(mockRun).toHaveBeenCalledWith(["read"]);
   });
+
+  // regression: files_read with file="" silently resolved to active file instead of erroring
+  it("returns isError when file is an empty string", async () => {
+    const result = await invoke(makeServer(), "files_read", { file: "" });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/file name must not be empty/i);
+    expect(mockRun).not.toHaveBeenCalled();
+  });
+
+  it("returns isError when path is an empty string", async () => {
+    const result = await invoke(makeServer(), "files_read", { path: "" });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/file name must not be empty/i);
+    expect(mockRun).not.toHaveBeenCalled();
+  });
 });
 
 describe("note_create (destructive)", () => {

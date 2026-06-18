@@ -630,7 +630,7 @@ describe("index_vault", () => {
       return NOTE_A_CONTENT;
     });
 
-    const result = await callTool(server, "index_vault");
+    const result = await callTool(server, "index_vault", { dryRun: false });
     expect(result.content[0].text).toMatch(/re-index complete/i);
     expect(result.content[0].text).toMatch(/\d+ note/);
   });
@@ -645,7 +645,7 @@ describe("index_vault", () => {
 
     mockRun.mockRejectedValue(new Error("CLI unavailable"));
 
-    const result = await callTool(server, "index_vault");
+    const result = await callTool(server, "index_vault", { dryRun: false });
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("CLI unavailable");
   });
@@ -655,6 +655,43 @@ describe("index_vault", () => {
 
     const result = await callTool(server, "index_vault");
     expect(result.content[0].text).toMatch(/still in progress/i);
+  });
+
+  // regression: index_vault dryRun=true silently executed a live re-index
+  it("dry run previews what would be re-indexed without executing", async () => {
+    const { server, mockRun, getState } = await freshModule(async (args) => {
+      if (args.includes("list")) return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
+
+    await waitForReady(getState);
+
+    mockRun.mockClear();
+
+    const result = await callTool(server, "index_vault", { dryRun: true });
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toMatch(/dry run/i);
+    expect(result.content[0].text).not.toMatch(/re-index complete/i);
+    // CLI must not be called during a dry run
+    expect(mockRun).not.toHaveBeenCalled();
+  });
+
+  it("executes live re-index when dryRun=false", async () => {
+    const { server, mockRun, getState } = await freshModule(async (args) => {
+      if (args.includes("list")) return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
+
+    await waitForReady(getState);
+
+    mockRun.mockImplementation(async (args: string[]) => {
+      if (args.includes("list")) return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
+
+    const result = await callTool(server, "index_vault", { dryRun: false });
+    expect(result.content[0].text).toMatch(/re-index complete/i);
+    expect(result.content[0].text).toMatch(/\d+ note/);
   });
 });
 

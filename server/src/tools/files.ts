@@ -76,6 +76,20 @@ export function registerFileTools(server: McpServer): void {
         ),
     },
     async ({ file, path }) => {
+      if (
+        (file !== undefined && file.trim() === "") ||
+        (path !== undefined && path.trim() === "")
+      ) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: "File name must not be empty. Provide a valid file name or path, or omit both to read the active file.",
+            },
+          ],
+        };
+      }
       const args = ["read", ...buildFileArgs(file, path)];
 
       try {
