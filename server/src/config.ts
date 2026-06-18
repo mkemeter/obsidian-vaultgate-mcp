@@ -71,3 +71,12 @@ export function loadConfig(): Config {
 
 /** Singleton config instance used across the application. */
 export const config = loadConfig();
+
+/**
+ * Updates the vault targeting at runtime without restarting the process.
+ * Called by the tray app via IPC when the user changes the vault in Preferences
+ * so the MCP session does not need to be re-established.
+ */
+export function setVault(vault: string | undefined): void {
+  config.vault = vault;
+}

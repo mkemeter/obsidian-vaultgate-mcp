@@ -795,6 +795,29 @@ describe("clear_index", () => {
 });
 
 // ---------------------------------------------------------------------------
+// resetIndexForVaultChange
+// ---------------------------------------------------------------------------
+
+describe("resetIndexForVaultChange", () => {
+  it("resets state to idle and triggers a fresh background build", async () => {
+    const { server, getState } = await freshModule(async (args) => {
+      if (args.includes("list")) return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
+
+    await waitForReady(getState);
+    expect(getState()).toBe("ready");
+
+    const semantic = await import("../../../src/tools/semantic.js");
+    semantic.resetIndexForVaultChange();
+
+    // Should transition through building and back to ready.
+    await waitForReady(semantic.getIndexStateForTesting);
+    expect(semantic.getIndexStateForTesting()).toBe("ready");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // vault_info
 // ---------------------------------------------------------------------------
 

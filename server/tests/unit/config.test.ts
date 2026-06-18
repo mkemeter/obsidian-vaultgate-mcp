@@ -1,5 +1,22 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
+describe("setVault", () => {
+  it("mutates config.vault in place so the running server picks up vault changes without restart", async () => {
+    const { config, setVault } = await import("../../src/config.js");
+    const original = config.vault;
+    setVault("NewVault");
+    expect(config.vault).toBe("NewVault");
+    // Restore so this test doesn't bleed into others sharing the same module instance.
+    setVault(original);
+  });
+
+  it("accepts undefined to clear the vault targeting", async () => {
+    const { config, setVault } = await import("../../src/config.js");
+    setVault(undefined);
+    expect(config.vault).toBeUndefined();
+  });
+});
+
 describe("loadConfig", () => {
   const originalEnv = { ...process.env };
 

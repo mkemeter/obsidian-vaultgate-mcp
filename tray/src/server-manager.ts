@@ -319,6 +319,9 @@ export async function stop(): Promise<void> {
     return;
   }
   setState("stopped");
+  // Reset the cached index state so the tray menu does not show stale "ready"
+  // data after the server process is replaced with a new one.
+  latestIndex = { type: "state", state: "idle" };
   const proc = child;
   try {
     proc.kill();
@@ -369,6 +372,16 @@ export function on<K extends keyof ServerManagerEvents>(
 /** Returns the absolute log file path (used by "Open Logs…" menu item). */
 export function getLogPath(): string {
   return logFilePath();
+}
+
+/**
+ * Sends a vault-change message to the running server process so it can update
+ * config.vault in place without a full restart. No-op if the server is not
+ * currently running.
+ */
+export function sendVaultChange(vault: string): void {
+  if (!child) return;
+  child.postMessage({ __vaultgate_config__: { vault } });
 }
 
 /**

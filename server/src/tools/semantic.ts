@@ -490,6 +490,17 @@ export function getIndexStateForTesting(): "idle" | "building" | "ready" {
   return indexState;
 }
 
+/**
+ * Discards the in-memory index and triggers a fresh background build.
+ * Called by the tray app via IPC when the user switches vaults without
+ * restarting the server process (Option A of the vault-change flow).
+ */
+export function resetIndexForVaultChange(): void {
+  liveIndex = null;
+  indexState = "idle";
+  startBackgroundIndex();
+}
+
 function startBackgroundIndex(): void {
   if (indexState !== "idle") return; // singleton guard
   indexState = "building";

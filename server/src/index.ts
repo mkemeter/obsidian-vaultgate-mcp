@@ -25,7 +25,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { config } from "./config.js";
+import { config, setVault } from "./config.js";
 import { runHealthCheck } from "./health.js";
 import { createServer, getFaviconIco, getIconDataUri, getIconSvg } from "./server.js";
 
@@ -234,6 +234,37 @@ async function startHttp(): Promise<void> {
       `  SSE (legacy):    GET  http://${config.host}:${config.port}/sse\n` +
       `  Health:          GET  http://${config.host}:${config.port}/health\n`
   );
+
+  // ---------------------------------------------------------------------------
+  // Live config updates from the tray app (vault change without restart)
+  // ---------------------------------------------------------------------------
+  // When the user switches vault in Preferences, the tray sends a
+  // __vaultgate_config__ message instead of restarting the server, preserving
+  // the active MCP session. We update config.vault in place and reset the
+  // semantic index so it re-embeds the new vault.
+  const parentPort = (
+    process as unknown as {
+      parentPort?: { on: (event: string, listener: (msg: unknown) => void) => void };
+    }
+  ).parentPort;
+  if (parentPort) {
+    parentPort.on("message", (msg: unknown) => {
+      if (msg && typeof msg === "object" && "__vaultgate_config__" in msg) {
+        const patch = (msg as { __vaultgate_config__: { vault?: string } }).__vaultgate_config__;
+        if (patch.vault !== undefined) {
+          setVault(patch.vault || undefined);
+          // Reset the semantic index so it rebuilds for the new vault.
+          // Dynamic import avoids loading the heavy ML stack at startup when
+          // @xenova/transformers may not be installed.
+          import("./tools/semantic.js")
+            .then(({ resetIndexForVaultChange }) => resetIndexForVaultChange())
+            .catch(() => {
+              // Semantic tools not available — nothing to reset.
+            });
+        }
+      }
+    });
+  }
 
   // ---------------------------------------------------------------------------
   // Graceful shutdown
