@@ -17,6 +17,9 @@ on:
       - "tray/**"
       - ".github/workflows/tray.yml"
 
+permissions:
+  contents: write   # required for electron-builder to create GitHub Releases
+
 jobs:
   build:
     runs-on: macos-14   # Apple Silicon — produces arm64 DMG
