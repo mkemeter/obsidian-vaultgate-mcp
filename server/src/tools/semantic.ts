@@ -784,7 +784,7 @@ export function registerSemanticTools(server: McpServer): void {
           content: [
             {
               type: "text",
-              text: `Dry run: would re-index ${count} note${count === 1 ? "" : "s"} in vault "${liveIndex.vault}".\nPass dryRun=false to proceed.`,
+              text: `Dry run: would re-index ${count} note${count === 1 ? "" : "s"}.\nPass dryRun=false to proceed.`,
             },
           ],
         };
