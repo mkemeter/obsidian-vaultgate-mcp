@@ -153,14 +153,22 @@ Builds are intentionally **per-host-arch**: `onnxruntime-node`'s postinstall onl
 
 ### Releasing
 
-Tray releases use the `tray/v*` git tag prefix to keep them independent of npm releases. CI handles the actual upload:
+Both distributions share a unified version number (see root `VERSION` file). A `v*` tag
+triggers both the npm publish workflow and the tray DMG release. To cut a release:
 
 ```bash
-git tag tray/v0.1.0
-git push origin tray/v0.1.0
+# 1. Edit root VERSION, then sync into both package.json files
+node scripts/sync-version.js
+
+# 2. Commit, then tag
+git add VERSION server/package.json tray/package.json
+git commit -m "chore: release v0.2.0"
+git tag v0.2.0
+git push origin main --tags
 ```
 
-This triggers `.github/workflows/tray.yml` which builds the macOS arm64 DMG and publishes to a GitHub release. `GITHUB_TOKEN` is the only secret required.
+This triggers `.github/workflows/tray.yml` which builds the macOS arm64 DMG and publishes
+to a GitHub release. `GITHUB_TOKEN` is the only secret required.
 
 ---
 

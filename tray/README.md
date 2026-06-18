@@ -31,11 +31,11 @@ The tray app targets macOS Apple Silicon only. The headless npm path supports Li
 
 ## Install
 
-> **Releases land at:** [github.com/mkemeter/obsidian-vaultgate-mcp/releases](https://github.com/mkemeter/obsidian-vaultgate-mcp/releases) under `tray/v*` tags.
+> **Releases land at:** [github.com/mkemeter/obsidian-vaultgate-mcp/releases](https://github.com/mkemeter/obsidian-vaultgate-mcp/releases) under `v*` tags.
 
 ### macOS (Apple Silicon)
 
-1. Download `VaultGate-X.Y.Z-mac-arm64.dmg` from the latest `tray/v*` release.
+1. Download `VaultGate-X.Y.Z-mac-arm64.dmg` from the latest `v*` release.
 2. Open the DMG and drag **VaultGate** into `Applications`.
 3. **Bypass Gatekeeper** (the app is unsigned — see [Code signing](#code-signing) below for context):
 
