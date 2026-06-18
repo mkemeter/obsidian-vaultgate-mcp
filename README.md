@@ -424,6 +424,12 @@ Install `xdg-utils` via your package manager (e.g. `sudo apt install xdg-utils`)
 
 A menu-bar app that wraps the same VaultGate MCP server core in a native macOS GUI — no terminal needed. It exposes the [same 34 + 5 tools](#available-tools) as the headless package, and adds a layer of GUI conveniences on top:
 
+<div align="center">
+
+[![Download DMG — macOS Apple Silicon](https://img.shields.io/badge/Download_DMG-macOS_Apple_Silicon-7c3aed?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/mkemeter/obsidian-vaultgate-mcp/releases/latest)
+
+</div>
+
 <table>
 <tr>
 <td width="50%">
@@ -480,9 +486,7 @@ Vault selector, port, Obsidian binary path — all in a UI. No config files to e
 
 ### Install
 
-> **Releases at:** [github.com/mkemeter/obsidian-vaultgate-mcp/releases](https://github.com/mkemeter/obsidian-vaultgate-mcp/releases) — `v*` tags
-
-1. Download `VaultGate-X.Y.Z-mac-arm64.dmg` from the latest release.
+1. Download `VaultGate-X.Y.Z-mac-arm64.dmg` from the [latest release](https://github.com/mkemeter/obsidian-vaultgate-mcp/releases/latest).
 2. Open the DMG and drag **VaultGate** into `Applications`.
 3. **Bypass Gatekeeper** (the app is unsigned — see [Code signing](#code-signing) below):
 
