@@ -36,7 +36,7 @@ A section may be absent if that distribution had no changes in the release.
 - Pre-bundled embedding model — Smart Search works offline on first launch with no download
 - Auto-detection of Obsidian binary and registered vaults (parses `obsidian.json`)
 - Native autostart toggle (in Preferences), port + vault preferences, rotating logs
-- Documentation: [tray/README.md](../tray/README.md) (users), [docs/TRAY-DEV.md](TRAY-DEV.md) (contributors)
+- Documentation: [README.md](../README.md#tray-companion-app) (users), [docs/CONTRIBUTING.md](CONTRIBUTING.md#tray-companion-app--developer-guide) (contributors)
 
 ## [0.1.2] — 2026-05-22
 
