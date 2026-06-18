@@ -19,9 +19,9 @@ Ask your AI to read notes, run full-text or semantic search, manage tasks, apply
 
 <div align="center">
 
-[![Tray app — macOS Apple Silicon](https://img.shields.io/badge/Tray_app-macOS_Apple_Silicon-7c3aed?style=for-the-badge&logo=apple&logoColor=white)](tray/README.md)
+[![Tray app — macOS Apple Silicon](https://img.shields.io/badge/Tray_app-macOS_Apple_Silicon-7c3aed?style=for-the-badge&logo=apple&logoColor=white)](tray/)
 &nbsp;&nbsp;
-[![Headless npm package](https://img.shields.io/badge/Headless_npm_package-Linux_%7C_Windows_%7C_macOS-3b82f6?style=for-the-badge&logo=npm&logoColor=white)](server/README.md)
+[![Headless npm package](https://img.shields.io/badge/Headless_npm_package-Linux_%7C_Windows_%7C_macOS-3b82f6?style=for-the-badge&logo=npm&logoColor=white)](server/)
 
 </div>
 
