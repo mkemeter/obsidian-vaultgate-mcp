@@ -1,16 +1,16 @@
 <div align="center">
-  <img src="../tray/assets/icon.svg" width="80" alt="VaultGate" />
 
-  <h1>VaultGate</h1>
+<img src="../tray/assets/icon.svg" width="80" alt="VaultGate" />
 
-  <p><strong>Your Obsidian vault, accessible to any AI assistant — locally, privately, with no plugins.</strong></p>
+# VaultGate
 
-  <p>
-    <a href="https://www.npmjs.com/package/obsidian-vaultgate-mcp"><img src="https://img.shields.io/npm/v/obsidian-vaultgate-mcp" alt="npm version" /></a>
-    <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License: GPL v3" /></a>
-    <a href="https://nodejs.org"><img src="https://img.shields.io/badge/Node.js-18+-brightgreen" alt="Node.js" /></a>
-    <a href="https://github.com/mkemeter/obsidian-vaultgate-mcp/actions/workflows/ci.yml"><img src="https://github.com/mkemeter/obsidian-vaultgate-mcp/actions/workflows/ci.yml/badge.svg" alt="Tests" /></a>
-  </p>
+**Your Obsidian vault, accessible to any AI assistant — locally, privately, with no plugins.**
+
+[![npm version](https://img.shields.io/npm/v/obsidian-vaultgate-mcp)](https://www.npmjs.com/package/obsidian-vaultgate-mcp)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/Node.js-18+-brightgreen)](https://nodejs.org)
+[![Tests](https://github.com/mkemeter/obsidian-vaultgate-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/mkemeter/obsidian-vaultgate-mcp/actions/workflows/ci.yml)
+
 </div>
 
 VaultGate is a local [Model Context Protocol](https://modelcontextprotocol.io) server that bridges any MCP-compatible AI client with your Obsidian vault. It's built on Obsidian's native integration APIs — no community plugins, no cloud relay, no API keys.
@@ -19,62 +19,54 @@ Ask your AI to read notes, run full-text or semantic search, manage tasks, apply
 
 ---
 
-🔒 **Private by design** — Note content never leaves your machine. Binds to `127.0.0.1` only.
+## ✨ Features
 
-🔐 **Obsidian stays in control** — The AI never accesses your files directly. Every operation is mediated by the running Obsidian instance, preserving its link graph, context, and integrity.
+<table>
+<tr>
+<td width="50%">
 
-🔌 **No plugins required** — Relies entirely on Obsidian's built-in integration APIs. Zero community plugins, no extra installs.
+**🔒 Private by design**
+Note content never leaves your machine. Binds to `127.0.0.1` only.
 
-🤖 **Works with any MCP client** — Claude, Cursor, Windsurf, Zed, and anything else that speaks MCP.
+</td>
+<td width="50%">
 
-🔍 **Semantic search** — Query your vault by meaning, not just keywords — fully offline.
+**🤖 Any MCP client**
+Claude, Cursor, Windsurf, Zed — HTTP or stdio transport, your choice.
 
-✋ **Explicit write consent** — Every change requires a two-step preview + confirm. Nothing is modified silently.
+</td>
+</tr>
+<tr>
+<td>
 
-🪟 **GUI navigation** — Open any note, search result, or daily note directly in Obsidian. The AI can hand work off to you in the UI.
+**🔌 No plugins required**
+Built on Obsidian's built-in CLI APIs. Zero community plugins needed.
 
-📋 **Vault conventions** — Document your folder structure and naming rules in `VAULTGATE.md` — injected into every AI session automatically.
+</td>
+<td>
 
----
+**🔍 Offline semantic search**
+Query by meaning, not just keywords — fully local via `@xenova/transformers`.
 
-## What it looks like
+</td>
+</tr>
+<tr>
+<td>
 
-The **tray companion app** sits in your macOS menu bar as a small gem icon.
-Right-click to see server status, copy the MCP connection URL, and monitor semantic
-index progress in real time. The preferences window lets you switch vaults, change
-the port, and locate the Obsidian binary — no config files to edit manually.
+**✋ Explicit write consent**
+Two-step preview + confirm. Nothing changes silently, ever.
 
-> _Screenshot — to be added after first public tray release._
+</td>
+<td>
 
----
+**📋 Vault conventions**
+`VAULTGATE.md` at your vault root is injected into every AI session automatically.
 
-```
-  Your AI Assistant
-  (Claude · Cursor · Windsurf · Zed · …)
-           │
-           │  Model Context Protocol  (HTTP or stdio)
-           ▼
-  ┌─────────────────────────────┐
-  │          VaultGate          │  ← this package
-  │       127.0.0.1 only        │
-  └──────┬──────────────┬───────┘
-         │              │
-  CLI · IPC socket      │  obsidian:// URI · OS launcher
-         │              │
-         └──────┬───────┘
-                ▼
-  ┌─────────────────────────────┐
-  │         Obsidian App        │
-  └─────────────┬───────────────┘
-                │  read / write
-                ▼
-  ┌─────────────────────────────┐
-  │         Your Vault          │  ← stays on your machine
-  └─────────────────────────────┘
-```
+</td>
+</tr>
+</table>
 
 ---
-
 
 ## Contents
 
@@ -180,7 +172,8 @@ Use sentence case for note titles. No special characters except hyphens.
 
 You can also ask your AI assistant: *"Help me set up vault conventions"* — it will analyse your vault structure and draft `VAULTGATE.md` for you using the `vault_context_set` tool.
 
-> **Note:** `VAULTGATE.md` is read at connection time. To pick up edits mid-session, ask your assistant to call `vault_context` — it always reads the current file content.
+> [!NOTE]
+> `VAULTGATE.md` is read at connection time. To pick up edits mid-session, ask your assistant to call `vault_context` — it always reads the current file content.
 
 ### 4. Connect your AI client
 
@@ -384,6 +377,7 @@ Every write tool defaults to `dryRun: true` — the AI shows a preview of the in
 | `eval` ⚠️ | Execute arbitrary JavaScript in the Obsidian renderer — review carefully before approving |
 | `vault_context_set` | Create or update `VAULTGATE.md` — the vault conventions file read by AI assistants at session start |
 
+> [!NOTE]
 > **templates_list / templates_apply** require the built-in **Templates** core plugin with a folder configured in its settings. If your vault uses the **Templater** community plugin instead (or the core plugin is disabled), these tools will return `Error: No template folder configured`. This is a configuration dependency, not a bug.
 
 ### Semantic search
@@ -398,7 +392,8 @@ When `@xenova/transformers` is available (installed as an optional dependency), 
 
 The embedding model (`bge-small-en-v1.5`, ~100 MB) downloads once to `~/.cache/huggingface/`. All subsequent operations are fully offline. If `@xenova/transformers` fails to load on the current platform, VaultGate starts normally with the base tool set — no configuration change required.
 
-> **Security note:** The `@xenova/transformers` package depends on `onnxruntime-web`, which in turn depends on `protobufjs` v6.x. The v6.x branch of protobufjs has [known vulnerabilities](https://github.com/protobufjs/protobuf.js/security/advisories). Your vault content is never sent to the network — the only external traffic is the one-time model download from HuggingFace. The risk is limited to the model download path and is inherited from the supply chain; it cannot be patched from this package until upstream updates.
+> [!WARNING]
+> The `@xenova/transformers` package depends on `onnxruntime-web`, which in turn depends on `protobufjs` v6.x. The v6.x branch of protobufjs has [known vulnerabilities](https://github.com/protobufjs/protobuf.js/security/advisories). Your vault content is never sent to the network — the only external traffic is the one-time model download from HuggingFace. The risk is limited to the model download path and is inherited from the supply chain; it cannot be patched from this package until upstream updates.
 
 ---
 

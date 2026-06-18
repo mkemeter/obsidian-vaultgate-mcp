@@ -1,54 +1,124 @@
-# VaultGate Tray Companion
+<div align="center">
 
-> A menu-bar app that runs the VaultGate MCP server in the background, with a one-click Smart Search index, autostart, and a "copy connection URL" button.
+<img src="assets/icon.svg" width="80" alt="VaultGate" />
 
-The tray companion is **optional**. The headless [`obsidian-vaultgate-mcp`](https://www.npmjs.com/package/obsidian-vaultgate-mcp) npm package remains the reference distribution and is unaffected by anything in this folder. Use the tray app if you want a GUI for what the npm package does on the command line.
+# VaultGate
+
+**Your Obsidian vault, accessible to any AI assistant — from your menu bar, no terminal needed.**
+
+[![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/mkemeter/obsidian-vaultgate-mcp/releases)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](../LICENSE)
+
+</div>
+
+A menu-bar app that runs the VaultGate MCP server in the background — with a pre-bundled Smart Search model, one-click connection URL, autostart, and logs in two clicks.
+
+> [!NOTE]
+> The tray companion is **optional**. The headless [`obsidian-vaultgate-mcp`](https://www.npmjs.com/package/obsidian-vaultgate-mcp) npm package is the reference distribution and is unaffected by anything here. Use the tray app if you want a GUI instead of the command line.
 
 ---
 
-## Platforms
+## ✨ Features
+
+<table>
+<tr>
+<td width="50%">
+
+**📊 Menu bar status at a glance**
+The tray icon shows server state at a glance — running, indexing, error — without opening a terminal.
+
+</td>
+<td width="50%">
+
+**🔍 Pre-bundled Smart Search**
+The embedding model (~34 MB) ships inside the app. Fully offline — no download, no network call, ever.
+
+</td>
+</tr>
+<tr>
+<td>
+
+**🔗 One-click connection URL**
+Click once to copy `http://127.0.0.1:3001/mcp` to your clipboard and paste into any AI client.
+
+</td>
+<td>
+
+**🚀 Open at Login**
+Native macOS login-items registration. No `launchctl` tweaking — just toggle the switch.
+
+</td>
+</tr>
+<tr>
+<td>
+
+**📋 Logs in two clicks**
+Server stdout/stderr forwarded to a rotating log file. Open it with one menu click.
+
+</td>
+<td>
+
+**⚙️ Full preferences window**
+Vault selector, port, Obsidian binary path — all in a UI. No config files to edit manually.
+
+</td>
+</tr>
+</table>
+
+---
+
+## Contents
+
+- [Platforms](#%EF%B8%8F-platforms)
+- [Install](#-install)
+- [First run](#-first-run)
+- [Connecting an AI client](#-connecting-an-ai-client)
+- [Preferences](#%EF%B8%8F-preferences)
+- [Smart Search](#-smart-search)
+- [Logs](#-logs)
+- [Quitting and uninstalling](#%EF%B8%8F-quitting-and-uninstalling)
+- [Code signing](#code-signing)
+- [Compared to the npm package](#compared-to-the-npm-package)
+- [Contributing](#-contributing--building-from-source)
+- [License](#license)
+
+---
+
+## 🖥️ Platforms
 
 | Platform | Tray companion | Headless npm package |
 |----------|----------------|----------------------|
 | macOS (Apple Silicon) | ✅ DMG | ✅ |
-| macOS (Intel) | ❌ Phase 2 (universal build) — use the npm package | ✅ |
+| macOS (Intel) | ❌ Use the npm package | ✅ |
 | Windows | ❌ Use the npm package | ✅ |
 | Linux | ❌ Use the npm package + `deploy/systemd/` | ✅ |
 
-The tray app targets macOS Apple Silicon only. The headless npm path supports Linux and Windows via the `deploy/` install scripts.
-
 ---
 
-## What it gives you
+## 🚀 Install
 
-- **Menu bar icon** — at-a-glance "is the server running?".
-- **Pre-bundled Smart Search** — the embedding model (~34 MB) ships inside the app, indexes silently on first run, and works fully offline.
-- **Copy Connection URL** — click once to put `http://127.0.0.1:3001/mcp` on your clipboard for pasting into Claude Code, Cursor, Windsurf, Zed, etc.
-- **Open at Login toggle** — uses macOS's native login-items registration (System Settings → General → Login Items). No `launchctl` tweaking needed.
-- **Logs in two clicks** — the server's stdout / stderr are forwarded to a rotating log file; "Open Logs…" opens it in your default editor.
-
----
-
-## Install
-
-> **Releases land at:** [github.com/mkemeter/obsidian-vaultgate-mcp/releases](https://github.com/mkemeter/obsidian-vaultgate-mcp/releases) under `v*` tags.
+> **Releases at:** [github.com/mkemeter/obsidian-vaultgate-mcp/releases](https://github.com/mkemeter/obsidian-vaultgate-mcp/releases) — `v*` tags
 
 ### macOS (Apple Silicon)
 
 1. Download `VaultGate-X.Y.Z-mac-arm64.dmg` from the latest `v*` release.
 2. Open the DMG and drag **VaultGate** into `Applications`.
-3. **Bypass Gatekeeper** (the app is unsigned — see [Code signing](#code-signing) below for context):
+3. **Bypass Gatekeeper** (the app is unsigned — see [Code signing](#code-signing) below):
 
-   ```bash
-   xattr -r -d com.apple.quarantine /Applications/VaultGate.app
-   ```
+   > [!WARNING]
+   > On macOS 15.1 and later, Apple removed the "Open Anyway" GUI button. Run this command in Terminal before launching:
+   >
+   > ```bash
+   > xattr -r -d com.apple.quarantine /Applications/VaultGate.app
+   > ```
+   >
+   > On older macOS you can right-click → Open the app and click "Open" in the dialog instead.
 
-   On macOS 15.1 and later this terminal command is **required** — Apple removed the "Open Anyway" GUI button in System Settings. On older macOS you can still right-click → Open the app the first time and click "Open" in the dialog.
 4. Launch VaultGate from Applications. The tray icon appears in the menu bar.
 
 ---
 
-## First run
+## 🔮 First run
 
 On first launch VaultGate will:
 
@@ -69,7 +139,7 @@ If anything goes wrong, the tray icon menu surfaces the failure mode:
 
 ---
 
-## Connecting an AI client
+## 🔗 Connecting an AI client
 
 After the tray icon shows `● Running — <Vault Name>`:
 
@@ -82,7 +152,7 @@ The URL never leaves `127.0.0.1` — it is bound to localhost and refuses other 
 
 ---
 
-## Preferences
+## ⚙️ Preferences
 
 Opens via the tray menu → **Preferences…**.
 
@@ -97,7 +167,7 @@ Saving any change **restarts the server** so the new settings take effect immedi
 
 ---
 
-## Smart Search
+## 🔍 Smart Search
 
 VaultGate's tray app ships with the [`Xenova/bge-small-en-v1.5`](https://huggingface.co/Xenova/bge-small-en-v1.5) embedding model pre-bundled (~34 MB). On first launch:
 
@@ -111,7 +181,7 @@ If the index gets stuck or you switch vaults aggressively, run the headless `cle
 
 ---
 
-## Logs
+## 📋 Logs
 
 The tray menu's **Open Logs…** opens `vaultgate.log` from the user-data directory:
 
@@ -123,20 +193,23 @@ Logs rotate at 10 MB; up to three files are retained (`vaultgate.log`, `.log.1`,
 
 ---
 
-## Quitting and uninstalling
+## 🗑️ Quitting and uninstalling
 
 - **Quit**: tray menu → **Quit VaultGate**. Sends `SIGTERM` to the bundled server, waits up to 3 s for in-flight HTTP requests to drain, then exits.
 - **Uninstall**: drag `VaultGate.app` to the Trash. Optionally delete `~/Library/Application Support/VaultGate/` to remove logs and config.
 
 ---
 
-## Code signing
+<details>
+<summary>Code signing</summary>
 
 VaultGate's tray app is **currently unsigned**. We don't ship a code-signing certificate because an Apple Developer Program membership ($99 / year) is out of scope for an early release.
 
 The audience for this app — developers building MCP integrations — handles unsigned binaries routinely. The trade-off is a one-time `xattr` command on first install.
 
-**Future plans**: notarization via the Apple Developer Program when broader distribution is needed.
+Notarization via the Apple Developer Program is not currently available.
+
+</details>
 
 ---
 
@@ -150,14 +223,14 @@ The audience for this app — developers building MCP integrations — handles u
 | Smart Search model | Pre-bundled (offline) | Downloaded on first use |
 | Updates | Manual download from GitHub releases | `npm update -g obsidian-vaultgate-mcp` |
 | Linux / Windows | ❌ | ✅ |
-| Bundle size | ~150 MB | ~ 6 MB + lazily-loaded model |
+| Bundle size | ~200 MB DMG | ~6 MB + lazily-loaded model |
 | Best for | Day-to-day use on macOS | Headless servers, Claude Code via stdio, Linux, Windows, scripting |
 
 You can mix the two: stop the tray app (or quit it), then run the npm package on the same machine — they don't fight as long as they don't bind the same port.
 
 ---
 
-## Contributing / building from source
+## 🤝 Contributing / building from source
 
 See [docs/TRAY-DEV.md](../docs/TRAY-DEV.md) for the developer guide: dev mode, build pipeline, packaging, CI, and how the tray app talks to the bundled server through `utilityProcess.fork()`.
 
