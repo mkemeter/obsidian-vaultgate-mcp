@@ -181,6 +181,40 @@ You can also ask your AI assistant: *"Help me set up vault conventions"* — it 
 
 ---
 
+## 💬 What can you ask?
+
+Once VaultGate is connected, talk to your vault naturally. A few examples across the main capabilities:
+
+**Finding & retrieving notes**
+> *"What did I write about the Q3 planning session?"*
+> *"Find all notes tagged #meeting and list their titles."*
+
+**Reading a note**
+> *"Read my note called 'Architecture decisions'."*
+
+**Creating & editing**
+> *"Create a meeting note for today called 'Kickoff with Anna' using the Meeting template."*
+> *"Append a summary of this conversation to my 'Project ideas' note."*
+
+**Daily notes & tasks**
+> *"What tasks are still open in today's daily note?"*
+> *"Add an action item to today's note: follow up with the team by Friday."*
+
+**Vault-wide task overview**
+> *"Show me all pending tasks across my vault."*
+
+**Discovery & linking**
+> *"Which notes link to my 'Team structure' note?"*
+> *"Find notes similar to my 'Onboarding plan'."* *(requires Smart Search)*
+
+**Handing off to the Obsidian UI**
+> *"Open today's daily note."*
+> *"Open my 'Architecture decisions' note and scroll to the Risks section."*
+
+For the full list of capabilities, see [Available tools](#available-tools).
+
+---
+
 ## Headless npm Package
 
 The reference distribution — runs on macOS, Linux, and Windows with no GUI. Ideal for [Claude Code](#claude-code) stdio integration, headless servers, and scripted setups.
