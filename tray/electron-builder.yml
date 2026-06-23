@@ -53,22 +53,8 @@ mac:
 
 dmg:
   sign: false
-  artifactName: "${productName}-${version}-mac-arm64.${ext}"
-  background: build/dmg-background.png
-  window:
-    width: 660
-    height: 450
-  contents:
-    - x: 180
-      y: 145
-      type: file
-    - x: 480
-      y: 145
-      type: link
-      path: /Applications
-    - x: 330
-      y: 395
-      type: file
-      path: build/INSTALL.txt
+  # Background image, window size, icon positions, and INSTALL.txt are handled
+  # by scripts/package-dmg.js (create-dmg) — not electron-builder — to work
+  # around electron-builder's APFS background image bug on Apple Silicon.
 
 # No win or linux section → macOS arm64 DMG only

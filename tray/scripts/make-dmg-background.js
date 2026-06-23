@@ -93,14 +93,14 @@ const svg = `
   <!-- Warning body -->
   <text x="28" y="${BOX_Y + 50}"
     font-family="Helvetica Neue,Helvetica,Arial,sans-serif"
-    font-size="12" fill="#78350f">Open INSTALL.txt (icon below) for a one-line Terminal fix. Or install via Homebrew to skip this entirely:</text>
+    font-size="12" fill="#78350f">Open INSTALL.txt (icon below) for the fix, or run this command in Terminal:</text>
 
-  <!-- Brew command box -->
+  <!-- xattr command box -->
   <rect x="28" y="${BOX_Y + 58}" width="${W - 56}" height="24" rx="4"
     fill="#ede9fe" stroke="#c4b5fd" stroke-width="1"/>
   <text x="38" y="${BOX_Y + 74}"
     font-family="Courier New,Courier,monospace"
-    font-size="11.5" fill="#5b21b6">brew install --cask mkemeter/vaultgate/vaultgate</text>
+    font-size="11.5" fill="#5b21b6">xattr -r -d com.apple.quarantine /Applications/VaultGate.app</text>
 
   <!-- Arrow pointing down to INSTALL.txt icon -->
   <text x="${INSTALL_X}" y="${BOX_Y + BOX_H + 26}"

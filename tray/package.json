@@ -1,6 +1,6 @@
 {
   "name": "vaultgate",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "VaultGate tray companion — runs the obsidian-vaultgate-mcp server with a menu-bar UI.",
   "author": "Mathias Kemeter",
@@ -19,7 +19,7 @@
     "download-models": "node scripts/download-models.js",
     "generate-icons": "node scripts/generate-icons.js",
     "build": "npm run build:server && npm run bundle:server && npm run bundle:deps && npm run build:tray && npm run build:renderer",
-    "package": "npm run build && electron-builder",
+    "package": "npm run build && electron-builder --mac --dir && node scripts/package-dmg.js",
     "dev": "npm run build && electron .",
     "rebuild": "electron-rebuild",
     "test": "vitest run",

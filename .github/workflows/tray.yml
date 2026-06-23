@@ -71,8 +71,25 @@ jobs:
         run: npm run build
         working-directory: tray
 
-      - name: Package
-        run: npx electron-builder --mac --publish ${{ startsWith(github.ref, 'refs/tags/v') && 'always' || 'never' }}
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Build app bundle
+        run: npx electron-builder --mac --dir
+        working-directory: tray
+
+      - name: Create DMG
+        run: node scripts/package-dmg.js
+        working-directory: tray
+
+      - name: Publish to GitHub Releases
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "VaultGate ${{ github.ref_name }}" \
+            --generate-notes 2>/dev/null || true
+          gh release upload "${{ github.ref_name }}" \
+            dist/VaultGate-*.dmg --clobber
         working-directory: tray
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

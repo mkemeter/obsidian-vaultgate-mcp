@@ -11,9 +11,4 @@ To fix it, paste this command into Terminal and press Return:
 Then open VaultGate from Applications as usual.
 
 ------------------------------------------------------------------------
-EASIER: Install via Homebrew (handles quarantine removal automatically)
-
-    brew install --cask mkemeter/vaultgate/vaultgate
-
-------------------------------------------------------------------------
 More info: https://github.com/mkemeter/obsidian-vaultgate-mcp
