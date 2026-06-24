@@ -21,11 +21,10 @@
   const saveBtn = document.getElementById("save");
   const cancelBtn = document.getElementById("cancel");
 
-  const [config, vaults, autostart, suggestedPort, serverState] = await Promise.all([
+  const [config, vaults, autostart, serverState] = await Promise.all([
     api.loadConfig(),
     api.listVaults(),
     api.isAutostartEnabled(),
-    api.suggestPort(),
     api.getServerState(),
   ]);
 
@@ -42,8 +41,8 @@
   }
   vaultSelect.value = config.vault ?? "";
 
-  // Port — use suggested (free) port if the saved port is taken ----------------
-  portInput.value = String(suggestedPort);
+  // Port — always show the saved port; validatePort() will flag any conflict ----
+  portInput.value = String(config.port);
   obsidianInput.value =
     config.obsidianPath || (await api.detectObsidianPath()) || "";
   autostartInput.checked = Boolean(autostart);
@@ -99,7 +98,7 @@
     const port = Number.parseInt(portInput.value, 10);
     const patch = {
       vault: vaultSelect.value,
-      port: Number.isFinite(port) ? port : suggestedPort,
+      port: Number.isFinite(port) ? port : config.port,
       obsidianPath: obsidianInput.value,
     };
     await api.setAutostart(autostartInput.checked);
