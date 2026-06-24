@@ -47,7 +47,7 @@ jobs:
         working-directory: server
 
       - name: Cache embedding model
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: tray/assets/models
           key: models-bge-small-en-v1.5
