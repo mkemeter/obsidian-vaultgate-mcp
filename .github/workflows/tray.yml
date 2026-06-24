@@ -18,7 +18,8 @@ on:
       - ".github/workflows/tray.yml"
 
 permissions:
-  contents: write   # required for electron-builder to create GitHub Releases
+  contents: write   # required to create GitHub Releases and upload assets
+  actions: write    # required to dispatch publish.yml after release
 
 jobs:
   build:
@@ -91,6 +92,12 @@ jobs:
           gh release upload "${{ github.ref_name }}" \
             dist/VaultGate-*.dmg --clobber
         working-directory: tray
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trigger npm publish
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: gh workflow run publish.yml
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
