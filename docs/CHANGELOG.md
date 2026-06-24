@@ -11,6 +11,16 @@ A section may be absent if that distribution had no changes in the release.
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-06-23
+
+### Tray
+
+#### Fixed
+
+- DMG background image now renders correctly on Apple Silicon (APFS) — switched from electron-builder to create-dmg (HFS+) to fix silent background failure
+- Added drag-to-Applications instruction overlay and `xattr` fix guidance for the macOS 15+ "damaged app" Gatekeeper error
+- Added `INSTALL.txt` inside the DMG with a copyable `xattr -cr` command for users who encounter Gatekeeper quarantine
+
 ## [0.2.0] — 2026-06-18
 
 ### Server
