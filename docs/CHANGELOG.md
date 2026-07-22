@@ -17,6 +17,10 @@ A section may be absent if that distribution had no changes in the release.
 
 - Configurable conventions filename via `OBSIDIAN_CONTEXT_FILE` (default `VAULTGATE.md`). Point it at an existing file such as `CLAUDE.md` to reuse it. Must be a bare `.md` filename in the vault root — path separators and `..` are rejected at startup.
 
+#### Security
+
+- Bumped transitive `fast-uri` 3.1.2 → 3.1.4 (via `@modelcontextprotocol/sdk` → `ajv`) to clear the high-severity host-confusion advisories GHSA-4c8g-83qw-93j6 / GHSA-v2hh-gcrm-f6hx that were failing the CI audit gate.
+
 ### Tray
 
 #### Added
