@@ -312,7 +312,7 @@ Installs a systemd user service under `~/.config/systemd/user/` that starts Vaul
 powershell -ExecutionPolicy Bypass -File "$(npm root -g)\obsidian-vaultgate-mcp\deploy\install.ps1"
 ```
 
-Detects paths automatically, prompts for your vault name, writes a startup wrapper, and registers a Task Scheduler task that runs VaultGate at login.
+Detects paths automatically, prompts for your vault name, writes a startup wrapper, and registers a Task Scheduler task that runs VaultGate at login. It looks for Obsidian at `%LOCALAPPDATA%\Programs\Obsidian\Obsidian.exe` (the standard per-user install) and falls back to a prompt if your installation lives elsewhere.
 
 ### Uninstall
 

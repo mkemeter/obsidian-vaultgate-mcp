@@ -21,6 +21,10 @@ A section may be absent if that distribution had no changes in the release.
 
 - Bumped transitive `fast-uri` 3.1.2 → 3.1.4 (via `@modelcontextprotocol/sdk` → `ajv`) to clear the high-severity host-confusion advisories GHSA-4c8g-83qw-93j6 / GHSA-v2hh-gcrm-f6hx that were failing the CI audit gate.
 
+#### Fixed
+
+- Windows installer (`deploy/install.ps1`) now detects the standard per-user install location `%LOCALAPPDATA%\Programs\Obsidian\Obsidian.exe` (plus fallbacks) and validates the resolved/entered path is a file, so `start.cmd` can no longer be written with a directory path. The startup health check also rejects an `OBSIDIAN_CLI_PATH` that points at a directory, with an actionable message instead of a later opaque `ENOENT` (#11).
+
 ### Tray
 
 #### Added

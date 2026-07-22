@@ -20,11 +20,32 @@ if (-not (Test-Path $mcpScript)) {
 Write-Host "Package script:  $mcpScript"
 
 # --- Detect Obsidian binary -----------------------------------------------
-$obsidianDefault = "$env:LOCALAPPDATA\Obsidian\Obsidian.exe"
-if (Test-Path $obsidianDefault) {
-    $obsidianPath = $obsidianDefault
-} else {
-    $obsidianPath = Read-Host "Enter the absolute path to Obsidian.exe"
+# Probe the known per-user and system-wide install locations. Each candidate
+# is tested with -PathType Leaf so a directory never passes as the binary.
+# The standard NSIS per-user install lives under \Programs\ — check it first.
+$obsidianCandidates = @(
+    "$env:LOCALAPPDATA\Programs\Obsidian\Obsidian.exe",
+    "$env:LOCALAPPDATA\Obsidian\Obsidian.exe",
+    "$env:PROGRAMFILES\Obsidian\Obsidian.exe"
+)
+$obsidianPath = $obsidianCandidates | Where-Object { Test-Path $_ -PathType Leaf } | Select-Object -First 1
+
+# Fall back to an interactive prompt, re-validating until a real file is given.
+if (-not $obsidianPath) {
+    $attempts = 0
+    while ($true) {
+        $entered = Read-Host "Enter the absolute path to Obsidian.exe (the file, not the folder)"
+        if (Test-Path $entered -PathType Leaf) {
+            $obsidianPath = $entered
+            break
+        }
+        $attempts++
+        Write-Host "  Not a file: '$entered'" -ForegroundColor Yellow
+        if ($attempts -ge 3) {
+            Write-Error "Could not locate Obsidian.exe after 3 attempts. Re-run the installer with a valid path."
+            exit 1
+        }
+    }
 }
 Write-Host "Obsidian:        $obsidianPath"
 
