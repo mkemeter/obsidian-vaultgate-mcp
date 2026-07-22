@@ -16,6 +16,8 @@
   const portInput = document.getElementById("port");
   const portError = document.getElementById("port-error");
   const obsidianInput = document.getElementById("obsidian");
+  const contextFileInput = document.getElementById("context-file");
+  const contextFileError = document.getElementById("context-file-error");
   const autostartInput = document.getElementById("autostart");
   const browseBtn = document.getElementById("browse");
   const saveBtn = document.getElementById("save");
@@ -45,6 +47,7 @@
   portInput.value = String(config.port);
   obsidianInput.value =
     config.obsidianPath || (await api.detectObsidianPath()) || "";
+  contextFileInput.value = config.contextFileName || "VAULTGATE.md";
   autostartInput.checked = Boolean(autostart);
 
   // Wire server state into status indicator ------------------------------------
@@ -79,6 +82,35 @@
     portCheckTimer = setTimeout(validatePort, 400);
   });
 
+  // Conventions filename validation --------------------------------------------
+  // Mirrors the authoritative rule in src/context-file.ts for instant feedback:
+  // a bare .md filename in the vault root (no path separators, no "..").
+  // Empty is allowed — the server falls back to VAULTGATE.md.
+  function setContextFileError(msg) {
+    contextFileError.textContent = msg;
+    contextFileInput.classList.toggle("error", Boolean(msg));
+    saveBtn.disabled = Boolean(msg);
+  }
+
+  function validateContextFile() {
+    const value = contextFileInput.value.trim();
+    if (!value) {
+      setContextFileError("");
+      return;
+    }
+    if (value.includes("/") || value.includes("\\") || value.includes("..")) {
+      setContextFileError('Must be a bare filename in the vault root (no "/", "\\", or "..").');
+      return;
+    }
+    if (!value.toLowerCase().endsWith(".md")) {
+      setContextFileError("Must be a Markdown file ending in .md.");
+      return;
+    }
+    setContextFileError("");
+  }
+
+  contextFileInput.addEventListener("input", validateContextFile);
+
   // Run initial validation (the suggested port should always be free, but
   // if the saved port differs it may be in conflict).
   await validatePort();
@@ -92,14 +124,24 @@
   // Save -----------------------------------------------------------------------
   saveBtn.addEventListener("click", async () => {
     // Re-validate synchronously before saving in case the user typed fast.
+    // validateContextFile first, then validatePort — validatePort runs last and
+    // sets the final saveBtn.disabled state, so guard on both errors explicitly.
+    validateContextFile();
+    const contextFileInvalid = Boolean(contextFileError.textContent);
     await validatePort();
-    if (saveBtn.disabled) return;
+    if (saveBtn.disabled || contextFileInvalid) {
+      // Re-assert disabled in case validatePort cleared it while the filename
+      // is still invalid.
+      saveBtn.disabled = true;
+      return;
+    }
 
     const port = Number.parseInt(portInput.value, 10);
     const patch = {
       vault: vaultSelect.value,
       port: Number.isFinite(port) ? port : config.port,
       obsidianPath: obsidianInput.value,
+      contextFileName: contextFileInput.value.trim() || "VAULTGATE.md",
     };
     await api.setAutostart(autostartInput.checked);
     await api.saveConfig(patch);

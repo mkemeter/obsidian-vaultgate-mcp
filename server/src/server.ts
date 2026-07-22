@@ -8,6 +8,7 @@ import {
   SUPPORTED_PROTOCOL_VERSIONS,
 } from "@modelcontextprotocol/sdk/types.js";
 import { runObsidian } from "./cli.js";
+import { config } from "./config.js";
 import { registerContextTools } from "./tools/context.js";
 import { registerDailyTools } from "./tools/daily.js";
 import { registerDevTools } from "./tools/dev.js";
@@ -92,13 +93,13 @@ export async function createServer(iconUrl?: string): Promise<McpServer> {
 
   const server = new McpServer(serverInfo);
 
-  // Lazily inject VAULTGATE.md as MCP instructions when a client initialises.
-  // Overrides the default initialize handler on the inner Server so Obsidian is
-  // only contacted when a client actually connects — not at server startup.
+  // Lazily inject the vault conventions file as MCP instructions when a client
+  // initialises. Overrides the default initialize handler on the inner Server so
+  // Obsidian is only contacted when a client actually connects — not at startup.
   server.server.setRequestHandler(InitializeRequestSchema, async (request) => {
     let vaultInstructions: string | undefined;
     try {
-      const raw = await runObsidian(["read", "path=VAULTGATE.md"]);
+      const raw = await runObsidian(["read", `path=${config.contextFileName}`]);
       if (raw.trim()) {
         vaultInstructions = `${raw.trim()}\n\n> Vault context received. You do not need to call \`vault_context\`.`;
       }

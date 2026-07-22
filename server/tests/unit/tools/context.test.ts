@@ -4,11 +4,18 @@ import { registerContextTools } from "../../../src/tools/context.js";
 
 vi.mock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
 vi.mock("../../../src/config.js", () => ({
-  config: { vault: undefined, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+  config: {
+    vault: undefined,
+    cliBin: "obsidian",
+    port: 3001,
+    host: "127.0.0.1",
+    contextFileName: "VAULTGATE.md",
+  },
 }));
 
 const { runObsidian } = await import("../../../src/cli.js");
 const mockRun = vi.mocked(runObsidian);
+const { config } = await import("../../../src/config.js");
 
 function invoke(server: McpServer, name: string, args: Record<string, unknown>) {
   // @ts-ignore
@@ -25,9 +32,12 @@ function makeServer() {
 }
 
 describe("vault_context", () => {
-  beforeEach(() => vi.resetAllMocks());
+  beforeEach(() => {
+    vi.resetAllMocks();
+    config.contextFileName = "VAULTGATE.md";
+  });
 
-  it("returns file content when VAULTGATE.md exists", async () => {
+  it("returns file content when the conventions file exists", async () => {
     mockRun.mockResolvedValue("# Vault Conventions\nUse tags liberally.");
     const result = await invoke(makeServer(), "vault_context", {});
     expect(mockRun).toHaveBeenCalledWith(["read", "path=VAULTGATE.md"]);
@@ -35,11 +45,18 @@ describe("vault_context", () => {
     expect(result.isError).toBeUndefined();
   });
 
+  it("reads the configured filename when contextFileName is customised", async () => {
+    config.contextFileName = "CLAUDE.md";
+    mockRun.mockResolvedValue("# Conventions");
+    await invoke(makeServer(), "vault_context", {});
+    expect(mockRun).toHaveBeenCalledWith(["read", "path=CLAUDE.md"]);
+  });
+
   it("returns not-found message when file is absent", async () => {
     mockRun.mockRejectedValue(new Error("File not found: VAULTGATE.md"));
     const result = await invoke(makeServer(), "vault_context", {});
     expect(result.isError).toBeUndefined();
-    expect(result.content[0].text).toContain("No VAULTGATE.md found");
+    expect(result.content[0].text).toContain("No vault conventions file found");
     expect(result.content[0].text).toContain("vault_context_set");
   });
 
@@ -52,7 +69,10 @@ describe("vault_context", () => {
 });
 
 describe("vault_context_set", () => {
-  beforeEach(() => vi.resetAllMocks());
+  beforeEach(() => {
+    vi.resetAllMocks();
+    config.contextFileName = "VAULTGATE.md";
+  });
 
   it("returns dry-run preview without calling CLI when dryRun=true", async () => {
     const result = await invoke(makeServer(), "vault_context_set", {
@@ -76,8 +96,23 @@ describe("vault_context_set", () => {
       "content=# My Conventions",
       "overwrite",
     ]);
-    expect(result.content[0].text).toContain("VAULTGATE.md updated");
+    expect(result.content[0].text).toContain("Vault conventions file updated");
     expect(result.isError).toBeUndefined();
+  });
+
+  it("writes to the configured filename when contextFileName is customised", async () => {
+    config.contextFileName = "CLAUDE.md";
+    mockRun.mockResolvedValue("");
+    await invoke(makeServer(), "vault_context_set", {
+      content: "# My Conventions",
+      dryRun: false,
+    });
+    expect(mockRun).toHaveBeenCalledWith([
+      "create",
+      "name=CLAUDE.md",
+      "content=# My Conventions",
+      "overwrite",
+    ]);
   });
 
   it("returns isError=true when CLI fails on dryRun=false", async () => {

@@ -10,6 +10,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { app } from "electron";
+import { DEFAULT_CONTEXT_FILE } from "./context-file.js";
 
 /** User-editable VaultGate settings persisted to disk. */
 export interface VaultGateConfig {
@@ -19,6 +20,12 @@ export interface VaultGateConfig {
   port: number;
   /** Absolute path to the Obsidian binary (CLI entry point). */
   obsidianPath: string;
+  /**
+   * Filename of the vault conventions file (in the vault root) that the server
+   * reads at session start. Defaults to `"VAULTGATE.md"`; can be pointed at an
+   * existing file such as `CLAUDE.md`.
+   */
+  contextFileName: string;
   /** Whether the user has been notified once that the index is ready. */
   smartSearchReadyNotified: boolean;
 }
@@ -35,6 +42,7 @@ const DEFAULTS: VaultGateConfig = {
   vault: "",
   port: 3002,
   obsidianPath: "",
+  contextFileName: DEFAULT_CONTEXT_FILE,
   smartSearchReadyNotified: false,
 };
 

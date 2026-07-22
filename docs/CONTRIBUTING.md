@@ -77,7 +77,7 @@ server/
 ├── src/
 │   ├── index.ts          Entry point — detects stdio vs HTTP mode, starts transport
 │   ├── server.ts         Creates McpServer and registers all tool groups
-│   ├── config.ts         Loads env vars (OBSIDIAN_VAULT, OBSIDIAN_CLI_PATH, OBSIDIAN_MCP_PORT)
+│   ├── config.ts         Loads env vars (OBSIDIAN_VAULT, OBSIDIAN_CLI_PATH, OBSIDIAN_MCP_PORT, OBSIDIAN_CONTEXT_FILE)
 │   ├── cli.ts            runObsidian() — the single point of contact with the CLI binary
 │   ├── health.ts         Startup check — verifies the binary is reachable before serving
 │   ├── uri.ts            openUri() / runUri() — OS-level URI dispatch (obsidian:// links)
@@ -486,7 +486,9 @@ The tray code never imports server sources directly. It depends on the **build o
 
 ### Branch strategy
 
-All tray work lives on **`feature/tray-initial`**. `main` carries the headless-only npm package and is released independently.
+Both distributions share the single **`main`** branch (the tray work formerly on
+`feature/tray-initial` has been merged). `main` carries both the headless npm package and the tray
+companion and must stay releasable.
 
 - The tray app does **not** affect `npm publish` — the root `package.json` `"files"` allowlist excludes `tray/`.
 - A separate CI workflow ([`.github/workflows/tray.yml`](../.github/workflows/tray.yml)) builds tray artifacts and is path-filtered to `tray/**` — it never blocks npm releases.

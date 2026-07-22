@@ -37,7 +37,8 @@ export function registerPrefsIpc(): void {
     const vaultChanged = patch.vault !== undefined && patch.vault !== current.vault;
     const requiresRestart =
       (patch.port !== undefined && patch.port !== current.port) ||
-      (patch.obsidianPath !== undefined && patch.obsidianPath !== current.obsidianPath);
+      (patch.obsidianPath !== undefined && patch.obsidianPath !== current.obsidianPath) ||
+      (patch.contextFileName !== undefined && patch.contextFileName !== current.contextFileName);
 
     if (requiresRestart) {
       // Port or binary path changed — must restart to rebind the HTTP listener.
@@ -79,7 +80,7 @@ export function openPrefsWindow(): void {
 
   prefsWindow = new BrowserWindow({
     width: 420,
-    height: 380,
+    height: 440,
     resizable: false,
     minimizable: false,
     maximizable: false,

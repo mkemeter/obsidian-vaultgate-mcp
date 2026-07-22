@@ -5,7 +5,7 @@ name: Tray CI / Release
 
 on:
   push:
-    branches: [main, feature/tray-initial]
+    branches: [main]
     paths:
       - "tray/**"
       - ".github/workflows/tray.yml"

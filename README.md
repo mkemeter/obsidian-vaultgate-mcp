@@ -153,6 +153,8 @@ This writes a socket/pipe entry that VaultGate uses to communicate with the runn
 
 Create a file called `VAULTGATE.md` at the root of your vault to document how your vault is organised. Its contents are automatically injected into the AI assistant's system prompt at every new session — so it always knows your folder structure, naming rules, tag taxonomy, frontmatter schema, and template conventions without you having to explain them each time.
 
+> Prefer a different filename? Set `OBSIDIAN_CONTEXT_FILE` (or the **Conventions file** field in the tray Preferences) to any bare `.md` filename in your vault root — for example `CLAUDE.md` to reuse a file you already maintain. Defaults to `VAULTGATE.md`.
+
 **Sample `VAULTGATE.md`:**
 
 ```markdown
@@ -350,6 +352,7 @@ All configuration via environment variables. None are required for single-vault 
 | `OBSIDIAN_MCP_PORT` | `3001` | TCP port for HTTP mode. |
 | `OBSIDIAN_MCP_TRANSPORT` | _(auto-detect)_ | `http` to force HTTP mode, `stdio` to force stdio. Auto-detected from `stdin.isTTY`. |
 | `OBSIDIAN_CLI_PATH` | `obsidian` | Absolute path to the Obsidian binary. Required in service contexts where `PATH` differs from the user shell. |
+| `OBSIDIAN_CONTEXT_FILE` | `VAULTGATE.md` | Filename of the vault conventions file (in the vault root). Point it at an existing file such as `CLAUDE.md` to reuse it. Bare `.md` filename only — no path. |
 
 ### Available tools
 

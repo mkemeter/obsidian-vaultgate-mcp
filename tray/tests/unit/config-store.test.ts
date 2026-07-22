@@ -99,6 +99,7 @@ describe("loadConfig / saveConfig / hasConfig", () => {
       vault: "",
       port: 3002,
       obsidianPath: "",
+      contextFileName: "VAULTGATE.md",
       smartSearchReadyNotified: false,
     });
   });
@@ -112,8 +113,15 @@ describe("loadConfig / saveConfig / hasConfig", () => {
       vault: "MyVault",
       port: 4242,
       obsidianPath: "",
+      contextFileName: "VAULTGATE.md",
       smartSearchReadyNotified: false,
     });
+  });
+
+  it("persists a custom conventions filename", async () => {
+    const { saveConfig, loadConfig } = await import("../../src/config-store.js");
+    saveConfig({ contextFileName: "CLAUDE.md" });
+    expect(loadConfig().contextFileName).toBe("CLAUDE.md");
   });
 
   it("merges sequential patches without losing earlier fields", async () => {

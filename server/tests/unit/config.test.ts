@@ -26,6 +26,7 @@ describe("loadConfig", () => {
     delete process.env.OBSIDIAN_VAULT;
     delete process.env.OBSIDIAN_CLI_PATH;
     delete process.env.OBSIDIAN_MCP_PORT;
+    delete process.env.OBSIDIAN_CONTEXT_FILE;
   });
 
   afterEach(() => {
@@ -39,6 +40,7 @@ describe("loadConfig", () => {
     expect(cfg.cliBin).toBe("obsidian");
     expect(cfg.port).toBe(3001);
     expect(cfg.host).toBe("127.0.0.1");
+    expect(cfg.contextFileName).toBe("VAULTGATE.md");
   });
 
   it("reads OBSIDIAN_VAULT from environment", async () => {
@@ -123,5 +125,67 @@ describe("loadConfig", () => {
     const { loadConfig } = await import("../../src/config.js?fresh=7");
     const cfg = loadConfig();
     expect(cfg.host).toBe("127.0.0.1");
+  });
+
+  it("reads OBSIDIAN_CONTEXT_FILE from environment", async () => {
+    process.env.OBSIDIAN_CONTEXT_FILE = "CLAUDE.md";
+    const { loadConfig } = await import("../../src/config.js?fresh=8");
+    const cfg = loadConfig();
+    expect(cfg.contextFileName).toBe("CLAUDE.md");
+  });
+
+  it("falls back to VAULTGATE.md when OBSIDIAN_CONTEXT_FILE is whitespace only", async () => {
+    process.env.OBSIDIAN_CONTEXT_FILE = "   ";
+    const { loadConfig } = await import("../../src/config.js?fresh=8a");
+    const cfg = loadConfig();
+    expect(cfg.contextFileName).toBe("VAULTGATE.md");
+  });
+
+  it("throws when OBSIDIAN_CONTEXT_FILE contains a path separator", async () => {
+    process.env.OBSIDIAN_CONTEXT_FILE = "sub/CLAUDE.md";
+    await expect(import("../../src/config.js?fresh=8b")).rejects.toThrow(
+      'Invalid OBSIDIAN_CONTEXT_FILE value "sub/CLAUDE.md"'
+    );
+  });
+
+  it("throws when OBSIDIAN_CONTEXT_FILE is not a Markdown file", async () => {
+    process.env.OBSIDIAN_CONTEXT_FILE = "notes.txt";
+    await expect(import("../../src/config.js?fresh=8c")).rejects.toThrow(
+      'Invalid OBSIDIAN_CONTEXT_FILE value "notes.txt"'
+    );
+  });
+});
+
+describe("normalizeContextFileName", () => {
+  it("returns the default when the value is undefined or empty", async () => {
+    const { normalizeContextFileName } = await import("../../src/config.js");
+    expect(normalizeContextFileName(undefined)).toBe("VAULTGATE.md");
+    expect(normalizeContextFileName("")).toBe("VAULTGATE.md");
+  });
+
+  it("accepts a bare .md filename (case-insensitive extension)", async () => {
+    const { normalizeContextFileName } = await import("../../src/config.js");
+    expect(normalizeContextFileName("CLAUDE.md")).toBe("CLAUDE.md");
+    expect(normalizeContextFileName("Notes.MD")).toBe("Notes.MD");
+  });
+
+  it("rejects forward-slash path separators", async () => {
+    const { normalizeContextFileName } = await import("../../src/config.js");
+    expect(() => normalizeContextFileName("a/b.md")).toThrow("must be a bare filename");
+  });
+
+  it("rejects backslash path separators", async () => {
+    const { normalizeContextFileName } = await import("../../src/config.js");
+    expect(() => normalizeContextFileName("a\\b.md")).toThrow("must be a bare filename");
+  });
+
+  it("rejects parent-directory segments", async () => {
+    const { normalizeContextFileName } = await import("../../src/config.js");
+    expect(() => normalizeContextFileName("..md")).toThrow("must be a bare filename");
+  });
+
+  it("rejects filenames that do not end in .md", async () => {
+    const { normalizeContextFileName } = await import("../../src/config.js");
+    expect(() => normalizeContextFileName("notes.txt")).toThrow('must be a Markdown file ending in ".md"');
   });
 });

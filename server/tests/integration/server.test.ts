@@ -149,7 +149,7 @@ describe("server initialize handler", () => {
     expect(result?.instructions).toBeUndefined();
   });
 
-  it("includes instructions when runObsidian returns VAULTGATE.md content", async () => {
+  it("includes instructions when runObsidian returns conventions file content", async () => {
     const { runObsidian } = await import("../../src/cli.js");
     vi.mocked(runObsidian).mockResolvedValue("# My Vault\nsome conventions");
 

@@ -11,6 +11,18 @@ A section may be absent if that distribution had no changes in the release.
 
 ## [Unreleased]
 
+### Server
+
+#### Added
+
+- Configurable conventions filename via `OBSIDIAN_CONTEXT_FILE` (default `VAULTGATE.md`). Point it at an existing file such as `CLAUDE.md` to reuse it. Must be a bare `.md` filename in the vault root — path separators and `..` are rejected at startup.
+
+### Tray
+
+#### Added
+
+- **Conventions file** field in Preferences to set the conventions filename (default `VAULTGATE.md`); changing it restarts the bundled server so the new file takes effect.
+
 ## [0.2.1] — 2026-06-23
 
 ### Tray

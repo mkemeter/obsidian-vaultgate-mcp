@@ -41,6 +41,50 @@ export interface Config {
    * Kept as a named constant to make intent explicit in server code.
    */
   readonly host: "127.0.0.1";
+
+  /**
+   * Filename of the vault conventions file read at session start and via
+   * `vault_context` / written by `vault_context_set`. Always resolved
+   * relative to the vault root — only the name is configurable, never a path.
+   *
+   * Defaults to `"VAULTGATE.md"`. Set `OBSIDIAN_CONTEXT_FILE` to reuse an
+   * existing file such as `CLAUDE.md` instead of maintaining a separate one.
+   */
+  contextFileName: string;
+}
+
+/** Default conventions filename when `OBSIDIAN_CONTEXT_FILE` is unset. */
+const DEFAULT_CONTEXT_FILE = "VAULTGATE.md";
+
+/**
+ * Normalises and validates the configured conventions filename.
+ *
+ * The file must live in the vault root, so only a bare filename is accepted:
+ * path separators (`/`, `\`) and `..` segments are rejected, and the name must
+ * end in `.md`. An empty or unset value falls back to the default.
+ *
+ * @param raw  Raw `OBSIDIAN_CONTEXT_FILE` value (already trimmed), or undefined.
+ * @returns    A validated bare `.md` filename.
+ * @throws     Error when the value contains a path separator, a `..` segment,
+ *             or does not end in `.md`.
+ */
+export function normalizeContextFileName(raw: string | undefined): string {
+  if (!raw) return DEFAULT_CONTEXT_FILE;
+
+  if (raw.includes("/") || raw.includes("\\") || raw.includes("..")) {
+    throw new Error(
+      `Invalid OBSIDIAN_CONTEXT_FILE value "${raw}" — must be a bare filename ` +
+        `in the vault root (no path separators or "..").`
+    );
+  }
+
+  if (!raw.toLowerCase().endsWith(".md")) {
+    throw new Error(
+      `Invalid OBSIDIAN_CONTEXT_FILE value "${raw}" — must be a Markdown file ending in ".md".`
+    );
+  }
+
+  return raw;
 }
 
 /**
@@ -66,6 +110,7 @@ export function loadConfig(): Config {
     cliBin: process.env.OBSIDIAN_CLI_PATH || "obsidian",
     port,
     host: "127.0.0.1",
+    contextFileName: normalizeContextFileName(process.env.OBSIDIAN_CONTEXT_FILE?.trim()),
   };
 }
 
