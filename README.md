@@ -227,11 +227,15 @@ The reference distribution — runs on macOS, Linux, and Windows with no GUI. Id
 npm install -g obsidian-vaultgate-mcp
 ```
 
+> **Windows:** run all commands in this guide from **Windows PowerShell**, not Command Prompt (`cmd.exe`). The `$(npm root -g)\...` syntax used by the auto-start and uninstall steps below is PowerShell syntax and will not work in Command Prompt.
+
 To try without installing globally:
 
 ```bash
 npx obsidian-vaultgate-mcp
 ```
+
+The default install includes [semantic search](#semantic-search) (recommended). If the install fails compiling a native dependency — typically on locked-down corporate machines where a proxy blocks the prebuilt-binary download and it falls back to a source build requiring **Python** — install without it: `npm install -g obsidian-vaultgate-mcp --omit=optional`. VaultGate keeps all core tools; only semantic search is unavailable until you re-run the default install.
 
 ### Connect your AI client
 
