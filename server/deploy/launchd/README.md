@@ -5,7 +5,7 @@ This directory contains a launchd agent that starts `obsidian-vaultgate-mcp` aut
 ## Quick install
 
 ```bash
-bash "$(npm root -g)/obsidian-vaultgate-mcp/deploy/install.sh"
+obsidian-vaultgate-mcp-install
 ```
 
 The install script will:

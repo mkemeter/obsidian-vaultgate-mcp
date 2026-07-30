@@ -11,6 +11,16 @@ A section may be absent if that distribution had no changes in the release.
 
 ## [Unreleased]
 
+### Server
+
+#### Added
+
+- Shell-agnostic auto-start commands `obsidian-vaultgate-mcp-install` and `obsidian-vaultgate-mcp-uninstall`. They run the platform's deploy script (launchd / systemd / Task Scheduler) directly, so setup no longer requires the PowerShell-only `$(npm root -g)\...` invocation — the same command works verbatim in any shell on macOS, Linux, and Windows. Windows users no longer need to know to use PowerShell instead of Command Prompt.
+
+#### Changed
+
+- Auto-start and uninstall docs now use the new commands across the README and the launchd/systemd/example guides, replacing the per-platform `bash "$(npm root -g)/..."` / `powershell -ExecutionPolicy Bypass -File` commands.
+
 ## [0.2.2] — 2026-07-22
 
 ### Server

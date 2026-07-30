@@ -227,8 +227,6 @@ The reference distribution — runs on macOS, Linux, and Windows with no GUI. Id
 npm install -g obsidian-vaultgate-mcp
 ```
 
-> **Windows:** run all commands in this guide from **Windows PowerShell**, not Command Prompt (`cmd.exe`). The `$(npm root -g)\...` syntax used by the auto-start and uninstall steps below is PowerShell syntax and will not work in Command Prompt.
-
 To try without installing globally:
 
 ```bash
@@ -294,45 +292,19 @@ Claude Code manages the process lifecycle via stdio — no separate startup need
 
 ### Auto-start at login
 
-#### macOS (launchd)
-
 ```bash
-bash "$(npm root -g)/obsidian-vaultgate-mcp/deploy/install.sh"
+obsidian-vaultgate-mcp-install
 ```
 
-Installs a `launchd` agent under `~/Library/LaunchAgents/` that starts VaultGate at login and restarts it on failure. The install script resolves all paths automatically (compatible with nvm, Homebrew, system Node).
-
-#### Linux (systemd user service)
-
-```bash
-bash "$(npm root -g)/obsidian-vaultgate-mcp/deploy/install.sh"
-```
-
-Installs a systemd user service under `~/.config/systemd/user/` that starts VaultGate at login and restarts it on failure. The install script resolves all paths automatically (compatible with nvm, volta, system Node).
-
-#### Windows (Task Scheduler)
-
-```powershell
-powershell -ExecutionPolicy Bypass -File "$(npm root -g)\obsidian-vaultgate-mcp\deploy\install.ps1"
-```
-
-Detects paths automatically, prompts for your vault name, writes a startup wrapper, and registers a Task Scheduler task that runs VaultGate at login. It looks for Obsidian at `%LOCALAPPDATA%\Programs\Obsidian\Obsidian.exe` (the standard per-user install) and falls back to a prompt if your installation lives elsewhere.
+Run this in any terminal on any platform — no shell-specific syntax. It sets up the right auto-start mechanism for your OS (launchd on macOS, a systemd user service on Linux, a Task Scheduler task on Windows), so VaultGate starts at login and restarts on failure. It resolves all paths automatically and prompts for your vault name. On Windows it looks for Obsidian at `%LOCALAPPDATA%\Programs\Obsidian\Obsidian.exe` (the standard per-user install) and falls back to a prompt if your installation lives elsewhere.
 
 ### Uninstall
 
-#### macOS and Linux
-
 ```bash
-bash "$(npm root -g)/obsidian-vaultgate-mcp/deploy/uninstall.sh"
+obsidian-vaultgate-mcp-uninstall
 ```
 
 Stops the background service (if installed), removes the npm package, and deletes the local embedding cache.
-
-#### Windows
-
-```powershell
-powershell -ExecutionPolicy Bypass -File "$(npm root -g)\obsidian-vaultgate-mcp\deploy\uninstall.ps1"
-```
 
 #### What gets removed
 

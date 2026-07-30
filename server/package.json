@@ -23,7 +23,9 @@
   "type": "module",
   "main": "build/index.js",
   "bin": {
-    "obsidian-vaultgate-mcp": "build/index.js"
+    "obsidian-vaultgate-mcp": "build/index.js",
+    "obsidian-vaultgate-mcp-install": "build/install.js",
+    "obsidian-vaultgate-mcp-uninstall": "build/uninstall.js"
   },
   "files": [
     "build",
@@ -65,7 +67,9 @@
   },
   "knip": {
     "entry": [
-      "src/index.ts"
+      "src/index.ts",
+      "src/install.ts",
+      "src/uninstall.ts"
     ],
     "project": [
       "src/**/*.ts"

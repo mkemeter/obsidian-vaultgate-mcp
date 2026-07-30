@@ -81,6 +81,9 @@ server/
 │   ├── cli.ts            runObsidian() — the single point of contact with the CLI binary
 │   ├── health.ts         Startup check — verifies the binary is reachable before serving
 │   ├── uri.ts            openUri() / runUri() — OS-level URI dispatch (obsidian:// links)
+│   ├── installer.ts      resolveInstallerCommand() / runInstaller() — spawn the platform deploy script
+│   ├── install.ts        bin shim → runInstaller("install")   (obsidian-vaultgate-mcp-install)
+│   ├── uninstall.ts      bin shim → runInstaller("uninstall") (obsidian-vaultgate-mcp-uninstall)
 │   └── tools/
 │       ├── _helpers.ts   Shared utilities: dryRunPreview(), buildFileArgs()
 │       ├── files.ts      files_list, files_read, note_create, note_append,
@@ -104,6 +107,7 @@ server/
     │   ├── cli.test.ts
     │   ├── config.test.ts
     │   ├── health.test.ts
+    │   ├── installer.test.ts
     │   └── tools/        one file per tool group, mirrors src/tools/
     └── integration/
         ├── http.test.ts   real HTTP server, origin validation, endpoint smoke tests
@@ -180,6 +184,32 @@ Key design decisions:
 - **Max buffer** — 10 MB, sufficient for large vault listings or long notes.
 - **ENOENT handling** — prints an actionable message pointing to the Obsidian
   CLI registration setting rather than a raw Node.js error.
+
+### Auto-start installer commands
+
+The package exposes two extra bin commands — `obsidian-vaultgate-mcp-install` and
+`obsidian-vaultgate-mcp-uninstall` — so users set up auto-start with one shell-agnostic
+command instead of the PowerShell-only `$(npm root -g)\...` invocation. The thin shims
+(`src/install.ts`, `src/uninstall.ts`) just call `runInstaller()` in `src/installer.ts`.
+
+Key design decisions:
+
+- **Locates its own scripts** — `runInstaller` resolves `deploy/` relative to the compiled
+  file via `path.dirname(url.fileURLToPath(import.meta.url))` (the same idiom as
+  `server.ts`). `deploy/` ships as a sibling of `build/`, so no `npm root -g` is needed and
+  the command is identical on every OS/shell.
+- **`spawn` + `stdio: "inherit"`, not `execFile`** — a deliberate departure from `cli.ts`.
+  The deploy scripts prompt interactively (vault name, Obsidian path), and inherited console
+  streams are what let those prompts render and accept input. (PowerShell suppresses
+  `Read-Host` prompts only under redirected/piped I/O.) `shell: false` with an args array
+  keeps the "never shell-interpolate" invariant.
+- **TTY guard** — if `process.stdin.isTTY` is falsy the command exits with a clear message
+  instead of hanging on an invisible prompt (the one documented failure mode of inherited
+  stdio in a non-console host).
+- **Self-deletion invariant** — the uninstall child runs `npm uninstall -g`, which deletes
+  the package dir (including the running `build/*.js`) mid-run. This is safe because scripts
+  and already-loaded JS are not locked; the invariant is that `runInstaller` does nothing
+  that reads package files after the child is spawned.
 
 ### dryRun consent mechanism
 

@@ -5,7 +5,7 @@ This directory contains an install script that sets up `obsidian-vaultgate-mcp` 
 ## Quick install
 
 ```bash
-bash "$(npm root -g)/obsidian-vaultgate-mcp/deploy/install.sh"
+obsidian-vaultgate-mcp-install
 ```
 
 The install script will:

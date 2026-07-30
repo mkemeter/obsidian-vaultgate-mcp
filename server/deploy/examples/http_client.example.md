@@ -24,11 +24,11 @@ and the legacy SSE transport (`GET /sse`) for backward compatibility.
 
 ## Auto-start (recommended)
 
-For always-on availability, install the macOS launchd agent so the server
+For always-on availability, install the auto-start agent so the server
 starts automatically at login:
 
 ```bash
-bash "$(npm root -g)/obsidian-vaultgate-mcp/deploy/install.sh"
+obsidian-vaultgate-mcp-install
 ```
 
 ## Troubleshooting
