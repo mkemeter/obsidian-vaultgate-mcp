@@ -42,7 +42,7 @@ Note content never leaves your machine. Binds to `127.0.0.1` only — unreachabl
 <td width="50%">
 
 **🤖 Any MCP client**
-Claude, Cursor, Windsurf, Zed, and anything else that speaks MCP — via HTTP or stdio.
+Joule Work Desktop, Claude, Cursor, Windsurf, Zed, and anything else that speaks MCP — via HTTP or stdio.
 
 </td>
 </tr>
@@ -546,7 +546,7 @@ After the tray icon shows `● Running — <Vault Name>`:
 
 1. Click the tray icon → **Copy Connection URL**.
 2. Paste `http://127.0.0.1:3001/mcp` into your client's MCP configuration:
-   - **Cursor / Windsurf / Zed**: add it as a Streamable HTTP MCP server.
+   - **Joule Work Desktop / Cursor / Windsurf / Zed**: add it as a Streamable HTTP MCP server.
    - **Claude Code**: prefer the npm-package + stdio transport (see [Claude Code](#claude-code) above).
 
 The URL never leaves `127.0.0.1` — it is bound to localhost and refuses other origins.
