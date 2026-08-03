@@ -1,0 +1,50 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.mkemeter/obsidian-vaultgate-mcp",
+  "title": "VaultGate",
+  "description": "Connect your Obsidian vault to any AI assistant — zero plugins, full privacy. An MCP server powered by the official Obsidian CLI.",
+  "version": "0.2.3",
+  "websiteUrl": "https://github.com/mkemeter/obsidian-vaultgate-mcp",
+  "repository": {
+    "url": "https://github.com/mkemeter/obsidian-vaultgate-mcp",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "obsidian-vaultgate-mcp",
+      "version": "0.2.3",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "OBSIDIAN_VAULT",
+          "description": "Target vault name. When set, every CLI command targets this vault. Leave unset if you only have one vault.",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "OBSIDIAN_CLI_PATH",
+          "description": "Absolute path (or bare name) of the Obsidian CLI binary. Defaults to \"obsidian\".",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "OBSIDIAN_MCP_PORT",
+          "description": "TCP port for the HTTP transport (1-65535). Defaults to 3001. Always bound to 127.0.0.1 only.",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "OBSIDIAN_CONTEXT_FILE",
+          "description": "Bare .md filename (vault root) used as the vault conventions file. Defaults to \"VAULTGATE.md\".",
+          "isRequired": false,
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}

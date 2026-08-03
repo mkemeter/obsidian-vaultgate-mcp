@@ -523,6 +523,7 @@ companion and must stay releasable.
 - The tray app does **not** affect `npm publish` — the root `package.json` `"files"` allowlist excludes `tray/`.
 - A separate CI workflow ([`.github/workflows/tray.yml`](../.github/workflows/tray.yml)) builds tray artifacts and is path-filtered to `tray/**` — it never blocks npm releases.
 - Both `server/package.json` and `tray/package.json` always share the same version number. A single `v*` tag (e.g. `v0.2.0`) triggers both the npm publish workflow and the tray DMG release. Bump both together using the root `VERSION` file and `node scripts/sync-version.js`.
+- `node scripts/sync-version.js` also propagates the version into the root [`server.json`](../server.json) — the MCP registry manifest (top-level `version` **and** `packages[0].version`). Never hand-edit those; edit `VERSION` and run the sync. This is the file to submit to an MCP registry (public or SAP-internal); regenerate/validate it against the registry's schema before submitting.
 - A merge of the tray branch to `main` is a **separate, deliberate decision**. Until then, the tray branch lives alongside `main`. Keep `main` releasable. Don't merge speculatively.
 
 ### Dev setup
@@ -590,7 +591,7 @@ Builds are intentionally **per-host-arch**: `onnxruntime-node` only downloads th
 node scripts/sync-version.js
 
 # 2. Commit, then tag.
-git add VERSION server/package.json tray/package.json
+git add VERSION server/package.json tray/package.json server.json
 git commit -m "chore: release v0.2.0"
 git tag v0.2.0
 git push origin main --tags
