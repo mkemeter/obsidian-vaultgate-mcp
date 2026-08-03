@@ -530,7 +530,7 @@ companion and must stay releasable.
 
 #### Prerequisites
 
-- Node.js 20+
+- Node.js 20+ (development toolchain; the published npm package requires Node.js 18+ at runtime)
 - A working install of Obsidian with the CLI registered (Obsidian → Settings → General → Register CLI)
 
 #### First-time setup

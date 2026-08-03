@@ -340,7 +340,7 @@ All configuration via environment variables. None are required for single-vault 
 
 ### Available tools
 
-VaultGate exposes 34 base tools across four categories, plus 5 semantic search tools when the embedding model is available. These tools are the concrete implementation of the features described above — and they are identical across both the headless and tray distributions.
+VaultGate exposes 34 base tools across three categories, plus 5 semantic search tools when the embedding model is available. These tools are the concrete implementation of the features described above — and they are identical across both the headless and tray distributions.
 
 #### GUI navigation
 

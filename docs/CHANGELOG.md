@@ -146,6 +146,6 @@ A section may be absent if that distribution had no changes in the release.
 - Daily note tools: `daily_read`, `daily_append`
 - Template tools: `template_list`, `template_create_note`
 - Plugin tools: `plugin_list`, `plugin_enable`, `plugin_disable`
-- Semantic search tools: `index_vault`, `semantic_search`, `find_similar`, `index_status`, `clear_index`
+- Semantic search tools: `index_vault`, `semantic_search`, `find_similar`, `vault_info`, `clear_index`
 - DNS rebinding protection (origin allowlist)
 - All write tools default `dryRun: true`
