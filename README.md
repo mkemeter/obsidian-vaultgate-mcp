@@ -15,6 +15,8 @@
 
 VaultGate is a local [Model Context Protocol](https://modelcontextprotocol.io) server that bridges any MCP-compatible AI client with your Obsidian vault — built on Obsidian's native integration APIs. No community plugins, no cloud relay, no API keys.
 
+**A different design:** VaultGate never reads or writes your vault files directly. Every operation is delegated to the running Obsidian instance, and the local server binds to `127.0.0.1` only — never exposed to the network. Your notes stay behind Obsidian's own application layer.
+
 Ask your AI to read notes, run full-text or semantic search, manage tasks, apply templates, write content, and open anything directly in the Obsidian UI. Every write goes through a dry-run preview first, so you stay in control of what actually changes.
 
 <div align="center">
@@ -87,6 +89,12 @@ Drop a `VAULTGATE.md` at your vault root — injected into every AI session auto
 </td>
 </tr>
 </table>
+
+---
+
+### Why VaultGate
+
+Most vault bridges read and write your `.md` files directly on disk. VaultGate doesn't — every read and write is delegated to Obsidian itself, so indexes, links, and plugins stay consistent, and there's no second process mutating your files. The optional local HTTP transport binds to `127.0.0.1` only, never exposed to the network, and the server makes zero external calls. That application-layer boundary is what makes VaultGate a clean integration point for any MCP-compatible AI assistant — including SAP's Joule Work Desktop.
 
 ---
 
@@ -596,7 +604,7 @@ The audience for this app — developers building MCP integrations — handles u
 
 ## Privacy and Security
 
-- **Local execution only.** All vault operations go through the running Obsidian instance — never directly to the file system. Obsidian's internal state (links, indexes, plugin context) stays consistent.
+- **Local execution only.** All vault operations go through the running Obsidian instance — never directly to the file system. Unlike bridges that read and write vault files directly on disk, VaultGate delegates every operation to Obsidian itself, so its links, indexes, and plugin state never drift out of sync.
 - **Loopback-only binding.** The HTTP server listens on `127.0.0.1` and is unreachable from other hosts on the network.
 - **Explicit write consent.** Every write operation requires a two-step interaction: preview followed by confirmation. No file is modified in a single tool call.
 - **No credentials.** Access is scoped to the local user session — no tokens, API keys, or authentication required.
