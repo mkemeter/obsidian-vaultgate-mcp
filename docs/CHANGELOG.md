@@ -17,6 +17,10 @@ A section may be absent if that distribution had no changes in the release.
 
 - Obsidian CLI runtime errors now append actionable guidance (Settings → General → Command line interface → Register CLI) while preserving Obsidian's own stderr, so an unregistered-CLI failure no longer surfaces as an opaque passthrough.
 
+#### Security
+
+- Raised the `@modelcontextprotocol/sdk` floor to `>=1.30.0` and refreshed the lockfile, pulling patched transitive dependencies (`@hono/node-server`, `hono`, `fast-uri`, `ip-address`) that cleared five npm audit advisories. VaultGate binds to `127.0.0.1` only and does not exercise the affected network-facing code paths, so real-world exposure was minimal.
+
 ## [0.2.3] — 2026-07-30
 
 ### Server
