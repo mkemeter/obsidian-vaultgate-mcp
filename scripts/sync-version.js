@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
  * Syncs the canonical version from the root VERSION file into
- * server/package.json, tray/package.json, and the MCP registry
- * manifest server.json.
+ * server/package.json, tray/package.json, their package-lock.json files,
+ * and the MCP registry manifest server.json.
  *
  * Run from the repo root after editing VERSION:
  *   node scripts/sync-version.js
@@ -22,11 +22,28 @@ for (const dir of ["server", "tray"]) {
   const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
   if (pkg.version === version) {
     console.log(`  ${dir}/package.json already at ${version}`);
-    continue;
+  } else {
+    pkg.version = version;
+    writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
+    console.log(`  ${dir}/package.json → ${version}`);
   }
-  pkg.version = version;
-  writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
-  console.log(`  ${dir}/package.json → ${version}`);
+
+  // Keep the lockfile's own version fields (top-level and the root package
+  // entry at packages[""]) in step. These are metadata only — they do not
+  // affect dependency resolution — but they drift out of sync otherwise.
+  const lockPath = join(root, dir, "package-lock.json");
+  const lock = JSON.parse(readFileSync(lockPath, "utf8"));
+  const rootEntry = lock.packages?.[""];
+  if (lock.version === version && rootEntry?.version === version) {
+    console.log(`  ${dir}/package-lock.json already at ${version}`);
+  } else {
+    lock.version = version;
+    if (rootEntry) {
+      rootEntry.version = version;
+    }
+    writeFileSync(lockPath, JSON.stringify(lock, null, 2) + "\n");
+    console.log(`  ${dir}/package-lock.json → ${version}`);
+  }
 }
 
 // MCP registry manifest — top-level version and the npm package version
