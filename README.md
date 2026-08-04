@@ -515,8 +515,10 @@ Vault selector, port, Obsidian binary path — all in a UI. No config files to e
    > On macOS 15.1 and later, Apple removed the "Open Anyway" GUI button. Run this command in Terminal before launching:
    >
    > ```bash
-   > xattr -r -d com.apple.quarantine /Applications/VaultGate.app
+   > /usr/bin/xattr -rd com.apple.quarantine /Applications/VaultGate.app
    > ```
+   >
+   > (The absolute path `/usr/bin/xattr` avoids a Python `xattr` on your PATH that lacks the `-r` flag.)
    >
    > On older macOS you can right-click → Open the app and click "Open" in the dialog instead.
 

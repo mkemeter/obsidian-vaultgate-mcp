@@ -6,7 +6,7 @@ macOS may show: "VaultGate is damaged and can't be opened."
 This is a Gatekeeper security warning for apps not notarized by Apple.
 To fix it, paste this command into Terminal and press Return:
 
-    xattr -r -d com.apple.quarantine /Applications/VaultGate.app
+    /usr/bin/xattr -rd com.apple.quarantine /Applications/VaultGate.app
 
 Then open VaultGate from Applications as usual.
 

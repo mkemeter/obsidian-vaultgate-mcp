@@ -21,6 +21,12 @@ A section may be absent if that distribution had no changes in the release.
 
 - Raised the `@modelcontextprotocol/sdk` floor to `>=1.30.0` and refreshed the lockfile, pulling patched transitive dependencies (`@hono/node-server`, `hono`, `fast-uri`, `ip-address`) that cleared five npm audit advisories. VaultGate binds to `127.0.0.1` only and does not exercise the affected network-facing code paths, so real-world exposure was minimal.
 
+### Tray
+
+#### Fixed
+
+- The Gatekeeper unquarantine command in the DMG background, `INSTALL.txt`, and the README now uses the absolute path `/usr/bin/xattr -rd …`. The previous `xattr -r -d …` failed with `option -r not recognized` for users who had a Python `xattr` (PyPI/Homebrew/conda) shadowing Apple's tool on their PATH — that variant has no `-r` flag.
+
 ## [0.2.3] — 2026-07-30
 
 ### Server
