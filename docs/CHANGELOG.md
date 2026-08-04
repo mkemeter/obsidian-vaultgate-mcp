@@ -11,6 +11,12 @@ A section may be absent if that distribution had no changes in the release.
 
 ## [Unreleased]
 
+### Server
+
+#### Changed
+
+- Obsidian CLI runtime errors now append actionable guidance (Settings → General → Command line interface → Register CLI) while preserving Obsidian's own stderr, so an unregistered-CLI failure no longer surfaces as an opaque passthrough.
+
 ## [0.2.3] — 2026-07-30
 
 ### Server

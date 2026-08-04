@@ -46,7 +46,16 @@ export async function runObsidian(args: string[]): Promise<string> {
       );
     }
 
+    // The binary ran but exited non-zero. The most common runtime cause is that
+    // the CLI has not been registered in Obsidian (or the vault is unavailable),
+    // and Obsidian's own stderr for this is undocumented and often opaque. Keep
+    // whatever Obsidian reported and append an actionable hint so the user is
+    // pointed at the fix rather than left with a bare passthrough.
     const detail = err.stderr?.trim() || err.message;
-    throw new Error(`Obsidian CLI error: ${detail}`);
+    throw new Error(
+      `Obsidian CLI error: ${detail}\n` +
+        `  If this persists, check that the CLI is registered and Obsidian is\n` +
+        `  running: Settings → General → Command line interface → Register CLI.`
+    );
   }
 }

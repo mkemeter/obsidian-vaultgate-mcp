@@ -56,6 +56,17 @@ function fail(err: Error): void {
   mockState.reject(err);
 }
 
+/**
+ * Start a runObsidian call and immediately reject it with a generic non-zero
+ * exit carrying the given stderr (or none). Returns the rejecting promise so a
+ * test can assert on the composed error message.
+ */
+function runObsidianAgainWith(stderr: string | undefined): Promise<string> {
+  const p = runObsidian(["search", "query=test"]);
+  fail(Object.assign(new Error("exit 1"), stderr === undefined ? {} : { stderr }));
+  return p;
+}
+
 describe("runObsidian", () => {
   it("returns trimmed stdout on success", async () => {
     const p = runObsidian(["files", "list"]);
@@ -67,6 +78,22 @@ describe("runObsidian", () => {
     const p = runObsidian(["search", "query=test"]);
     fail(Object.assign(new Error("exit 1"), { stderr: "command not found" }));
     await expect(p).rejects.toThrow("Obsidian CLI error: command not found");
+  });
+
+  it("appends actionable 'Register CLI' guidance to a generic CLI error", async () => {
+    // regression: unregistered-CLI runtime failure showed only Obsidian's raw
+    // stderr with no hint that the fix is Settings → Register CLI (GH #654 review).
+    const p = runObsidian(["search", "query=test"]);
+    fail(Object.assign(new Error("exit 1"), { stderr: "some opaque obsidian error" }));
+    await expect(p).rejects.toThrow(/some opaque obsidian error/);
+    await expect(runObsidianAgainWith("some opaque obsidian error")).rejects.toThrow(
+      /Register CLI/
+    );
+  });
+
+  it("still appends guidance when the CLI error has no stderr", async () => {
+    // regression: no stderr (empty output) must not swallow the actionable hint.
+    await expect(runObsidianAgainWith(undefined)).rejects.toThrow(/Register CLI/);
   });
 
   it("throws a helpful error when binary is not found (ENOENT)", async () => {

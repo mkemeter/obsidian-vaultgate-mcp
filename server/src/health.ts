@@ -6,9 +6,11 @@ import { config } from "./config.js";
  * any connections.
  *
  * Only checks the filesystem — does NOT run the binary, so Obsidian is not
- * launched as a side-effect of starting the MCP server. Individual tool calls
- * will fail with a helpful "Obsidian is not running" message if Obsidian
- * happens to be closed when a tool is invoked.
+ * launched as a side-effect of starting the MCP server. If Obsidian is closed
+ * when a tool is later invoked, the Obsidian CLI launches it on the first
+ * command (per the Obsidian CLI docs); if the CLI is not registered, the tool
+ * call fails and `runObsidian` (cli.ts) appends actionable "Register CLI"
+ * guidance to whatever Obsidian reports.
  *
  * Two failure modes are caught eagerly here, both exiting with code 1 and an
  * actionable stderr message:
