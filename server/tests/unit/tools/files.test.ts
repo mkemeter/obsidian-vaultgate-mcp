@@ -4,11 +4,12 @@ import { registerFileTools } from "../../../src/tools/files.js";
 
 vi.mock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
 vi.mock("../../../src/config.js", () => ({
-  config: { vault: undefined, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+  config: { vault: undefined, cliBin: "obsidian", port: 3001, host: "127.0.0.1", excludePaths: [] },
 }));
 
 const { runObsidian } = await import("../../../src/cli.js");
 const mockRun = vi.mocked(runObsidian);
+const { config: mockConfig } = await import("../../../src/config.js");
 
 function invoke(server: McpServer, name: string, args: Record<string, unknown>) {
   // @ts-ignore
@@ -25,7 +26,7 @@ function makeServer() {
 }
 
 describe("files_list", () => {
-  beforeEach(() => vi.resetAllMocks());
+  beforeEach(() => { vi.resetAllMocks(); mockConfig.excludePaths = []; });
 
   it("calls obsidian files list and returns output", async () => {
     mockRun.mockResolvedValue("note1.md\nnote2.md");
@@ -301,5 +302,66 @@ describe("note_trash (destructive)", () => {
     const result = await invoke(makeServer(), "note_trash", { path: "missing.md", dryRun: false });
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("trash failed");
+  });
+});
+
+describe("excludePaths", () => {
+  beforeEach(() => { vi.resetAllMocks(); mockConfig.excludePaths = ["Private", "Secret/HR"]; });
+
+  it("files_list filters excluded paths from output", async () => {
+    mockRun.mockResolvedValue("note.md\nPrivate/diary.md\nPublic/readme.md\nSecret/HR/contracts.md");
+    const result = await invoke(makeServer(), "files_list", {});
+    expect(result.content[0].text).toContain("note.md");
+    expect(result.content[0].text).toContain("Public/readme.md");
+    expect(result.content[0].text).not.toContain("Private/diary.md");
+    expect(result.content[0].text).not.toContain("Secret/HR/contracts.md");
+  });
+
+  it("files_list does not filter a path that only starts with an excluded prefix as a substring", async () => {
+    mockRun.mockResolvedValue("PrivateNotes/ok.md");
+    const result = await invoke(makeServer(), "files_list", {});
+    expect(result.content[0].text).toContain("PrivateNotes/ok.md");
+  });
+
+  it("files_read denies access to excluded path", async () => {
+    const result = await invoke(makeServer(), "files_read", { path: "Private/diary.md" });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/access denied/i);
+    expect(mockRun).not.toHaveBeenCalled();
+  });
+
+  it("files_read allows access to non-excluded path", async () => {
+    mockRun.mockResolvedValue("content");
+    const result = await invoke(makeServer(), "files_read", { path: "Public/note.md" });
+    expect(result.isError).toBeFalsy();
+    expect(mockRun).toHaveBeenCalled();
+  });
+
+  it("note_create denies write to excluded path", async () => {
+    const result = await invoke(makeServer(), "note_create", { path: "Private/new.md", dryRun: false });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/access denied/i);
+    expect(mockRun).not.toHaveBeenCalled();
+  });
+
+  it("note_update denies write to excluded path", async () => {
+    const result = await invoke(makeServer(), "note_update", { path: "Secret/HR/contracts.md", content: "x", dryRun: false });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/access denied/i);
+    expect(mockRun).not.toHaveBeenCalled();
+  });
+
+  it("note_trash denies trashing excluded path", async () => {
+    const result = await invoke(makeServer(), "note_trash", { path: "Private/diary.md", dryRun: false });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/access denied/i);
+    expect(mockRun).not.toHaveBeenCalled();
+  });
+
+  it("exact prefix match (no trailing slash) is excluded", async () => {
+    mockRun.mockResolvedValue("Private\nPublic/note.md");
+    const result = await invoke(makeServer(), "files_list", {});
+    expect(result.content[0].text).not.toContain("\nPrivate\n");
+    expect(result.content[0].text).toContain("Public/note.md");
   });
 });

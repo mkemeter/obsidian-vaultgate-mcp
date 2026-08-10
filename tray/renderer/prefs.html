@@ -62,7 +62,8 @@
       }
       input[type="text"],
       input[type="number"],
-      select {
+      select,
+      textarea {
         width: 100%;
         box-sizing: border-box;
         padding: 6px 8px;
@@ -72,9 +73,14 @@
         border: 1px solid var(--border);
         border-radius: 6px;
       }
+      textarea {
+        resize: vertical;
+        min-height: 56px;
+      }
       input[type="text"]:focus,
       input[type="number"]:focus,
-      select:focus {
+      select:focus,
+      textarea:focus {
         outline: none;
         border-color: var(--accent);
         box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
@@ -87,6 +93,11 @@
         font-size: 11px;
         margin: 3px 0 0;
         min-height: 14px;
+      }
+      .field-hint {
+        color: var(--muted);
+        font-size: 11px;
+        margin: 3px 0 0;
       }
       .row {
         display: flex;
@@ -162,6 +173,10 @@
     <label for="context-file">Conventions file (vault root)</label>
     <input type="text" id="context-file" placeholder="VAULTGATE.md" />
     <div class="field-error" id="context-file-error"></div>
+
+    <label for="exclude-paths">Excluded paths (hidden from AI)</label>
+    <textarea id="exclude-paths" placeholder="Private&#10;Confidential/HR"></textarea>
+    <div class="field-hint">One folder path per line. Files inside these folders will not be visible to the AI.</div>
 
     <hr class="section-divider" />
 

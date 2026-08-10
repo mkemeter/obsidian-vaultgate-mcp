@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
-import { buildFileArgs, dryRunPreview, dryRunSchema, optionalBoolSchema } from "./_helpers.js";
+import { buildFileArgs, dryRunPreview, dryRunSchema, filterExcluded, isExcluded, optionalBoolSchema } from "./_helpers.js";
 
 /**
  * Registers file and note operation tools on the MCP server.
@@ -43,7 +43,7 @@ export function registerFileTools(server: McpServer): void {
 
       try {
         const output = await runObsidian(args);
-        return { content: [{ type: "text", text: output }] };
+        return { content: [{ type: "text", text: filterExcluded(output) }] };
       } catch (error) {
         return {
           content: [{ type: "text", text: (error as Error).message }],
@@ -88,6 +88,13 @@ export function registerFileTools(server: McpServer): void {
               text: "File name must not be empty. Provide a valid file name or path, or omit both to read the active file.",
             },
           ],
+        };
+      }
+
+      if (path !== undefined && isExcluded(path)) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: "Access denied: this path is excluded." }],
         };
       }
       const args = ["read", ...buildFileArgs(file, path)];
@@ -145,6 +152,9 @@ export function registerFileTools(server: McpServer): void {
       dryRun: dryRunSchema,
     },
     async ({ name, path, content, template, overwrite, silent, dryRun }) => {
+      if (path !== undefined && isExcluded(path)) {
+        return { isError: true, content: [{ type: "text", text: "Access denied: this path is excluded." }] };
+      }
       const args = ["create"];
       if (path !== undefined) {
         args.push(`path=${path}`);
@@ -266,6 +276,9 @@ export function registerFileTools(server: McpServer): void {
       dryRun: dryRunSchema,
     },
     async ({ path, content, dryRun }) => {
+      if (isExcluded(path)) {
+        return { isError: true, content: [{ type: "text", text: "Access denied: this path is excluded." }] };
+      }
       // `create path=<path> content=<content> overwrite` replaces the full file content.
       const args = ["create", `path=${path}`, `content=${content}`, "overwrite"];
 
@@ -304,6 +317,9 @@ export function registerFileTools(server: McpServer): void {
       dryRun: dryRunSchema,
     },
     async ({ path, dryRun }) => {
+      if (isExcluded(path)) {
+        return { isError: true, content: [{ type: "text", text: "Access denied: this path is excluded." }] };
+      }
       const args = ["delete", `path=${path}`];
 
       if (dryRun) {

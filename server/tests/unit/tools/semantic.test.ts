@@ -68,7 +68,7 @@ async function freshModule(runMock: (args: string[]) => Promise<string>) {
 
   vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
   vi.doMock("../../../src/config.js", () => ({
-    config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+    config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1", excludePaths: [] },
   }));
   vi.mock("@xenova/transformers", () => ({
     pipeline: vi.fn().mockResolvedValue(
@@ -106,7 +106,7 @@ describe("cosineSimilarity", () => {
     vi.mock("@xenova/transformers", () => ({ pipeline: vi.fn() }));
     vi.mock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
     vi.mock("../../../src/config.js", () => ({
-      config: { vault: undefined, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+      config: { vault: undefined, cliBin: "obsidian", port: 3001, host: "127.0.0.1", excludePaths: [] },
     }));
     ({ cosineSimilarity } = await import("../../../src/tools/semantic.js"));
   });
@@ -152,7 +152,7 @@ async function freshModuleNoCache(runMock: (args: string[]) => Promise<string>) 
 
   vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
   vi.doMock("../../../src/config.js", () => ({
-    config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+    config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1", excludePaths: [] },
   }));
   vi.doMock("@xenova/transformers", () => ({
     pipeline: vi.fn().mockResolvedValue(
@@ -209,7 +209,7 @@ async function freshModuleWithCache(runMock: (args: string[]) => Promise<string>
 
   vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
   vi.doMock("../../../src/config.js", () => ({
-    config: { vault: vaultName, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+    config: { vault: vaultName, cliBin: "obsidian", port: 3001, host: "127.0.0.1", excludePaths: [] },
   }));
   vi.doMock("@xenova/transformers", () => ({
     pipeline: vi.fn().mockResolvedValue(
@@ -296,7 +296,7 @@ describe("cache-hit startup path — configured vault syncs immediately", () => 
 
     vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
     vi.doMock("../../../src/config.js", () => ({
-      config: { vault: vaultName, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+      config: { vault: vaultName, cliBin: "obsidian", port: 3001, host: "127.0.0.1", excludePaths: [] },
     }));
     vi.doMock("@xenova/transformers", () => ({
       pipeline: vi.fn().mockResolvedValue(
@@ -424,7 +424,7 @@ describe("semantic_search", () => {
     const uniqueVault = `__test_minscore_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
     vi.doMock("../../../src/config.js", () => ({
-      config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+      config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1", excludePaths: [] },
     }));
     // Notes get FAKE_VEC_B (orthogonal to query FAKE_VEC_A) → score = 0
     vi.doMock("@xenova/transformers", () => ({
@@ -757,7 +757,7 @@ describe("clear_index", () => {
     const uniqueVault = `__test_nodry_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
     vi.doMock("../../../src/config.js", () => ({
-      config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+      config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1", excludePaths: [] },
     }));
     vi.doMock("@xenova/transformers", () => ({
       pipeline: vi.fn().mockResolvedValue(
@@ -791,7 +791,7 @@ describe("clear_index", () => {
     const uniqueVault = `__test_unlink_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
     vi.doMock("../../../src/config.js", () => ({
-      config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+      config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1", excludePaths: [] },
     }));
     vi.doMock("@xenova/transformers", () => ({
       pipeline: vi.fn().mockResolvedValue(
@@ -908,7 +908,7 @@ describe("splitIntoSections via semantic_search", () => {
     const uniqueVault = `__test_multisec_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
     vi.doMock("../../../src/config.js", () => ({
-      config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+      config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1", excludePaths: [] },
     }));
     vi.doMock("@xenova/transformers", () => ({
       pipeline: vi.fn().mockResolvedValue(
@@ -1003,7 +1003,7 @@ describe("splitIntoSections via semantic_search", () => {
     const uniqueVault = `__test_bigchunk_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
     vi.doMock("../../../src/config.js", () => ({
-      config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+      config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1", excludePaths: [] },
     }));
     // Return one FAKE_VEC_A per input text so sub-chunks embed correctly.
     vi.doMock("@xenova/transformers", () => ({
@@ -1056,7 +1056,7 @@ describe("splitIntoSections via semantic_search", () => {
     const uniqueVault = `__test_dateheads_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
     vi.doMock("../../../src/config.js", () => ({
-      config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+      config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1", excludePaths: [] },
     }));
     vi.doMock("@xenova/transformers", () => ({
       pipeline: vi.fn().mockResolvedValue(
@@ -1148,7 +1148,7 @@ describe("vault switch heuristic", () => {
     vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
     // config.vault is undefined — unconfigured vault case
     vi.doMock("../../../src/config.js", () => ({
-      config: { vault: undefined, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+      config: { vault: undefined, cliBin: "obsidian", port: 3001, host: "127.0.0.1", excludePaths: [] },
     }));
     vi.doMock("@xenova/transformers", () => ({
       pipeline: vi.fn().mockResolvedValue(
@@ -1300,7 +1300,7 @@ describe("loadIndex stale cache", () => {
     vi.resetModules();
     vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
     vi.doMock("../../../src/config.js", () => ({
-      config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+      config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1", excludePaths: [] },
     }));
     vi.doMock("@xenova/transformers", () => ({
       pipeline: vi.fn().mockResolvedValue(
@@ -1359,7 +1359,7 @@ describe("VAULTGATE_MODEL_CACHE_DIR — pre-bundled model cache wiring", () => {
     vi.resetModules();
     vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
     vi.doMock("../../../src/config.js", () => ({
-      config: { vault: "v", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+      config: { vault: "v", cliBin: "obsidian", port: 3001, host: "127.0.0.1", excludePaths: [] },
     }));
     vi.doMock("@xenova/transformers", () => ({ pipeline: vi.fn(), env }));
 
@@ -1376,7 +1376,7 @@ describe("VAULTGATE_MODEL_CACHE_DIR — pre-bundled model cache wiring", () => {
     vi.resetModules();
     vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
     vi.doMock("../../../src/config.js", () => ({
-      config: { vault: "v", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+      config: { vault: "v", cliBin: "obsidian", port: 3001, host: "127.0.0.1", excludePaths: [] },
     }));
     vi.doMock("@xenova/transformers", () => ({ pipeline: vi.fn(), env }));
 
@@ -1393,7 +1393,7 @@ describe("VAULTGATE_MODEL_CACHE_DIR — pre-bundled model cache wiring", () => {
     vi.resetModules();
     vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
     vi.doMock("../../../src/config.js", () => ({
-      config: { vault: "v", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+      config: { vault: "v", cliBin: "obsidian", port: 3001, host: "127.0.0.1", excludePaths: [] },
     }));
     vi.doMock("@xenova/transformers", () => ({ pipeline: vi.fn(), env }));
 

@@ -26,6 +26,11 @@ export interface VaultGateConfig {
    * existing file such as `CLAUDE.md`.
    */
   contextFileName: string;
+  /**
+   * Comma-separated folder prefixes hidden from the LLM (e.g. `Private,Confidential`).
+   * Maps to the `OBSIDIAN_EXCLUDE_PATHS` env var passed to the server.
+   */
+  excludePaths: string;
   /** Whether the user has been notified once that the index is ready. */
   smartSearchReadyNotified: boolean;
 }
@@ -43,6 +48,7 @@ const DEFAULTS: VaultGateConfig = {
   port: 3002,
   obsidianPath: "",
   contextFileName: DEFAULT_CONTEXT_FILE,
+  excludePaths: "",
   smartSearchReadyNotified: false,
 };
 

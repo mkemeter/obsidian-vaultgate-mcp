@@ -156,6 +156,60 @@ describe("loadConfig", () => {
   });
 });
 
+describe("OBSIDIAN_EXCLUDE_PATHS", () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+    delete process.env.OBSIDIAN_EXCLUDE_PATHS;
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it("defaults to empty array when unset", async () => {
+    const { loadConfig } = await import("../../src/config.js?excl=1");
+    const cfg = loadConfig();
+    expect(cfg.excludePaths).toEqual([]);
+  });
+
+  it("parses a single path", async () => {
+    process.env.OBSIDIAN_EXCLUDE_PATHS = "Private";
+    const { loadConfig } = await import("../../src/config.js?excl=2");
+    const cfg = loadConfig();
+    expect(cfg.excludePaths).toEqual(["Private"]);
+  });
+
+  it("parses comma-separated paths", async () => {
+    process.env.OBSIDIAN_EXCLUDE_PATHS = "Private,Confidential/HR";
+    const { loadConfig } = await import("../../src/config.js?excl=3");
+    const cfg = loadConfig();
+    expect(cfg.excludePaths).toEqual(["Private", "Confidential/HR"]);
+  });
+
+  it("trims whitespace around entries", async () => {
+    process.env.OBSIDIAN_EXCLUDE_PATHS = " Private , Confidential/HR ";
+    const { loadConfig } = await import("../../src/config.js?excl=4");
+    const cfg = loadConfig();
+    expect(cfg.excludePaths).toEqual(["Private", "Confidential/HR"]);
+  });
+
+  it("filters empty entries from double commas", async () => {
+    process.env.OBSIDIAN_EXCLUDE_PATHS = "Private,,Confidential";
+    const { loadConfig } = await import("../../src/config.js?excl=5");
+    const cfg = loadConfig();
+    expect(cfg.excludePaths).toEqual(["Private", "Confidential"]);
+  });
+
+  it("returns empty array when value is whitespace only", async () => {
+    process.env.OBSIDIAN_EXCLUDE_PATHS = "   ";
+    const { loadConfig } = await import("../../src/config.js?excl=6");
+    const cfg = loadConfig();
+    expect(cfg.excludePaths).toEqual([]);
+  });
+});
+
 describe("normalizeContextFileName", () => {
   it("returns the default when the value is undefined or empty", async () => {
     const { normalizeContextFileName } = await import("../../src/config.js");
