@@ -20,10 +20,18 @@ const dstBase = path.join(root, "dist", "server", "node_modules");
 // Ask npm for the full production dep tree (all transitive deps, no devDeps).
 let prodPkgs;
 try {
-  const out = execSync("npm ls --prod --parseable --all 2>/dev/null", {
-    cwd: serverRoot,
-    encoding: "utf8",
-  });
+  let out;
+  try {
+    out = execSync("npm ls --production --parseable --all", {
+      cwd: serverRoot,
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "ignore"],
+    });
+  } catch (e) {
+    // npm ls exits non-zero on peer dep warnings but still prints valid output
+    out = (typeof e.stdout === "string" ? e.stdout : e.stdout?.toString()) || "";
+    if (!out) throw e;
+  }
   // Each line is an absolute path ending at the package root.
   // Strip the serverRoot/node_modules/ prefix to get the package name (handles scoped).
   const prefix = srcBase + path.sep;

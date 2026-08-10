@@ -36,7 +36,7 @@ import * as transformers from "@xenova/transformers";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
 import { config } from "../config.js";
-import { dryRunSchema } from "./_helpers.js";
+import { dryRunSchema, isExcluded } from "./_helpers.js";
 
 const { pipeline } = transformers;
 
@@ -347,10 +347,18 @@ function averageAndNormalise(vectors: number[][]): number[] {
 
 async function listVaultPaths(): Promise<string[]> {
   const result = await runObsidian(["files", "list"]);
+  const { excludePaths } = config;
   return result
     .split("\n")
     .map((l) => l.trim())
-    .filter((l) => l.endsWith(".md"));
+    .filter((l) => l.endsWith(".md"))
+    .filter((l) => {
+      if (excludePaths.length === 0) return true;
+      const p = l.replace(/\\/g, "/");
+      return !excludePaths.some(
+        (prefix) => p === prefix || p.startsWith(prefix.endsWith("/") ? prefix : prefix + "/")
+      );
+    });
 }
 
 async function readNote(filePath: string): Promise<string> {
@@ -576,6 +584,7 @@ async function semanticQuery(
   const results: SearchResult[] = [];
   for (const [p, entry] of Object.entries(liveIndex.files)) {
     if (p === excludePath) continue;
+    if (isExcluded(p)) continue;
     let bestScore = 0;
     let bestHeading = "";
     for (const chunk of entry.chunks) {

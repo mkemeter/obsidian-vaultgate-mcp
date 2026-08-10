@@ -237,6 +237,7 @@ export async function start(): Promise<void> {
       OBSIDIAN_VAULT: config.vault,
       OBSIDIAN_CLI_PATH: config.obsidianPath,
       OBSIDIAN_CONTEXT_FILE: config.contextFileName,
+      OBSIDIAN_EXCLUDE_PATHS: config.excludePaths,
       // Semantic search: point at pre-bundled cache, disable remote download.
       VAULTGATE_MODEL_CACHE_DIR: modelDir,
       VAULTGATE_ALLOW_REMOTE_MODELS: "false",

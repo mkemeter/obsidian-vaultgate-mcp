@@ -51,6 +51,16 @@ export interface Config {
    * existing file such as `CLAUDE.md` instead of maintaining a separate one.
    */
   contextFileName: string;
+
+  /**
+   * Path prefixes to exclude from all file listings and read operations.
+   * Files whose vault-relative path starts with any of these prefixes are
+   * silently hidden from the LLM.
+   *
+   * Set via `OBSIDIAN_EXCLUDE_PATHS` as a comma-separated list, e.g.:
+   *   OBSIDIAN_EXCLUDE_PATHS=Private,Confidential/HR
+   */
+  excludePaths: string[];
 }
 
 /** Default conventions filename when `OBSIDIAN_CONTEXT_FILE` is unset. */
@@ -105,12 +115,18 @@ export function loadConfig(): Config {
 
   const rawVault = process.env.OBSIDIAN_VAULT?.trim();
 
+  const rawExclude = process.env.OBSIDIAN_EXCLUDE_PATHS?.trim();
+  const excludePaths = rawExclude
+    ? rawExclude.split(",").map((p) => p.trim()).filter(Boolean)
+    : [];
+
   return {
     vault: rawVault || undefined,
     cliBin: process.env.OBSIDIAN_CLI_PATH || "obsidian",
     port,
     host: "127.0.0.1",
     contextFileName: normalizeContextFileName(process.env.OBSIDIAN_CONTEXT_FILE?.trim()),
+    excludePaths,
   };
 }
 

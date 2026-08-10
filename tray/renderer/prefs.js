@@ -18,6 +18,7 @@
   const obsidianInput = document.getElementById("obsidian");
   const contextFileInput = document.getElementById("context-file");
   const contextFileError = document.getElementById("context-file-error");
+  const excludePathsInput = document.getElementById("exclude-paths");
   const autostartInput = document.getElementById("autostart");
   const browseBtn = document.getElementById("browse");
   const saveBtn = document.getElementById("save");
@@ -48,6 +49,7 @@
   obsidianInput.value =
     config.obsidianPath || (await api.detectObsidianPath()) || "";
   contextFileInput.value = config.contextFileName || "VAULTGATE.md";
+  excludePathsInput.value = (config.excludePaths || "").split(",").filter(Boolean).join("\n");
   autostartInput.checked = Boolean(autostart);
 
   // Wire server state into status indicator ------------------------------------
@@ -142,6 +144,7 @@
       port: Number.isFinite(port) ? port : config.port,
       obsidianPath: obsidianInput.value,
       contextFileName: contextFileInput.value.trim() || "VAULTGATE.md",
+      excludePaths: excludePathsInput.value.split("\n").map((s) => s.trim()).filter(Boolean).join(","),
     };
     await api.setAutostart(autostartInput.checked);
     await api.saveConfig(patch);

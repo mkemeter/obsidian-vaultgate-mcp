@@ -86,3 +86,19 @@ export function buildFileArgs(file: string | undefined, path: string | undefined
   if (file?.trim()) return [`file=${file}`];
   return [];
 }
+
+export function isExcluded(filePath: string): boolean {
+  if (config.excludePaths.length === 0) return false;
+  const normalized = filePath.replace(/\\/g, "/");
+  return config.excludePaths.some(
+    (prefix) => normalized === prefix || normalized.startsWith(prefix.endsWith("/") ? prefix : prefix + "/")
+  );
+}
+
+export function filterExcluded(output: string): string {
+  if (config.excludePaths.length === 0) return output;
+  return output
+    .split("\n")
+    .filter((line) => line.trim() === "" || !isExcluded(line.trim()))
+    .join("\n");
+}
