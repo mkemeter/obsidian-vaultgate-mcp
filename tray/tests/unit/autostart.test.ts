@@ -32,10 +32,6 @@ beforeEach(() => {
   settingsState.setCalls = [];
 });
 
-afterEach(() => {
-  settingsState.setCalls = [];
-});
-
 describe("setAutostart", () => {
   it("calls setLoginItemSettings with openAtLogin=true and openAsHidden=true when enabled", async () => {
     const { setAutostart } = await import("../../src/autostart.js");

@@ -31,7 +31,7 @@ export interface VaultGateConfig {
 }
 
 /** A vault registered in Obsidian's `obsidian.json`. */
-export interface RegisteredVault {
+interface RegisteredVault {
   /** Vault display name (folder basename). */
   name: string;
   /** Absolute path to the vault folder on disk. */

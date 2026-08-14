@@ -13,7 +13,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 // ---------------------------------------------------------------------------
@@ -1177,7 +1177,7 @@ describe("vault switch heuristic", () => {
       "old-d.md": { hash: "ddd", chunks: [{ heading: "Old D", text: "old d", embedding: FAKE_VEC_A }] },
     };
     const newVaultList = "new-x.md\nnew-y.md\nnew-z.md\n";
-    const { server, getState, cacheFile } = await setupDefaultVaultWithCache(oldFiles, async (args) => {
+    const { server, getState } = await setupDefaultVaultWithCache(oldFiles, async (args) => {
       if (args.includes("list")) return newVaultList;
       return "# New Note\nContent";
     });
@@ -1201,7 +1201,7 @@ describe("vault switch heuristic", () => {
       "gone-2.md": { hash: "g2", chunks: [{ heading: "Gone 2", text: "gone 2", embedding: FAKE_VEC_A }] },
       "gone-3.md": { hash: "g3", chunks: [{ heading: "Gone 3", text: "gone 3", embedding: FAKE_VEC_A }] },
     };
-    const { server, getState, cacheFile } = await setupDefaultVaultWithCache(oldFiles, async (args) => {
+    const { server, getState } = await setupDefaultVaultWithCache(oldFiles, async (args) => {
       if (args.includes("list")) return "keep.md\n";
       return "# Keep\nContent";
     });
@@ -1221,7 +1221,7 @@ describe("vault switch heuristic", () => {
     const oldFiles = {
       "stale-vault-note.md": { hash: "sss", chunks: [{ heading: "Stale", text: "stale content", embedding: FAKE_VEC_A }] },
     };
-    const { server, getState, cacheFile } = await setupDefaultVaultWithCache(oldFiles, async (args) => {
+    const { server, getState } = await setupDefaultVaultWithCache(oldFiles, async (args) => {
       if (args.includes("list")) return "fresh-vault-note.md\n";
       return "# Fresh Note\nContent from new vault";
     });

@@ -272,10 +272,10 @@ Verify it's running:
 curl http://localhost:3001/health   # should print: OK
 ```
 
-Add a new MCP server in your AI app:
+Add a new MCP server in your AI app. The server prints its URLs on startup — use those values, since the port shifts automatically if 3001 is already taken:
 
-| Transport | URL |
-|-----------|-----|
+| Transport | Default URL |
+|-----------|-------------|
 | Streamable HTTP (preferred) | `http://localhost:3001/mcp` |
 | SSE legacy | `http://localhost:3001/sse` |
 
@@ -470,7 +470,7 @@ The embedding model (~34 MB) ships inside the app. Fully offline — no download
 <td>
 
 **🔗 One-click connection URL**
-Click once to copy `http://127.0.0.1:3001/mcp` to your clipboard and paste into any AI client.
+Click once to copy the server's MCP URL to your clipboard and paste into any AI client. The URL reflects whatever port VaultGate is actually using.
 
 </td>
 <td>
@@ -530,7 +530,7 @@ On first launch VaultGate will:
 
 1. **Auto-detect Obsidian.** It probes the standard install path (`/Applications/Obsidian.app/Contents/MacOS/obsidian`).
 2. **Auto-detect your vault.** It reads Obsidian's `obsidian.json` to enumerate registered vaults. If exactly one vault is registered, that one is selected silently. If multiple vaults exist, the active one is used (you can pin a specific vault from Preferences).
-3. **Start the bundled MCP server** on `http://127.0.0.1:3001/mcp`.
+3. **Start the bundled MCP server.** The default URL is `http://127.0.0.1:3001/mcp`; VaultGate picks the next free port if 3001 is already in use.
 4. **Begin indexing** for Smart Search in the background. The tray menu shows "○ Building index (N/M)…" while this runs, then flips to "✓ Smart search ready — N notes". A native notification fires once when this completes.
 
 If anything goes wrong, the tray icon menu surfaces the failure mode:
@@ -546,8 +546,8 @@ If anything goes wrong, the tray icon menu surfaces the failure mode:
 
 After the tray icon shows `● Running — <Vault Name>`:
 
-1. Click the tray icon → **Copy Connection URL**.
-2. Paste `http://127.0.0.1:3001/mcp` into your client's MCP configuration:
+1. Click the tray icon → **Copy Connection URL**. This copies the exact URL VaultGate is listening on — use this rather than typing the address manually, since the port may differ from the default if 3001 is already taken.
+2. Paste the copied URL into your client's MCP configuration:
    - **Joule Work Desktop / Cursor / Windsurf / Zed**: add it as a Streamable HTTP MCP server.
    - **Claude Code**: prefer the npm-package + stdio transport (see [Claude Code](#claude-code) above).
 

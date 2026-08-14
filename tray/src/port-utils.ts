@@ -39,7 +39,7 @@ export function isPortFree(port: number): Promise<boolean> {
  */
 export async function findFreePort(preferred: number): Promise<number> {
   // Try the preferred port first (it may already be free).
-  // Then try ports above it (not below, to avoid well-known ranges).
+  // If not, scan DEFAULT_PORT…DEFAULT_PORT+PORT_SEARCH_LIMIT as fallback candidates.
   const candidates = [
     preferred,
     ...Array.from({ length: PORT_SEARCH_LIMIT }, (_, i) => DEFAULT_PORT + i),

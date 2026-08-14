@@ -6,7 +6,7 @@
  * `{ stdout, stderr }`. Our mock must replicate this so the promisified
  * call returns the same shape.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { promisify } from "node:util";
 
 vi.mock("../../src/config.js", () => ({

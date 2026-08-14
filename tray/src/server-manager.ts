@@ -44,7 +44,7 @@ export interface IndexProgressEvent {
 }
 
 /** Public events emitted by the manager. */
-export interface ServerManagerEvents {
+interface ServerManagerEvents {
   state: (state: ServerState) => void;
   indexProgress: (event: IndexProgressEvent) => void;
   log: (line: string) => void;
@@ -150,10 +150,8 @@ function checkHealth(port: number): Promise<"vaultgate" | "other" | "none"> {
         res.on("end", () => {
           if (res.statusCode === 200 && body.trim() === "OK") {
             resolve("vaultgate");
-          } else if (res.statusCode !== undefined) {
-            resolve("other");
           } else {
-            resolve("none");
+            resolve("other");
           }
         });
       }

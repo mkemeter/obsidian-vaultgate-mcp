@@ -8,7 +8,7 @@
 
 import { contextBridge, ipcRenderer } from "electron";
 
-export interface PrefsBridge {
+interface PrefsBridge {
   loadConfig: () => Promise<unknown>;
   saveConfig: (patch: Record<string, unknown>) => Promise<void>;
   listVaults: () => Promise<Array<{ name: string; path: string }>>;
