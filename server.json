@@ -3,7 +3,7 @@
   "name": "io.github.mkemeter/obsidian-vaultgate-mcp",
   "title": "VaultGate",
   "description": "Connect your Obsidian vault to any AI assistant — zero plugins, full privacy.",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "websiteUrl": "https://github.com/mkemeter/obsidian-vaultgate-mcp",
   "repository": {
     "url": "https://github.com/mkemeter/obsidian-vaultgate-mcp",
@@ -14,7 +14,7 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "obsidian-vaultgate-mcp",
-      "version": "0.2.4",
+      "version": "0.2.5",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
