@@ -11,6 +11,8 @@ A section may be absent if that distribution had no changes in the release.
 
 ## [Unreleased]
 
+## [0.2.5] — 2026-08-14
+
 ### Server
 
 #### Fixed
