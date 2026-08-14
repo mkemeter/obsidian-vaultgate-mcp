@@ -65,16 +65,28 @@ function buildMenu(): Menu {
   const isRunning = state === "running";
   const items: MenuItemConstructorOptions[] = [];
 
+  const copyUrlItem: MenuItemConstructorOptions = {
+    label: copyLabel,
+    click: () => {
+      clipboard.writeText(connectionUrl());
+      copyLabel = "Copied!";
+      rebuildMenu();
+      if (copyFeedbackTimer) clearTimeout(copyFeedbackTimer);
+      copyFeedbackTimer = setTimeout(() => {
+        copyLabel = "Copy URL";
+        rebuildMenu();
+      }, 1500);
+    },
+  };
+
   // Zone 1: identity + status ------------------------------------------------
   items.push({ label: appHeaderLabel(app.getVersion()), enabled: false });
   items.push({ type: "separator" });
-  items.push({
-    label: isRunning
-      ? runningHeaderLabel(loadConfig().vault)
-      : stoppedHeaderLabel(state, loadConfig().port),
-    enabled: false,
-  });
   if (isRunning) {
+    items.push({
+      label: runningHeaderLabel(loadConfig().vault),
+      submenu: [copyUrlItem, { label: "Stop", click: () => void serverManager.stop() }],
+    });
     const indexEvt = serverManager.getIndexState();
     const isBuilding = indexEvt.state === "building";
     items.push({
@@ -92,36 +104,19 @@ function buildMenu(): Menu {
         },
       ],
     });
-  }
-
-  // Zone 2: primary actions --------------------------------------------------
-  // Omit the separator pair entirely when empty so no back-to-back separators appear.
-  const primaryItems: MenuItemConstructorOptions[] = [];
-  if (isRunning) {
-    primaryItems.push({
-      label: copyLabel,
-      click: () => {
-        clipboard.writeText(connectionUrl());
-        copyLabel = "Copied!";
-        rebuildMenu();
-        if (copyFeedbackTimer) clearTimeout(copyFeedbackTimer);
-        copyFeedbackTimer = setTimeout(() => {
-          copyLabel = "Copy URL";
-          rebuildMenu();
-        }, 1500);
-      },
+  } else {
+    const canStart =
+      state !== "starting" && state !== "obsidian-missing" && state !== "port-conflict";
+    items.push({
+      label: stoppedHeaderLabel(state, loadConfig().port),
+      submenu: [
+        copyUrlItem,
+        ...(canStart ? [{ label: "Start", click: () => void serverManager.start() }] : []),
+      ],
     });
-    primaryItems.push({ label: "Stop", click: () => void serverManager.stop() });
-  } else if (state !== "starting" && state !== "obsidian-missing" && state !== "port-conflict") {
-    primaryItems.push({ label: "Start", click: () => void serverManager.start() });
   }
 
-  if (primaryItems.length > 0) {
-    items.push({ type: "separator" });
-    items.push(...primaryItems);
-  }
-
-  // Zone 3: utilities --------------------------------------------------------
+  // Zone 2: utilities --------------------------------------------------------
   items.push({ type: "separator" });
   items.push({ label: "Logs", click: () => void shell.openPath(serverManager.getLogPath()) });
   items.push({ label: "Preferences", click: () => openPrefsWindow() });
