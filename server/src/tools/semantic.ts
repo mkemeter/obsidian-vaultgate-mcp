@@ -74,6 +74,12 @@ let embedderInstance: Awaited<ReturnType<typeof pipeline>> | null = null;
 // once created — even after clear_index resets liveIndex and indexState. If a
 // future code path needs a fresh embedder, reset this to null explicitly.
 
+// emptyListRetries: cache-HIT guard — if index had N notes but Obsidian returned 0,
+// Obsidian likely wasn't ready yet. Skips saveIndex (keeps disk intact) and retries
+// after 60 s. After MAX_EMPTY_LIST_RETRIES attempts, accepts 0 as genuine.
+let emptyListRetries = 0;
+const MAX_EMPTY_LIST_RETRIES = 3;
+
 const MODEL_ID = "Xenova/bge-small-en-v1.5";
 const INDEX_VERSION = 2;
 const CHUNK_SIZE = 2000;
@@ -141,10 +147,25 @@ function emitProgress(event: IndexProgressEvent): void {
 // Index path helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Resolves the directory that holds the per-vault embeddings index files.
+ *
+ * Honors the `VAULTGATE_INDEX_CACHE_DIR` env override (used by the test suite to
+ * keep embeddings out of the real user cache, and available for sandboxed runs);
+ * otherwise defaults to `~/.cache/obsidian-vaultgate-mcp`. Read at call time so
+ * tests can redirect it per-run. Mirrors the sibling `VAULTGATE_MODEL_CACHE_DIR`.
+ */
+export function resolveIndexCacheDir(): string {
+  return (
+    process.env.VAULTGATE_INDEX_CACHE_DIR ??
+    path.join(os.homedir(), ".cache", "obsidian-vaultgate-mcp")
+  );
+}
+
 function getIndexPath(): string {
   const vaultKey = config.vault ?? "default";
   const safe = vaultKey.replace(/[^a-zA-Z0-9_-]/g, "_");
-  const dir = path.join(os.homedir(), ".cache", "obsidian-vaultgate-mcp");
+  const dir = resolveIndexCacheDir();
   fs.mkdirSync(dir, { recursive: true });
   return path.join(dir, `embeddings-${safe}.json`);
 }
@@ -345,12 +366,21 @@ function averageAndNormalise(vectors: number[][]): number[] {
 // CLI helpers — get vault file paths and content via Obsidian CLI
 // ---------------------------------------------------------------------------
 
+/**
+ * Matches an Obsidian CLI log line that leaks onto stdout, e.g.
+ * "2026-08-05 07:21:27 Checking for update using obsidian.md". The `HH:MM:SS`
+ * time component with colons is the discriminator: `:` is illegal in note
+ * titles and on macOS/Windows filesystems, so no real vault path starts this
+ * way. regression: such lines ended in ".md" and were embedded as nonexistent notes.
+ */
+const CLI_LOG_LINE_RE = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}\b/;
+
 async function listVaultPaths(): Promise<string[]> {
   const result = await runObsidian(["files", "list"]);
   return result
     .split("\n")
     .map((l) => l.trim())
-    .filter((l) => l.endsWith(".md"));
+    .filter((l) => l.endsWith(".md") && !CLI_LOG_LINE_RE.test(l));
 }
 
 async function readNote(filePath: string): Promise<string> {
@@ -450,6 +480,14 @@ async function fullReHash(idx: VaultIndex): Promise<void> {
     const paths = await listVaultPaths();
     const pathSet = new Set(paths);
 
+    // Guard: if the index has notes but Obsidian returned an empty list, it is
+    // likely not yet ready. Bail out silently — the next 24 h cycle or search-
+    // triggered sync will retry when Obsidian is available.
+    const previousTotal = Object.keys(idx.files).length;
+    if (previousTotal > 0 && paths.length === 0) {
+      return;
+    }
+
     // Prune deleted
     for (const p of Object.keys(idx.files)) {
       if (!pathSet.has(p)) delete idx.files[p];
@@ -498,7 +536,47 @@ export function getIndexStateForTesting(): "idle" | "building" | "ready" {
 export function resetIndexForVaultChange(): void {
   liveIndex = null;
   indexState = "idle";
+  emptyListRetries = 0;
   startBackgroundIndex();
+}
+
+/**
+ * Handles a manual index control command from the tray app.
+ *
+ * - `rebuild_index` (soft): calls `fullReHash` in-place. `indexState` stays
+ *   `"ready"` throughout — searches keep working during the refresh.
+ * - `clear_index` (hard): deletes the on-disk cache, nulls `liveIndex`, and
+ *   triggers a full rebuild via `startBackgroundIndex`. Searches return
+ *   "being indexed" until the rebuild completes.
+ */
+export function handleControlCommand(command: "rebuild_index" | "clear_index"): void {
+  if (command === "rebuild_index") {
+    if (isReHashing || !liveIndex) return; // already rehashing or no index to refresh
+    emptyListRetries = 0;
+    fullReHash(liveIndex).catch(() => {
+      /* non-fatal — next search or 24 h cycle will retry */
+    });
+    return;
+  }
+
+  if (command === "clear_index") {
+    if (indexState === "building") return; // already building — ignore
+    const cachePath = getIndexPath();
+    try {
+      if (fs.existsSync(cachePath)) fs.unlinkSync(cachePath);
+    } catch {
+      /* best-effort */
+    }
+    liveIndex = null;
+    indexState = "idle";
+    emptyListRetries = 0;
+    startBackgroundIndex();
+  }
+}
+
+/** Exported only for testing — returns the current emptyListRetries count. */
+export function getEmptyListRetriesForTesting(): number {
+  return emptyListRetries;
 }
 
 function startBackgroundIndex(): void {
@@ -514,8 +592,32 @@ function startBackgroundIndex(): void {
         // Cache hit: always run syncNewAndDeleted() before becoming ready so the
         // tray shows an accurate note count immediately after startup or a vault
         // change — without waiting for the first MCP request to trigger a sync.
-        liveIndex = idx;
+        const previousTotal = Object.keys(idx.files).length;
+        liveIndex = idx; // assign first so in-flight searches use stale data during sync
         await syncNewAndDeleted(idx);
+
+        // Guard: if we had notes before but Obsidian returned an empty list,
+        // the plugin was likely not ready yet. Skip saveIndex — do NOT corrupt
+        // the on-disk file — reload from disk to restore liveIndex, and retry.
+        if (Object.keys(idx.files).length === 0 && previousTotal > 0) {
+          if (emptyListRetries < MAX_EMPTY_LIST_RETRIES) {
+            emptyListRetries++;
+            console.error(
+              `[VaultGate] Empty file list received but index had ${previousTotal} note(s) ` +
+                `(attempt ${emptyListRetries}/${MAX_EMPTY_LIST_RETRIES}) — retrying in 60s`
+            );
+            // Reload from disk: saveIndex was not called yet, so the file still has the notes.
+            liveIndex = loadIndex();
+            indexState = "idle";
+            setTimeout(() => startBackgroundIndex(), 60_000);
+            return; // skip saveIndex — disk file is still intact
+          }
+          // MAX retries exhausted — user has genuinely deleted all notes. Accept and proceed.
+          console.error(
+            `[VaultGate] Accepting empty vault after ${MAX_EMPTY_LIST_RETRIES} retries.`
+          );
+        }
+        emptyListRetries = 0;
         saveIndex(idx);
         indexState = "ready";
       } else {

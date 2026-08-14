@@ -13,7 +13,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 // ---------------------------------------------------------------------------
@@ -90,6 +90,9 @@ async function freshModule(runMock: (args: string[]) => Promise<string>) {
     server,
     mockRun: vi.mocked(runObsidian),
     getState: semantic.getIndexStateForTesting,
+    getEmptyListRetries: semantic.getEmptyListRetriesForTesting,
+    handleControlCommand: semantic.handleControlCommand,
+    resetIndexForVaultChange: semantic.resetIndexForVaultChange,
   };
 }
 
@@ -174,6 +177,8 @@ async function freshModuleNoCache(runMock: (args: string[]) => Promise<string>) 
     server,
     mockRun: vi.mocked(runObsidian),
     getState: semantic.getIndexStateForTesting,
+    getEmptyListRetries: semantic.getEmptyListRetriesForTesting,
+    handleControlCommand: semantic.handleControlCommand,
   };
 }
 
@@ -189,23 +194,6 @@ async function freshModuleWithCache(runMock: (args: string[]) => Promise<string>
 
   const vaultName = `__test_cached_${Date.now()}_${Math.random().toString(36).slice(2)}`;
   const safeKey = vaultName.replace(/[^a-zA-Z0-9_-]/g, "_");
-  const cacheDir = path.join(os.homedir(), ".cache", "obsidian-vaultgate-mcp");
-  fs.mkdirSync(cacheDir, { recursive: true });
-  const indexPath = path.join(cacheDir, `embeddings-${safeKey}.json`);
-
-  // Pre-seed a minimal valid index: one note with one chunk embedding (FAKE_VEC_A),
-  // one note with empty chunks (exercises averageAndNormalise([]) guard),
-  // lastReHash=0 so REHASH_INTERVAL_MS has elapsed → fullReHash fires.
-  const seededIndex = {
-    version: 2,
-    model: "Xenova/bge-small-en-v1.5",
-    lastReHash: 0,
-    files: {
-      "note-a.md": { hash: "abc123", chunks: [{ heading: "Note A", embedding: FAKE_VEC_A }] },
-      "note-empty-chunks.md": { hash: "def456", chunks: [] },
-    },
-  };
-  fs.writeFileSync(indexPath, JSON.stringify(seededIndex), "utf-8");
 
   vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
   vi.doMock("../../../src/config.js", () => ({
@@ -225,12 +213,38 @@ async function freshModuleWithCache(runMock: (args: string[]) => Promise<string>
   const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
   const server = new McpServer({ name: "test", version: "0.0.0" });
   const semantic = await import("../../../src/tools/semantic.js");
+
+  // Seed the index in the same dir getIndexPath() will read (test-isolated via
+  // VAULTGATE_INDEX_CACHE_DIR from tests/setup.ts). Must land before
+  // registerSemanticTools(), which triggers the background index read.
+  const cacheDir = semantic.resolveIndexCacheDir();
+  fs.mkdirSync(cacheDir, { recursive: true });
+  const indexPath = path.join(cacheDir, `embeddings-${safeKey}.json`);
+
+  // Pre-seed a minimal valid index: one note with one chunk embedding (FAKE_VEC_A),
+  // one note with empty chunks (exercises averageAndNormalise([]) guard),
+  // lastReHash=0 so REHASH_INTERVAL_MS has elapsed → fullReHash fires.
+  const seededIndex = {
+    version: 2,
+    model: "Xenova/bge-small-en-v1.5",
+    lastReHash: 0,
+    files: {
+      "note-a.md": { hash: "abc123", chunks: [{ heading: "Note A", embedding: FAKE_VEC_A }] },
+      "note-empty-chunks.md": { hash: "def456", chunks: [] },
+    },
+  };
+  fs.writeFileSync(indexPath, JSON.stringify(seededIndex), "utf-8");
+
   semantic.registerSemanticTools(server);
 
   return {
     server,
     mockRun: vi.mocked(runObsidian),
     getState: semantic.getIndexStateForTesting,
+    getEmptyListRetries: semantic.getEmptyListRetriesForTesting,
+    handleControlCommand: semantic.handleControlCommand,
+    resetIndexForVaultChange: semantic.resetIndexForVaultChange,
+    indexPath,
     cleanup: () => { try { fs.unlinkSync(indexPath); } catch { /* already gone */ } },
   };
 }
@@ -277,22 +291,7 @@ describe("cache-hit startup path — configured vault syncs immediately", () => 
 
     const vaultName = `__test_sync_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const safeKey = vaultName.replace(/[^a-zA-Z0-9_-]/g, "_");
-    const cacheDir = path.join(os.homedir(), ".cache", "obsidian-vaultgate-mcp");
     const fs = await import("node:fs");
-    fs.mkdirSync(cacheDir, { recursive: true });
-    const indexPath = path.join(cacheDir, `embeddings-${safeKey}.json`);
-
-    // Cache has 2 notes, but the vault now contains only 1
-    const seededIndex = {
-      version: 2,
-      model: "Xenova/bge-small-en-v1.5",
-      lastReHash: Date.now(),
-      files: {
-        "note-a.md": { hash: "abc", chunks: [{ heading: "Note A", embedding: FAKE_VEC_A }] },
-        "note-b.md": { hash: "def", chunks: [{ heading: "Note B", embedding: FAKE_VEC_A }] },
-      },
-    };
-    fs.writeFileSync(indexPath, JSON.stringify(seededIndex), "utf-8");
 
     vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
     vi.doMock("../../../src/config.js", () => ({
@@ -316,6 +315,24 @@ describe("cache-hit startup path — configured vault syncs immediately", () => 
     const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
     const server = new McpServer({ name: "test", version: "0.0.0" });
     const semantic = await import("../../../src/tools/semantic.js");
+
+    // Seed in the test-isolated index dir (VAULTGATE_INDEX_CACHE_DIR), before register.
+    const cacheDir = semantic.resolveIndexCacheDir();
+    fs.mkdirSync(cacheDir, { recursive: true });
+    const indexPath = path.join(cacheDir, `embeddings-${safeKey}.json`);
+
+    // Cache has 2 notes, but the vault now contains only 1
+    const seededIndex = {
+      version: 2,
+      model: "Xenova/bge-small-en-v1.5",
+      lastReHash: Date.now(),
+      files: {
+        "note-a.md": { hash: "abc", chunks: [{ heading: "Note A", embedding: FAKE_VEC_A }] },
+        "note-b.md": { hash: "def", chunks: [{ heading: "Note B", embedding: FAKE_VEC_A }] },
+      },
+    };
+    fs.writeFileSync(indexPath, JSON.stringify(seededIndex), "utf-8");
+
     semantic.registerSemanticTools(server);
 
     await waitForReady(semantic.getIndexStateForTesting);
@@ -776,7 +793,7 @@ describe("clear_index", () => {
     await waitForReady(semantic.getIndexStateForTesting);
 
     // Delete the cache file if it was created during indexing, so exists=false for the dry run.
-    const cacheDir = path.join(os.homedir(), ".cache", "obsidian-vaultgate-mcp");
+    const cacheDir = semantic.resolveIndexCacheDir();
     const safe = uniqueVault.replace(/[^a-zA-Z0-9_-]/g, "_");
     const cacheFile = path.join(cacheDir, `embeddings-${safe}.json`);
     if (fs.existsSync(cacheFile)) fs.unlinkSync(cacheFile);
@@ -1096,35 +1113,9 @@ describe("splitIntoSections via semantic_search", () => {
 // ---------------------------------------------------------------------------
 
 describe("vault switch heuristic", () => {
-  // Preserve the real production index (embeddings-default.json) so running
-  // tests on a dev machine does not destroy the live semantic index.
-  const defaultCachePath = path.join(
-    os.homedir(),
-    ".cache",
-    "obsidian-vaultgate-mcp",
-    "embeddings-default.json"
-  );
-  let savedIndex: Buffer | null = null;
-
-  beforeAll(() => {
-    try {
-      savedIndex = fs.readFileSync(defaultCachePath);
-    } catch {
-      savedIndex = null;
-    }
-  });
-
-  afterAll(() => {
-    if (savedIndex !== null) {
-      fs.writeFileSync(defaultCachePath, savedIndex);
-    } else {
-      try {
-        fs.unlinkSync(defaultCachePath);
-      } catch {
-        /* already gone */
-      }
-    }
-  });
+  // The index lives in a disposable per-worker dir (VAULTGATE_INDEX_CACHE_DIR,
+  // set in tests/setup.ts), so seeding embeddings-default.json here can never
+  // touch a real user index — no preserve/restore needed.
 
   /**
    * Helper: write a valid cache with specific files for the "default" vault,
@@ -1135,15 +1126,6 @@ describe("vault switch heuristic", () => {
     cachedFiles: Record<string, { hash: string; chunks: { heading: string; text: string; embedding: number[] }[] }>,
     runMock: (args: string[]) => Promise<string>
   ) {
-    const cacheDir = path.join(os.homedir(), ".cache", "obsidian-vaultgate-mcp");
-    fs.mkdirSync(cacheDir, { recursive: true });
-    const cacheFile = path.join(cacheDir, "embeddings-default.json");
-    fs.writeFileSync(
-      cacheFile,
-      JSON.stringify({ files: cachedFiles, model: "Xenova/bge-small-en-v1.5", version: 2, lastReHash: 0 }),
-      "utf-8"
-    );
-
     vi.resetModules();
     vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
     // config.vault is undefined — unconfigured vault case
@@ -1164,6 +1146,17 @@ describe("vault switch heuristic", () => {
     const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
     const server = new McpServer({ name: "test", version: "0.0.0" });
     const semantic = await import("../../../src/tools/semantic.js");
+
+    // Seed in the test-isolated index dir, before register triggers the read.
+    const cacheDir = semantic.resolveIndexCacheDir();
+    fs.mkdirSync(cacheDir, { recursive: true });
+    const cacheFile = path.join(cacheDir, "embeddings-default.json");
+    fs.writeFileSync(
+      cacheFile,
+      JSON.stringify({ files: cachedFiles, model: "Xenova/bge-small-en-v1.5", version: 2, lastReHash: 0 }),
+      "utf-8"
+    );
+
     semantic.registerSemanticTools(server);
 
     return {
@@ -1287,15 +1280,7 @@ describe("loadIndex stale cache", () => {
   it("treats an on-disk cache with wrong INDEX_VERSION as empty and re-indexes", async () => {
     // Write a stale cache file (version 0) for a unique vault name.
     const uniqueVault = `__test_stale_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const cacheDir = path.join(os.homedir(), ".cache", "obsidian-vaultgate-mcp");
-    fs.mkdirSync(cacheDir, { recursive: true });
     const safe = uniqueVault.replace(/[^a-zA-Z0-9_-]/g, "_");
-    const cacheFile = path.join(cacheDir, `embeddings-${safe}.json`);
-    fs.writeFileSync(
-      cacheFile,
-      JSON.stringify({ files: { "stale.md": { hash: "abc", chunks: [] } }, model: "Xenova/bge-small-en-v1.5", version: 0, lastReHash: 0 }),
-      "utf-8"
-    );
 
     vi.resetModules();
     vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
@@ -1317,6 +1302,17 @@ describe("loadIndex stale cache", () => {
     const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
     const server = new McpServer({ name: "test", version: "0.0.0" });
     const semantic = await import("../../../src/tools/semantic.js");
+
+    // Seed a stale (version 0) cache in the test-isolated dir, before register.
+    const cacheDir = semantic.resolveIndexCacheDir();
+    fs.mkdirSync(cacheDir, { recursive: true });
+    const cacheFile = path.join(cacheDir, `embeddings-${safe}.json`);
+    fs.writeFileSync(
+      cacheFile,
+      JSON.stringify({ files: { "stale.md": { hash: "abc", chunks: [] } }, model: "Xenova/bge-small-en-v1.5", version: 0, lastReHash: 0 }),
+      "utf-8"
+    );
+
     semantic.registerSemanticTools(server);
 
     await waitForReady(semantic.getIndexStateForTesting);
@@ -1484,5 +1480,414 @@ describe("emitProgress — utilityProcess.fork() IPC", () => {
 
     const { getState } = await freshModule(async () => "");
     await expect(waitForReady(getState)).resolves.toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Index cache directory override
+// ---------------------------------------------------------------------------
+
+describe("VAULTGATE_INDEX_CACHE_DIR — embeddings index location override", () => {
+  // regression: tests wrote embeddings-__test_*.json into the real user cache
+  // (~/.cache/obsidian-vaultgate-mcp) because getIndexPath() hardcoded
+  // os.homedir() with no override. A full local test suite leaked 1000+ files
+  // into a running user's production cache. The index path must honor an env
+  // override so tests (and sandboxed runs) point at a throwaway dir.
+  const ORIGINAL_INDEX_DIR_ENV = process.env.VAULTGATE_INDEX_CACHE_DIR;
+
+  afterAll(() => {
+    if (ORIGINAL_INDEX_DIR_ENV === undefined) delete process.env.VAULTGATE_INDEX_CACHE_DIR;
+    else process.env.VAULTGATE_INDEX_CACHE_DIR = ORIGINAL_INDEX_DIR_ENV;
+  });
+
+  it("writes the embeddings index under VAULTGATE_INDEX_CACHE_DIR, never the real ~/.cache", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "vaultgate-index-test-"));
+    process.env.VAULTGATE_INDEX_CACHE_DIR = tmpDir;
+
+    // The real user cache dir must NOT gain a file for this vault.
+    const realCacheDir = path.join(os.homedir(), ".cache", "obsidian-vaultgate-mcp");
+    const vaultName = `__test_indexdir_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const safe = vaultName.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const realCacheFile = path.join(realCacheDir, `embeddings-${safe}.json`);
+
+    vi.resetModules();
+    vi.doMock("../../../src/config.js", () => ({
+      config: { vault: vaultName, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+    }));
+    vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+    vi.doMock("@xenova/transformers", () => ({
+      pipeline: vi.fn().mockResolvedValue(
+        vi.fn().mockImplementation(() => Promise.resolve({ tolist: () => [FAKE_VEC_A] }))
+      ),
+    }));
+
+    const { runObsidian } = await import("../../../src/cli.js");
+    vi.mocked(runObsidian).mockImplementation(async (args: string[]) => {
+      if (args.includes("list")) return "note-a.md\n";
+      return NOTE_A_CONTENT;
+    });
+
+    const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
+    const server = new McpServer({ name: "test", version: "0.0.0" });
+    const semantic = await import("../../../src/tools/semantic.js");
+    semantic.registerSemanticTools(server);
+    await waitForReady(semantic.getIndexStateForTesting);
+
+    // The index must land in the override dir…
+    const overrideFile = path.join(tmpDir, `embeddings-${safe}.json`);
+    expect(fs.existsSync(overrideFile)).toBe(true);
+    // …and must NOT pollute the real user cache.
+    expect(fs.existsSync(realCacheFile)).toBe(false);
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// listVaultPaths — CLI stdout hygiene
+// ---------------------------------------------------------------------------
+
+describe("listVaultPaths — filters non-note stdout lines", () => {
+  // regression: Obsidian's CLI occasionally emits an update-check line on
+  // stdout — e.g. "2026-08-05 07:21:27 Checking for update using obsidian.md".
+  // Because it ends in ".md", the naive endsWith(".md") filter treated it as a
+  // vault note and tried to embed a file that does not exist. A real vault path
+  // is relative and has no leading timestamp / space-separated log prose.
+  it("does not treat an Obsidian update-check log line as a note path", async () => {
+    const bogus = "2026-08-05 07:21:27 Checking for update using obsidian.md";
+    const readCalls: string[] = [];
+
+    const { getState } = await freshModule(async (args) => {
+      if (args[0] === "files" && args[1] === "list") {
+        return `note-a.md\n${bogus}\nnote-b.md\n`;
+      }
+      if (args[0] === "read") {
+        // args[1] is "path=<file>"
+        readCalls.push(args[1].replace(/^path=/, ""));
+        return NOTE_A_CONTENT;
+      }
+      return "";
+    });
+    await waitForReady(getState);
+
+    // The two real notes are read; the update-check line is never read.
+    expect(readCalls).toContain("note-a.md");
+    expect(readCalls).toContain("note-b.md");
+    expect(readCalls).not.toContain(bogus);
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// regression: empty listVaultPaths does not wipe non-empty index
+// ---------------------------------------------------------------------------
+
+/** Poll until indexState reaches "idle" (or throws after 2 s). */
+async function waitForIdle(
+  getState: () => "idle" | "building" | "ready"
+): Promise<void> {
+  const deadline = Date.now() + 2000;
+  while (getState() !== "idle") {
+    if (Date.now() > deadline) throw new Error("Index did not reach 'idle' within 2 s");
+    await new Promise((r) => setTimeout(r, 10));
+  }
+}
+
+describe("regression: empty listVaultPaths does not wipe non-empty index", () => {
+  // regression: Obsidian returned empty file list at startup while index had N notes.
+  // syncNewAndDeleted wiped idx.files, then saveIndex wrote {} to disk.
+  // The tray showed "Smart search ready — 0 notes" for days because the tray
+  // autostart races against Obsidian's plugin initialisation every restart.
+  it("skips saveIndex and schedules retry when listVaultPaths returns [] and index is non-empty", async () => {
+    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+
+    const { getState, getEmptyListRetries, indexPath, cleanup } = await freshModuleWithCache(async (args) => {
+      if (args[0] === "files" && args[1] === "list") return "";
+      return NOTE_A_CONTENT;
+    });
+
+    await waitForIdle(getState);
+    expect(getState()).toBe("idle");
+
+    // Disk cache must still contain the original 2 seeded notes — saveIndex must NOT have run
+    const diskIndex = JSON.parse(fs.readFileSync(indexPath, "utf-8"));
+    expect(Object.keys(diskIndex.files).length).toBe(2);
+
+    // A 60 000 ms retry must have been registered
+    const retryCall = setTimeoutSpy.mock.calls.find(([, delay]) => delay === 60_000);
+    expect(retryCall).toBeDefined();
+
+    expect(getEmptyListRetries()).toBe(1);
+
+    setTimeoutSpy.mockRestore();
+    cleanup();
+  });
+
+  it("accepts empty vault after MAX_EMPTY_LIST_RETRIES exhausted (user deleted all notes)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { getState, getEmptyListRetries, indexPath, cleanup } = await freshModuleWithCache(async (args) => {
+        if (args[0] === "files" && args[1] === "list") return "";
+        return NOTE_A_CONTENT;
+      });
+
+      await waitForIdle(getState);
+      expect(getEmptyListRetries()).toBe(1);
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      await waitForIdle(getState);
+      expect(getEmptyListRetries()).toBe(2);
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      await waitForIdle(getState);
+      expect(getEmptyListRetries()).toBe(3);
+
+      // MAX_EMPTY_LIST_RETRIES (3) exhausted — accepts empty as genuine
+      await vi.advanceTimersByTimeAsync(60_000);
+      await waitForReady(getState);
+      expect(getState()).toBe("ready");
+      expect(getEmptyListRetries()).toBe(0);
+
+      // Disk cache must now be saved with files: {} (this specific test's cache file)
+      const diskIndex = JSON.parse(fs.readFileSync(indexPath, "utf-8"));
+      expect(Object.keys(diskIndex.files).length).toBe(0);
+
+      cleanup();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("recovers when Obsidian becomes available on first retry", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      let callCount = 0;
+      const { server, getState, getEmptyListRetries, cleanup } = await freshModuleWithCache(async (args) => {
+        if (args[0] === "files" && args[1] === "list") {
+          callCount++;
+          return callCount === 1 ? "" : FILE_LIST;
+        }
+        return NOTE_A_CONTENT;
+      });
+
+      await waitForIdle(getState);
+      expect(getEmptyListRetries()).toBe(1);
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      await waitForReady(getState);
+      expect(getState()).toBe("ready");
+      expect(getEmptyListRetries()).toBe(0);
+
+      const result = await callTool(server, "vault_info");
+      expect(result.content[0].text).toMatch(/Indexed notes: [1-9]/);
+
+      cleanup();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fullReHash guard — same empty-list wipe prevented
+// ---------------------------------------------------------------------------
+
+describe("fullReHash guard", () => {
+  it("bails out and preserves index when listVaultPaths returns [] during rehash", async () => {
+    // regression: fullReHash had the same prune loop — could wipe index during 24h rehash
+    // or when user clicks "Rebuild index" and Obsidian is temporarily unavailable.
+    // Use freshModuleWithCache so the index starts with 2 seeded notes.
+    // Keep mockRun returning FILE_LIST for syncNewAndDeleted (search-time) so it doesn't
+    // prune those notes; only return "" when listVaultPaths is called from fullReHash.
+    // We distinguish by call count: first N calls return FILE_LIST (syncNewAndDeleted during
+    // startup + first search), subsequent calls return "" to simulate Obsidian going offline.
+    let syncCallCount = 0;
+    const { server, getState, handleControlCommand, cleanup } = await freshModuleWithCache(
+      async (args) => {
+        if (args[0] === "files" && args[1] === "list") {
+          syncCallCount++;
+          // First call: startup syncNewAndDeleted (returns FILE_LIST so index populates).
+          // Subsequent calls (from fullReHash triggered by handleControlCommand): return "".
+          return syncCallCount <= 1 ? FILE_LIST : "";
+        }
+        return NOTE_A_CONTENT;
+      }
+    );
+
+    await waitForReady(getState);
+
+    // Trigger soft rebuild — fullReHash will call listVaultPaths and get ""
+    handleControlCommand("rebuild_index");
+
+    await new Promise((r) => { globalThis.setTimeout(r, 150); });
+
+    // Index must still have notes (seeded + synced during startup)
+    const result = await callTool(server, "vault_info");
+    // fullReHash bailed out — note count must be > 0
+    expect(result.content[0].text).not.toMatch(/Indexed notes: 0/);
+    expect(getState()).toBe("ready");
+    cleanup();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// handleControlCommand — soft and hard reset semantics
+// ---------------------------------------------------------------------------
+
+describe("handleControlCommand", () => {
+  it("rebuild_index keeps indexState at 'ready' — index stays online throughout", async () => {
+    const { server, mockRun, getState, handleControlCommand } = await freshModule(async (args) => {
+      if (args[0] === "files" && args[1] === "list") return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
+
+    await waitForReady(getState);
+
+    mockRun.mockImplementation(async (args: string[]) => {
+      if (args[0] === "files" && args[1] === "list") return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
+
+    handleControlCommand("rebuild_index");
+
+    // Poll 200ms — indexState must never leave "ready" (soft rebuild never changes state)
+    const deadline = Date.now() + 200;
+    while (Date.now() < deadline) {
+      expect(getState()).toBe("ready");
+      await new Promise((r) => setTimeout(r, 10));
+    }
+
+    // vault_info must succeed (liveIndex was not nulled)
+    const result = await callTool(server, "vault_info");
+    expect(result.content[0].text).toMatch(/Indexed notes:/);
+  });
+
+  it("clear_index transitions through 'building' to 'ready'", async () => {
+    const { server, mockRun, getState, handleControlCommand } = await freshModule(async (args) => {
+      if (args[0] === "files" && args[1] === "list") return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
+
+    await waitForReady(getState);
+
+    mockRun.mockImplementation(async (args: string[]) => {
+      if (args[0] === "files" && args[1] === "list") return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
+
+    handleControlCommand("clear_index");
+
+    // Wait for rebuild to complete — clear_index triggers a full startBackgroundIndex cycle
+    await waitForReady(getState);
+    expect(getState()).toBe("ready");
+
+    const result = await callTool(server, "vault_info");
+    expect(result.content[0].text).toMatch(/Indexed notes: [1-9]/);
+  });
+
+  it("rebuild_index is a no-op when already rehashing", async () => {
+    const { getState, handleControlCommand } = await freshModule(async (args) => {
+      if (args[0] === "files" && args[1] === "list") return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
+
+    await waitForReady(getState);
+
+    // Call twice — second should no-op (isReHashing guard)
+    handleControlCommand("rebuild_index");
+    handleControlCommand("rebuild_index");
+
+    await new Promise((r) => { globalThis.setTimeout(r, 50); });
+    expect(getState()).toBe("ready");
+  });
+
+  it("clear_index is a no-op when already building", async () => {
+    const { getState, handleControlCommand } = await freshModuleNoCache(() => new Promise(() => {}));
+    expect(getState()).toBe("building");
+
+    handleControlCommand("clear_index");
+    expect(getState()).toBe("building");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// emptyListRetries resets on vault change
+// ---------------------------------------------------------------------------
+
+describe("emptyListRetries resets on resetIndexForVaultChange", () => {
+  it("resets counter and recovers after vault change", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+
+    const { mockRun, getState, getEmptyListRetries, resetIndexForVaultChange, cleanup } =
+      await freshModuleWithCache(async (args) => {
+        if (args[0] === "files" && args[1] === "list") return "";
+        return NOTE_A_CONTENT;
+      });
+
+    await waitForIdle(getState);
+    expect(getEmptyListRetries()).toBe(1);
+
+    mockRun.mockImplementation(async (args: string[]) => {
+      if (args[0] === "files" && args[1] === "list") return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
+
+    resetIndexForVaultChange();
+    await waitForReady(getState);
+    expect(getEmptyListRetries()).toBe(0);
+
+    setTimeoutSpy.mockRestore();
+    vi.useRealTimers();
+    cleanup();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveIndexCacheDir — env override vs default (both `??` branches)
+//
+// MUST be the last describe in the file: the "env deleted" test clears the
+// VAULTGATE_INDEX_CACHE_DIR global that tests/setup.ts set. afterEach restores
+// it, but placing this block last is belt-and-braces so no later test can run
+// with the var unset and leak into the real ~/.cache.
+// ---------------------------------------------------------------------------
+
+describe("resolveIndexCacheDir", () => {
+  const ORIGINAL_INDEX_DIR_ENV = process.env.VAULTGATE_INDEX_CACHE_DIR;
+
+  // Restore after EVERY test (not just afterAll): the fallback test deletes the
+  // global, and vitest runs `it`s sequentially — afterAll would fire too late to
+  // protect a sibling test.
+  afterEach(() => {
+    if (ORIGINAL_INDEX_DIR_ENV === undefined) delete process.env.VAULTGATE_INDEX_CACHE_DIR;
+    else process.env.VAULTGATE_INDEX_CACHE_DIR = ORIGINAL_INDEX_DIR_ENV;
+  });
+
+  it("returns VAULTGATE_INDEX_CACHE_DIR verbatim when set", async () => {
+    process.env.VAULTGATE_INDEX_CACHE_DIR = "/tmp/vaultgate-explicit-index";
+    vi.resetModules();
+    vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+    vi.doMock("../../../src/config.js", () => ({
+      config: { vault: "v", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+    }));
+    vi.doMock("@xenova/transformers", () => ({ pipeline: vi.fn() }));
+
+    const { resolveIndexCacheDir } = await import("../../../src/tools/semantic.js");
+    expect(resolveIndexCacheDir()).toBe("/tmp/vaultgate-explicit-index");
+  });
+
+  it("falls back to ~/.cache/obsidian-vaultgate-mcp when the env var is unset", async () => {
+    delete process.env.VAULTGATE_INDEX_CACHE_DIR;
+    vi.resetModules();
+    vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+    vi.doMock("../../../src/config.js", () => ({
+      config: { vault: "v", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+    }));
+    vi.doMock("@xenova/transformers", () => ({ pipeline: vi.fn() }));
+
+    const { resolveIndexCacheDir } = await import("../../../src/tools/semantic.js");
+    expect(resolveIndexCacheDir()).toBe(
+      path.join(os.homedir(), ".cache", "obsidian-vaultgate-mcp")
+    );
   });
 });

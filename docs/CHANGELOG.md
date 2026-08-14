@@ -11,6 +11,42 @@ A section may be absent if that distribution had no changes in the release.
 
 ## [Unreleased]
 
+### Server
+
+#### Fixed
+
+- **Semantic index no longer wiped on startup when Obsidian is not yet ready.** The tray app
+  starts faster than Obsidian on most machines; if the CLI returned an empty file list before
+  the plugin finished initialising, the prune loop deleted every entry from the in-memory index
+  and `saveIndex` wrote `{ "files": {} }` to disk. Every subsequent restart re-hit the same
+  race, causing "Smart search ready — 0 notes" to persist indefinitely. The fix skips
+  `saveIndex` when a previously non-empty index receives an empty file list, reloads the
+  good on-disk state, and retries after 60 s (up to 3 attempts). After 3 consecutive empty
+  results the empty state is accepted as genuine (e.g. the user deleted all their notes).
+- The same empty-list guard was added to `fullReHash`, which runs on the 24 h periodic
+  re-hash cycle and when the tray "Rebuild index" button is pressed. Previously it had the
+  same prune loop and could silently wipe the index if Obsidian was unreachable at that moment.
+- Semantic search no longer tries to embed Obsidian's CLI update-check line (e.g.
+  `2026-08-05 07:21:27 Checking for update using obsidian.md`) as a note. Such lines could
+  leak onto the CLI's stdout and, because they end in `.md`, were mistaken for a vault path.
+- The test suite no longer writes embeddings into the real user cache
+  (`~/.cache/obsidian-vaultgate-mcp/`). The index cache directory is now resolvable via an
+  internal `VAULTGATE_INDEX_CACHE_DIR` override, which the tests point at a throwaway
+  per-worker directory.
+
+### Tray
+
+#### Added
+
+- **Index controls in the tray menu.** Hover over the Smart search status row to reveal a
+  submenu with two actions:
+  - **Rebuild index** — soft refresh: re-embeds new and changed notes without taking the index
+    offline. The status row stays "Smart search ready" throughout; searches keep working.
+  - **Clear cache & rebuild** — hard reset: deletes the on-disk embeddings file and rebuilds
+    from scratch. Use this if the index is believed corrupt. Searches show "building" until
+    the rebuild completes.
+  Both buttons are disabled (greyed out) while a build is already in progress.
+
 ## [0.2.4] — 2026-08-04
 
 ### Server

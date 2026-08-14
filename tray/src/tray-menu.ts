@@ -75,7 +75,23 @@ function buildMenu(): Menu {
     enabled: false,
   });
   if (isRunning) {
-    items.push({ label: smartSearchLabel(serverManager.getIndexState()), enabled: false });
+    const indexEvt = serverManager.getIndexState();
+    const isBuilding = indexEvt.state === "building";
+    items.push({
+      label: smartSearchLabel(indexEvt),
+      submenu: [
+        {
+          label: "Rebuild index",
+          enabled: !isBuilding,
+          click: () => serverManager.sendControlCommand("rebuild_index"),
+        },
+        {
+          label: "Clear cache && rebuild",
+          enabled: !isBuilding,
+          click: () => serverManager.sendControlCommand("clear_index"),
+        },
+      ],
+    });
   }
 
   // Zone 2: primary actions --------------------------------------------------

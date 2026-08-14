@@ -103,6 +103,8 @@ server/
 │                         clear_index, vault_info  (optional — requires @xenova/transformers)
 │
 └── tests/
+    ├── setup.ts          global vitest setup — redirects the embeddings index
+    │                      cache to a per-worker temp dir (keeps tests out of ~/.cache)
     ├── unit/
     │   ├── cli.test.ts
     │   ├── config.test.ts
@@ -310,6 +312,7 @@ npm run test:coverage    # run with coverage report (printed + lcov in coverage/
 
 ```
 tests/
+├── setup.ts                global vitest setupFiles — cache isolation (see below)
 ├── unit/
 │   ├── cli.test.ts          runObsidian(): success, error, ENOENT, vault prefix
 │   ├── config.test.ts       env var loading, defaults, invalid port
@@ -321,6 +324,18 @@ tests/
     ├── http.test.ts         /health, Origin → 403, /mcp, /sse, unknown path → 404
     └── server.test.ts       tool registration count, all tools have names/descriptions
 ```
+
+### Test cache isolation
+
+`tests/setup.ts` runs (via `setupFiles` in `vitest.config.ts`) once per worker before any
+test module loads. It points `VAULTGATE_INDEX_CACHE_DIR` at a per-worker directory under the
+OS temp dir, so the embeddings index never lands in the real user cache
+(`~/.cache/obsidian-vaultgate-mcp/`). The directory is **per worker** because vitest's default
+forks pool runs test files in parallel, and both the vault-switch unit tests and the
+integration tests write the fixed-name `embeddings-default.json` — a shared dir would let one
+worker's write tear another's read. When a test needs to seed a cache file, resolve the
+directory with `semantic.resolveIndexCacheDir()` (never re-hardcode `os.homedir()`), so seeds
+stay in lockstep with `getIndexPath()`.
 
 ### Writing unit tests for a tool
 
@@ -625,6 +640,18 @@ Inside `utilityProcess.fork()`, `process.stdin.isTTY` is `undefined` — stdin i
 
 The headless npm path leaves `process.parentPort` undefined, and the `emitProgress()` helper in `src/tools/semantic.ts` is a strict no-op there.
 
+**IPC message types** (all JSON objects carried over `postMessage` / `parentPort`):
+
+| Direction | Key | Payload | Purpose |
+|-----------|-----|---------|---------|
+| Server → Tray | `__vaultgate_index__` | `IndexProgressEvent` | Semantic index build progress and state changes |
+| Tray → Server | `__vaultgate_config__` | `{ vault?: string }` | Live vault switch without restarting the server |
+| Tray → Server | `__vaultgate_control__` | `{ command: "rebuild_index" \| "clear_index" }` | Manual index control from the tray menu |
+
+`rebuild_index` triggers `handleControlCommand("rebuild_index")` in `semantic.ts`: calls `fullReHash` in-place, `indexState` stays `"ready"`, searches remain live throughout.
+
+`clear_index` triggers `handleControlCommand("clear_index")`: deletes the on-disk embeddings file, nulls `liveIndex`, transitions `indexState` to `"building"`, then runs a full rebuild via `startBackgroundIndex`.
+
 #### Pre-bundled model: `env.cacheDir`, not `env.localModelPath`
 
 When the tray sets `VAULTGATE_MODEL_CACHE_DIR=<resourcesPath>/models`, the server points `@xenova/transformers` at the bundled cache directory and disables remote downloads (`VAULTGATE_ALLOW_REMOTE_MODELS=false`).
@@ -637,6 +664,12 @@ Use `env.cacheDir`, not `env.localModelPath`. The two APIs expect different dire
 | `env.localModelPath` | `Xenova/bge-small-en-v1.5/...` (flat layout) |
 
 Mixing them causes a silent model-load failure. `tray/scripts/download-models.js` populates the cache in `env.cacheDir` format.
+
+> **Sibling override — `VAULTGATE_INDEX_CACHE_DIR`.** Distinct from the *model* cache above,
+> the per-vault *embeddings index* location (default `~/.cache/obsidian-vaultgate-mcp/`) is
+> overridable via `VAULTGATE_INDEX_CACHE_DIR`, read at call time in
+> `resolveIndexCacheDir()` (`src/tools/semantic.ts`). It exists chiefly so the test suite
+> keeps embeddings out of the real user cache (see [Test cache isolation](#test-cache-isolation)).
 
 #### Native addon strategy
 

@@ -244,14 +244,17 @@ async function startHttp(): Promise<void> {
   // semantic index so it re-embeds the new vault.
   const parentPort = (
     process as unknown as {
-      parentPort?: { on: (event: string, listener: (msg: unknown) => void) => void };
+      parentPort?: { on: (event: string, listener: (event: { data: unknown }) => void) => void };
     }
   ).parentPort;
   if (parentPort) {
-    parentPort.on("message", (msg: unknown) => {
+    parentPort.on("message", ({ data: msg }: { data: unknown }) => {
       if (msg && typeof msg === "object" && "__vaultgate_config__" in msg) {
         const patch = (msg as { __vaultgate_config__: { vault?: string } }).__vaultgate_config__;
         if (patch.vault !== undefined) {
+          console.error(
+            `[VaultGate] IPC __vaultgate_config__: vault=${String(patch.vault || "(empty)")}`
+          );
           setVault(patch.vault || undefined);
           // Reset the semantic index so it rebuilds for the new vault.
           // Dynamic import avoids loading the heavy ML stack at startup when
@@ -260,6 +263,21 @@ async function startHttp(): Promise<void> {
             .then(({ resetIndexForVaultChange }) => resetIndexForVaultChange())
             .catch(() => {
               // Semantic tools not available — nothing to reset.
+            });
+        }
+      }
+      if (msg && typeof msg === "object" && "__vaultgate_control__" in msg) {
+        const raw = (msg as { __vaultgate_control__: { command?: unknown } }).__vaultgate_control__
+          .command;
+        console.error(`[VaultGate] IPC __vaultgate_control__: command=${String(raw)}`);
+        if (raw === "rebuild_index" || raw === "clear_index") {
+          import("./tools/semantic.js")
+            .then(({ handleControlCommand }) => {
+              console.error(`[VaultGate] IPC handleControlCommand(${String(raw)})`);
+              handleControlCommand(raw);
+            })
+            .catch((err) => {
+              console.error(`[VaultGate] IPC handleControlCommand import failed: ${String(err)}`);
             });
         }
       }

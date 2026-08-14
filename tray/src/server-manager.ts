@@ -381,8 +381,31 @@ export function getLogPath(): string {
  * currently running.
  */
 export function sendVaultChange(vault: string): void {
-  if (!child) return;
+  if (!child) {
+    log(`sendVaultChange — no child process, skipping`);
+    return;
+  }
+  log(`sendVaultChange(${vault || "(empty)"})`);
   child.postMessage({ __vaultgate_config__: { vault } });
+}
+
+/**
+ * Sends a manual index control command to the server process.
+ *
+ * - `rebuild_index`: soft rebuild — re-embeds new/changed notes without taking
+ *   the index offline. Searches keep working throughout.
+ * - `clear_index`: hard reset — deletes the on-disk cache and rebuilds from
+ *   scratch. Searches return "being indexed" until the rebuild completes.
+ *
+ * No-op if the server is not currently running.
+ */
+export function sendControlCommand(command: "rebuild_index" | "clear_index"): void {
+  if (!child) {
+    log(`sendControlCommand(${command}) — no child process, skipping`);
+    return;
+  }
+  log(`sendControlCommand(${command}) — posting message`);
+  child.postMessage({ __vaultgate_control__: { command } });
 }
 
 /**
