@@ -1194,7 +1194,9 @@ describe("vault switch heuristic", () => {
 
   it(">50% deletion but NO new files → does not wipe (bulk delete, not vault switch)", async () => {
     // Cache has 4 files. CLI returns only 1 (3 deleted, none new).
-    // Heuristic requires BOTH deletion AND additions — should not fire.
+    // Vault-switch heuristic requires BOTH deletion AND additions — does not fire.
+    // Startup is add-only (pruneDeleted=false), so deleted notes are NOT pruned here;
+    // they will be pruned in the next fullReHash (24h cycle or manual rebuild).
     const oldFiles = {
       "keep.md": { hash: "kkk", chunks: [{ heading: "Keep", text: "keep", embedding: FAKE_VEC_A }] },
       "gone-1.md": { hash: "g1", chunks: [{ heading: "Gone 1", text: "gone 1", embedding: FAKE_VEC_A }] },
@@ -1210,14 +1212,16 @@ describe("vault switch heuristic", () => {
 
     const result = await callTool(server, "vault_info");
     const text: string = result.content[0].text;
-    // "keep.md" survived, 3 gone-*.md deleted — 1 note should remain indexed
-    expect(text).toContain("Indexed notes: 1");
+    // All 4 notes remain in memory — startup does not prune.
+    // (gone-*.md will be removed on the next fullReHash.)
+    expect(text).toContain("Indexed notes: 4");
   });
 
   it("unconfigured vault with cache defers 'ready' until sync completes (Layer 2)", async () => {
-    // Cache has one file. CLI returns a different set — vault switch fires.
+    // Cache has one file. CLI returns a different single file.
+    // Startup is add-only: stale note retained + new note added → 2 total.
+    // (Vault-switch heuristic and pruning run in fullReHash, not at startup.)
     // The critical check: indexState must NOT be "ready" before syncNewAndDeleted() resolves.
-    // We verify this by checking that after waitForReady() the results reflect the new vault.
     const oldFiles = {
       "stale-vault-note.md": { hash: "sss", chunks: [{ heading: "Stale", text: "stale content", embedding: FAKE_VEC_A }] },
     };
@@ -1230,9 +1234,8 @@ describe("vault switch heuristic", () => {
 
     const result = await callTool(server, "vault_info");
     const text: string = result.content[0].text;
-    // After sync: stale-vault-note.md gone (vault switch detected), fresh-vault-note.md added.
-    // Net result: 1 note indexed from the new vault.
-    expect(text).toContain("Indexed notes: 1");
+    // stale-vault-note.md retained (startup add-only) + fresh-vault-note.md added = 2.
+    expect(text).toContain("Indexed notes: 2");
   });
 });
 
@@ -1685,6 +1688,119 @@ describe("regression: empty listVaultPaths does not wipe non-empty index", () =>
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// regression: partial listVaultPaths must not prune the index at startup
+// ---------------------------------------------------------------------------
+
+describe("regression: partial listVaultPaths does not prune index at startup", () => {
+  // The real bug: Obsidian sometimes returns a partial file list (e.g. 3 of 163 notes).
+  // syncNewAndDeleted used to treat the absent notes as deleted and wipe them from the
+  // index. saveIndex then wrote the shrunken index to disk, corrupting every subsequent
+  // restart. Fix: startBackgroundIndex calls syncNewAndDeleted(idx, false) — add-only.
+
+  /** Seed a custom cache and boot a fresh module instance. */
+  async function setupWithCache(
+    cachedFiles: Record<string, { hash: string; chunks: { heading: string; embedding: number[] }[] }>,
+    runMock: (args: string[]) => Promise<string>,
+  ) {
+    vi.resetModules();
+    const vaultName = `__test_partial_${Date.now()}`;
+    const safeKey = vaultName.replace(/[^a-zA-Z0-9_-]/g, "_");
+    vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+    vi.doMock("../../../src/config.js", () => ({
+      config: { vault: vaultName, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+    }));
+    vi.doMock("@xenova/transformers", () => ({
+      pipeline: vi.fn().mockResolvedValue(
+        vi.fn().mockImplementation(() => Promise.resolve({ tolist: () => [FAKE_VEC_A] })),
+      ),
+    }));
+    const { runObsidian } = await import("../../../src/cli.js");
+    vi.mocked(runObsidian).mockImplementation(runMock);
+    const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
+    const server = new McpServer({ name: "test", version: "0.0.0" });
+    const semantic = await import("../../../src/tools/semantic.js");
+    const cacheDir = semantic.resolveIndexCacheDir();
+    fs.mkdirSync(cacheDir, { recursive: true });
+    const indexPath = path.join(cacheDir, `embeddings-${safeKey}.json`);
+    fs.writeFileSync(
+      indexPath,
+      JSON.stringify({ version: 2, model: "Xenova/bge-small-en-v1.5", lastReHash: 0, files: cachedFiles }),
+      "utf-8",
+    );
+    semantic.registerSemanticTools(server);
+    return {
+      server,
+      getState: semantic.getIndexStateForTesting,
+      indexPath,
+      cleanup: () => { try { fs.unlinkSync(indexPath); } catch { /* already gone */ } },
+    };
+  }
+
+  it("preserves all cached notes when startup list is a subset (no new notes)", async () => {
+    // Seed: 5 notes. Startup list returns only 3 of them — a partial response.
+    // No new notes, so nothing should be added or removed.
+    const seededFiles = {
+      "note-1.md": { hash: "h1", chunks: [{ heading: "N1", embedding: FAKE_VEC_A }] },
+      "note-2.md": { hash: "h2", chunks: [{ heading: "N2", embedding: FAKE_VEC_A }] },
+      "note-3.md": { hash: "h3", chunks: [{ heading: "N3", embedding: FAKE_VEC_A }] },
+      "note-4.md": { hash: "h4", chunks: [{ heading: "N4", embedding: FAKE_VEC_A }] },
+      "note-5.md": { hash: "h5", chunks: [{ heading: "N5", embedding: FAKE_VEC_A }] },
+    };
+
+    const { server, getState, indexPath, cleanup } = await setupWithCache(
+      seededFiles,
+      async (args) => {
+        if (args[0] === "files" && args[1] === "list") return "note-3.md\nnote-4.md\nnote-5.md\n";
+        return NOTE_A_CONTENT;
+      },
+    );
+
+    await waitForReady(getState);
+
+    // Disk must still have all 5 notes — startup must not prune
+    const diskIndex = JSON.parse(fs.readFileSync(indexPath, "utf-8"));
+    expect(Object.keys(diskIndex.files).length).toBe(5);
+
+    // vault_info must report 5 notes in memory
+    const result = await callTool(server, "vault_info");
+    expect(result.content[0].text).toContain("Indexed notes: 5");
+
+    cleanup();
+  });
+
+  it("adds genuinely new notes but does not prune missing ones from partial list", async () => {
+    // Seed: 3 notes. Startup list returns 2 of them + 1 new note.
+    // Expected: 1 new note added, 1 missing note retained → 4 total.
+    const seededFiles = {
+      "existing-a.md": { hash: "ha", chunks: [{ heading: "A", embedding: FAKE_VEC_A }] },
+      "existing-b.md": { hash: "hb", chunks: [{ heading: "B", embedding: FAKE_VEC_A }] },
+      "existing-c.md": { hash: "hc", chunks: [{ heading: "C", embedding: FAKE_VEC_A }] },
+    };
+    // existing-c.md absent from list (would previously be pruned), new-note.md is new
+    const { server, getState, indexPath, cleanup } = await setupWithCache(
+      seededFiles,
+      async (args) => {
+        if (args[0] === "files" && args[1] === "list") return "existing-a.md\nexisting-b.md\nnew-note.md\n";
+        return NOTE_A_CONTENT;
+      },
+    );
+
+    await waitForReady(getState);
+
+    // All 3 original notes retained + 1 new note added = 4
+    const diskIndex = JSON.parse(fs.readFileSync(indexPath, "utf-8"));
+    expect(Object.keys(diskIndex.files)).toHaveLength(4);
+    expect(diskIndex.files["existing-c.md"]).toBeDefined(); // not pruned
+    expect(diskIndex.files["new-note.md"]).toBeDefined();   // added
+
+    const result = await callTool(server, "vault_info");
+    expect(result.content[0].text).toContain("Indexed notes: 4");
+
+    cleanup();
   });
 });
 

@@ -377,10 +377,18 @@ const CLI_LOG_LINE_RE = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}\b/;
 
 async function listVaultPaths(): Promise<string[]> {
   const result = await runObsidian(["files", "list"]);
-  return result
+  const paths = result
     .split("\n")
     .map((l) => l.trim())
     .filter((l) => l.endsWith(".md") && !CLI_LOG_LINE_RE.test(l));
+  // Diagnostic: log byte count + last 3 paths so partial-response incidents are visible in
+  // vaultgate.log. Last paths (not first) are logged because observed bad runs always return
+  // the lexicographically-last entries in the vault, consistent with output truncation.
+  console.error(
+    `[VaultGate] listVaultPaths: ${result.length} bytes → ${paths.length} path(s)` +
+      (paths.length > 0 ? ` (last: ${paths.slice(-3).join(", ")})` : "")
+  );
+  return paths;
 }
 
 async function readNote(filePath: string): Promise<string> {
@@ -414,25 +422,27 @@ async function embedNote(content: string): Promise<ChunkEntry[]> {
 // Index sync helpers
 // ---------------------------------------------------------------------------
 
-async function syncNewAndDeleted(idx: VaultIndex): Promise<void> {
+async function syncNewAndDeleted(idx: VaultIndex, pruneDeleted = true): Promise<number> {
   const paths = await listVaultPaths();
   const pathSet = new Set(paths);
 
-  // Vault switch heuristic: if >50% of indexed files are absent AND there are
-  // incoming new paths, assume the user switched vaults rather than deleted
-  // a large portion of the current vault. Wipe the index so stale embeddings
-  // from the previous vault are not mixed with fresh ones.
-  const previousTotal = Object.keys(idx.files).length;
-  const deletedCount = Object.keys(idx.files).filter((p) => !pathSet.has(p)).length;
-  const newPaths = paths.filter((p) => !(p in idx.files));
-  if (previousTotal > 0 && deletedCount / previousTotal > 0.5 && newPaths.length > 0) {
-    console.error("[VaultGate] Vault switch detected — rebuilding semantic index from scratch.");
-    idx.files = {};
-  }
+  if (pruneDeleted) {
+    // Vault switch heuristic: if >50% of indexed files are absent AND there are
+    // incoming new paths, assume the user switched vaults rather than deleted
+    // a large portion of the current vault. Wipe the index so stale embeddings
+    // from the previous vault are not mixed with fresh ones.
+    const previousTotal = Object.keys(idx.files).length;
+    const deletedCount = Object.keys(idx.files).filter((p) => !pathSet.has(p)).length;
+    const newPaths = paths.filter((p) => !(p in idx.files));
+    if (previousTotal > 0 && deletedCount / previousTotal > 0.5 && newPaths.length > 0) {
+      console.error("[VaultGate] Vault switch detected — rebuilding semantic index from scratch.");
+      idx.files = {};
+    }
 
-  // Prune deleted
-  for (const p of Object.keys(idx.files)) {
-    if (!pathSet.has(p)) delete idx.files[p];
+    // Prune deleted
+    for (const p of Object.keys(idx.files)) {
+      if (!pathSet.has(p)) delete idx.files[p];
+    }
   }
 
   // Embed new (no hash yet)
@@ -471,6 +481,7 @@ async function syncNewAndDeleted(idx: VaultIndex): Promise<void> {
       });
     }
   }
+  return paths.length;
 }
 
 async function fullReHash(idx: VaultIndex): Promise<void> {
@@ -589,33 +600,34 @@ function startBackgroundIndex(): void {
       const idx = loadIndex();
 
       if (Object.keys(idx.files).length > 0) {
-        // Cache hit: always run syncNewAndDeleted() before becoming ready so the
-        // tray shows an accurate note count immediately after startup or a vault
-        // change — without waiting for the first MCP request to trigger a sync.
+        // Cache hit: run syncNewAndDeleted() in add-only mode (pruneDeleted=false) so
+        // a partial or truncated response from Obsidian cannot shrink the index.
+        // Pruning of genuinely deleted notes happens in fullReHash (24 h cycle or
+        // manual rebuild), when Obsidian is verifiably active and the list is reliable.
         const previousTotal = Object.keys(idx.files).length;
         liveIndex = idx; // assign first so in-flight searches use stale data during sync
-        await syncNewAndDeleted(idx);
+        const vaultSize = await syncNewAndDeleted(idx, false);
 
-        // Guard: if we had notes before but Obsidian returned an empty list,
-        // the plugin was likely not ready yet. Skip saveIndex — do NOT corrupt
-        // the on-disk file — reload from disk to restore liveIndex, and retry.
-        if (Object.keys(idx.files).length === 0 && previousTotal > 0) {
+        // Guard: if Obsidian returned an empty list, it may not be ready yet.
+        // Skip saveIndex — do NOT corrupt the on-disk file — reload from disk to
+        // restore liveIndex, and retry.
+        if (vaultSize === 0 && previousTotal > 0) {
           if (emptyListRetries < MAX_EMPTY_LIST_RETRIES) {
             emptyListRetries++;
             console.error(
-              `[VaultGate] Empty file list received but index had ${previousTotal} note(s) ` +
-                `(attempt ${emptyListRetries}/${MAX_EMPTY_LIST_RETRIES}) — retrying in 60s`
+              `[VaultGate] Empty file list at startup — index intact, retrying in 60s ` +
+                `to pick up new notes (attempt ${emptyListRetries}/${MAX_EMPTY_LIST_RETRIES})`
             );
-            // Reload from disk: saveIndex was not called yet, so the file still has the notes.
             liveIndex = loadIndex();
             indexState = "idle";
             setTimeout(() => startBackgroundIndex(), 60_000);
             return; // skip saveIndex — disk file is still intact
           }
-          // MAX retries exhausted — user has genuinely deleted all notes. Accept and proceed.
+          // MAX retries exhausted — user has genuinely deleted all notes. Clear and proceed.
           console.error(
             `[VaultGate] Accepting empty vault after ${MAX_EMPTY_LIST_RETRIES} retries.`
           );
+          idx.files = {}; // pruneDeleted=false means we must clear explicitly here
         }
         emptyListRetries = 0;
         saveIndex(idx);
