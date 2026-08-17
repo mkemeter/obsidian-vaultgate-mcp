@@ -10,6 +10,8 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-brightgreen)](https://nodejs.org)
 [![Tests](https://github.com/mkemeter/obsidian-vaultgate-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/mkemeter/obsidian-vaultgate-mcp/actions/workflows/ci.yml)
+[![npm installs](https://img.shields.io/npm/dt/obsidian-vaultgate-mcp?label=npm%20installs)](https://www.npmjs.com/package/obsidian-vaultgate-mcp)
+[![macOS downloads](https://img.shields.io/github/downloads/mkemeter/obsidian-vaultgate-mcp/total?label=macOS%20downloads)](https://github.com/mkemeter/obsidian-vaultgate-mcp/releases)
 
 </div>
 
