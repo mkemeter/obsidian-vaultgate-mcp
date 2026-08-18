@@ -1,7 +1,7 @@
 # Third-Party Notices
 
 VaultGate (`obsidian-vaultgate-mcp`) is licensed under the
-[GNU General Public License v3.0 or later](LICENSE).
+[GNU General Public License v3.0 or later](../LICENSE).
 
 This document lists third-party components that are distributed as part of the
 VaultGate tray app DMG and are subject to their own licenses.

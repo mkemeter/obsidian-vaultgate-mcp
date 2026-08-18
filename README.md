@@ -505,7 +505,7 @@ Vault selector, port, Obsidian binary path — all in a UI. No config files to e
 | macOS (Apple Silicon) | ✅ DMG | ✅ |
 | macOS (Intel) | ❌ | ✅ |
 | Windows | ❌ | ✅ |
-| Linux | ❌ | ✅ (`deploy/systemd/`) |
+| Linux | ❌ | ✅ (`server/deploy/systemd/`) |
 
 ### Install
 
@@ -631,7 +631,8 @@ obsidian-vaultgate-mcp/
 ├── docs/           Shared cross-cutting documentation
 │   ├── CONTRIBUTING.md
 │   ├── CHANGELOG.md
-│   └── SECURITY.md
+│   ├── SECURITY.md
+│   └── THIRD_PARTY_NOTICES.md
 └── .github/workflows/      CI (ci.yml = server, tray.yml = tray)
 ```
 

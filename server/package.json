@@ -35,7 +35,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc && cp src/icon.svg build/icon.svg && cp src/favicon.ico build/favicon.ico",
+    "build": "tsc && cp src/icon.svg build/icon.svg && cp src/favicon.ico build/favicon.ico && cp ../README.md README.md",
     "start": "node build/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -46,6 +46,8 @@
     "format": "biome format --write src/",
     "check": "biome check src/",
     "knip": "knip",
+    "type-coverage": "type-coverage --at-least 98 --strict",
+    "postinstall": "lefthook install",
     "prepublishOnly": "npm run build && npm test"
   },
   "engines": {
@@ -62,6 +64,8 @@
     "@types/node": "^25.9.3",
     "@vitest/coverage-v8": "^4.1.9",
     "knip": "^6.16.1",
+    "lefthook": "^2.1.10",
+    "type-coverage": "^2.30.1",
     "typescript": "^6.0.3",
     "vitest": "^4.1.9"
   },

@@ -1,0 +1,15 @@
+pre-commit:
+  parallel: true
+  commands:
+    biome:
+      root: "server/"
+      run: npm run check
+    typecheck-server:
+      root: "server/"
+      run: npm run typecheck
+    typecheck-tray:
+      root: "tray/"
+      run: npm run typecheck
+    type-coverage:
+      root: "server/"
+      run: npm run type-coverage

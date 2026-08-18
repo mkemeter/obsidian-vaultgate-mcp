@@ -527,7 +527,7 @@ tray/
 └── vitest.config.ts             Test thresholds + Electron-bound exclusions.
 ```
 
-The tray code never imports server sources directly. It depends on the **build output** of the server package (`server/build/index.js`), bundled into `dist/server/server.mjs` via esbuild during the tray's own build step.
+The tray code never imports server sources directly. It depends on the **build output** of the server package, copied into `dist/server/build/` (and production `node_modules` into `dist/server/node_modules/`) by `tray/scripts/copy-server-build.js` and `tray/scripts/copy-server-deps.js` during the tray's own build step. The server is shipped unbundled — esbuild was removed because `zod`, `@xenova/transformers`, and `onnxruntime-node` have CJS/ESM interop characteristics that esbuild mishandled.
 
 ### Branch strategy
 
@@ -535,11 +535,10 @@ Both distributions share the single **`main`** branch (the tray work formerly on
 `feature/tray-initial` has been merged). `main` carries both the headless npm package and the tray
 companion and must stay releasable.
 
-- The tray app does **not** affect `npm publish` — the root `package.json` `"files"` allowlist excludes `tray/`.
+- The tray app does **not** affect `npm publish` — the `server/package.json` `"files"` allowlist excludes `tray/`.
 - A separate CI workflow ([`.github/workflows/tray.yml`](../.github/workflows/tray.yml)) builds tray artifacts and is path-filtered to `tray/**` — it never blocks npm releases.
 - Both `server/package.json` and `tray/package.json` always share the same version number. A single `v*` tag (e.g. `v0.2.0`) triggers both the npm publish workflow and the tray DMG release. Bump both together using the root `VERSION` file and `node scripts/sync-version.js`.
-- `node scripts/sync-version.js` also propagates the version into the root [`server.json`](../server.json) — the MCP registry manifest (top-level `version` **and** `packages[0].version`). Never hand-edit those; edit `VERSION` and run the sync. This is the file to submit to an MCP registry (public or SAP-internal); regenerate/validate it against the registry's schema before submitting.
-- A merge of the tray branch to `main` is a **separate, deliberate decision**. Until then, the tray branch lives alongside `main`. Keep `main` releasable. Don't merge speculatively.
+- `node scripts/sync-version.js` also propagates the version into the root [`server.json`](../server.json) — the MCP registry manifest (top-level `version` **and** `packages[0].version`). Never hand-edit those; edit `VERSION` and run the sync.
 
 ### Dev setup
 
@@ -581,7 +580,7 @@ npm run dev
 This:
 
 1. Re-builds the server package (`cd ../server && npm run build`).
-2. Bundles the server into `dist/server/server.mjs` via esbuild (ESM, `onnxruntime-node` and `sharp` external).
+2. Copies the server build output into `dist/server/build/` and production `node_modules` into `dist/server/node_modules/`.
 3. Compiles the tray TypeScript into `dist/`.
 4. Copies `renderer/` into `dist/renderer/`.
 5. Launches Electron pointing at `dist/main.js`.
@@ -606,7 +605,7 @@ Builds are intentionally **per-host-arch**: `onnxruntime-node` only downloads th
 node scripts/sync-version.js
 
 # 2. Commit, then tag.
-git add VERSION server/package.json tray/package.json server.json
+git add VERSION server/package.json server/package-lock.json tray/package.json tray/package-lock.json server.json
 git commit -m "chore: release v0.2.0"
 git tag v0.2.0
 git push origin main --tags
@@ -686,11 +685,25 @@ asarUnpack:
 
 The full `node_modules/onnxruntime-node/**` glob is needed because `onnxruntime-node` ships multiple shared libraries alongside the `.node` file.
 
-#### Server bundle (esbuild)
+#### Server distribution in the DMG
 
-The server is bundled into a single ~17 MB ESM file rather than copied as a `node_modules` tree. This eliminates ~380 MB of `node_modules` from the build input, cuts the number of files macOS must individually codesign from thousands to one, and simplifies `extraResources` to a single entry.
+The server is shipped as an **unbundled build** — `dist/server/build/` (compiled JS) plus `dist/server/node_modules/` (production deps only, no devDeps). This is assembled by two scripts at tray build time:
 
-`@xenova/transformers` (~15 MB JS) is included in the bundle. `onnxruntime-node` and `sharp` are marked external — they're resolved at runtime from `node_modules/` via asarUnpack.
+- `tray/scripts/copy-server-build.js` — copies `server/build/` and `server/package.json` into `dist/server/`.
+- `tray/scripts/copy-server-deps.js` — asks `npm ls --prod --parseable --all` for the full transitive production dep closure and copies only those packages into `dist/server/node_modules/`.
+
+`electron-builder.yml` then ships these via `extraResources`:
+
+```yaml
+extraResources:
+  - { from: dist/server/build,        to: server/build }
+  - { from: dist/server/node_modules, to: server/node_modules }
+  - { from: dist/server/package.json, to: server/package.json }
+```
+
+At runtime, `server-manager.ts` forks `process.resourcesPath/server/build/index.js`.
+
+esbuild was tried and removed — `zod`, `@xenova/transformers`, and `onnxruntime-node` have CJS/ESM interop characteristics that esbuild's bundler mishandled.
 
 ### Testing patterns
 
@@ -774,6 +787,6 @@ If your item triggers a server change, call `void serverManager.restart()` from 
 | Server says "stdio mode" in logs | `OBSIDIAN_MCP_TRANSPORT=http` env var missing on the fork — check `server-manager.ts` `start()` |
 | Smart Search stays "warming up" forever | **Open Logs…** → look for `[server:err]` entries from `@xenova/transformers`; confirm `assets/models/` is populated |
 | Build fails with "node_modules/.cache" mismatch | `cd tray && npx @electron/rebuild` to recompile native addons against the current Electron ABI |
-| `utilityProcess.fork()` exits immediately with code 1 | Bundle is broken — check `dist/server/server.js` exists and `OBSIDIAN_CLI_PATH` resolves |
+| `utilityProcess.fork()` exits immediately with code 1 | Build is broken — check `dist/server/build/index.js` exists and `OBSIDIAN_CLI_PATH` resolves |
 | Server health check fails on Windows | On Windows, `OBSIDIAN_CLI_PATH` must be the full path to the `.exe` file — not the install folder (e.g. `%LOCALAPPDATA%\Programs\Obsidian\Obsidian.exe`, not `...\Obsidian`). The default `"obsidian"` requires the binary to be on `PATH`. The installer (`server/deploy/install.ps1`) sets this automatically, and the startup health check now rejects a directory path with an actionable message. |
 | Coverage thresholds drop after a refactor | Inspect the file in the report. If it's genuinely Electron-bound, exclude it in `vitest.config.ts` with a comment explaining why |

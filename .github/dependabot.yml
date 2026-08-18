@@ -1,7 +1,7 @@
 version: 2
 updates:
   - package-ecosystem: npm
-    directory: "/"
+    directory: "/server"
     schedule:
       interval: weekly
       day: monday
@@ -13,6 +13,17 @@ updates:
     ignore:
       - dependency-name: "@xenova/transformers"
         update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: npm
+    directory: "/tray"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      dev-dependencies:
+        patterns: ["*"]
+        dependency-type: "development"
 
   - package-ecosystem: github-actions
     directory: "/"

@@ -11,3 +11,5 @@ internal/
 # Stray compiled JS at repo root (accidental tsc output)
 /*.js
 /*.d.ts
+# Build artifact — copied from root README.md by npm run build
+server/README.md
