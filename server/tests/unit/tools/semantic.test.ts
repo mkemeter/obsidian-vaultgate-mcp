@@ -70,7 +70,7 @@ async function freshModule(runMock: (args: string[]) => Promise<string>) {
   vi.doMock("../../../src/config.js", () => ({
     config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
   }));
-  vi.mock("@xenova/transformers", () => ({
+  vi.doMock("@xenova/transformers", () => ({
     pipeline: vi.fn().mockResolvedValue(
       vi.fn().mockImplementation(() =>
         Promise.resolve({ tolist: () => [FAKE_VEC_A] })
@@ -1399,6 +1399,172 @@ describe("VAULTGATE_MODEL_CACHE_DIR — pre-bundled model cache wiring", () => {
     await import("../../../src/tools/semantic.js");
 
     expect(env.allowRemoteModels).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// regression: empty/non-embeddable notes must not be re-embedded every sync
+// ---------------------------------------------------------------------------
+
+describe("regression: empty notes stored once, not re-embedded every sync", () => {
+  // The real bug: notes whose cleaned content is empty (blank, frontmatter-only)
+  // produce zero chunks and were never stored in idx.files. Because they were
+  // never stored, every syncNewAndDeleted treated them as "new" and re-embedded
+  // them, emitting spurious progress events that clobbered the ready note count
+  // in the tray via the latestIndex merge in server-manager.ts.
+
+  const ORIGINAL_PARENT_PORT = (process as unknown as { parentPort?: unknown }).parentPort;
+  function setParentPort(value: unknown): void {
+    (process as unknown as { parentPort?: unknown }).parentPort = value;
+  }
+  beforeEach(() => setParentPort(undefined));
+  afterAll(() => setParentPort(ORIGINAL_PARENT_PORT));
+
+  it("emits no progress events on the second sync after building with empty notes", async () => {
+    const posted: unknown[] = [];
+    setParentPort({ postMessage: (msg: unknown) => posted.push(msg) });
+
+    // Vault has one real note and one frontmatter-only (empty) note.
+    const { server, getState } = await freshModule(async (args) => {
+      if (args[0] === "files" && args[1] === "list") return "real.md\nempty.md\n";
+      if (args[0] === "read" && args[1] === "path=real.md") return NOTE_A_CONTENT;
+      if (args[0] === "read" && args[1] === "path=empty.md") return "---\nx: 1\n---\n";
+      return "";
+    });
+    await waitForReady(getState);
+
+    // Drain events from the initial build, then trigger a search-time sync.
+    posted.length = 0;
+    await callTool(server, "semantic_search", { query: "test", min_score: 0 });
+
+    const progressAfterSync = posted
+      .filter((m): m is { __vaultgate_index__: { type: string } } =>
+        typeof m === "object" && m !== null && "__vaultgate_index__" in m
+      )
+      .map((m) => m.__vaultgate_index__)
+      .filter((e) => e.type === "progress");
+
+    // regression: empty.md was re-embedded every sync, emitting a spurious progress event
+    expect(progressAfterSync).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// regression: ready event emits totalIndexed (not filesProcessed), progress
+// events never carry totalIndexed
+// ---------------------------------------------------------------------------
+
+describe("regression: totalIndexed field carries the authoritative embedded count", () => {
+  // The real bug: filesProcessed was overloaded — per-note progress events and
+  // the ready event both used it for different quantities. The server-manager
+  // merge let the last progress event's filesProcessed overwrite the ready
+  // event's total. Fix: ready uses a dedicated totalIndexed field; progress
+  // events never carry it, so the merge naturally preserves it.
+
+  const ORIGINAL_PARENT_PORT = (process as unknown as { parentPort?: unknown }).parentPort;
+  function setParentPort(value: unknown): void {
+    (process as unknown as { parentPort?: unknown }).parentPort = value;
+  }
+  beforeEach(() => setParentPort(undefined));
+  afterAll(() => setParentPort(ORIGINAL_PARENT_PORT));
+
+  it("ready event carries totalIndexed equal to embedded (non-empty) note count", async () => {
+    const posted: unknown[] = [];
+    setParentPort({ postMessage: (msg: unknown) => posted.push(msg) });
+
+    // 2 real notes + 3 empty notes — only 2 should be indexed/searchable
+    const { getState } = await freshModule(async (args) => {
+      if (args[0] === "files" && args[1] === "list")
+        return "real1.md\nreal2.md\nempty1.md\nempty2.md\nempty3.md\n";
+      if (args[0] === "read" && (args[1] === "path=real1.md" || args[1] === "path=real2.md"))
+        return NOTE_A_CONTENT;
+      return "---\nx: 1\n---\n"; // frontmatter-only = empty after cleanNote
+    });
+    await waitForReady(getState);
+
+    const events = posted
+      .filter((m): m is { __vaultgate_index__: Record<string, unknown> } =>
+        typeof m === "object" && m !== null && "__vaultgate_index__" in m
+      )
+      .map((m) => m.__vaultgate_index__);
+
+    const readyEvent = events.filter((e) => e.type === "state" && e.state === "ready").at(-1);
+    const progressEvents = events.filter((e) => e.type === "progress");
+
+    // regression: ready must carry totalIndexed = 2, not 5 (total) or via filesProcessed
+    expect(readyEvent?.totalIndexed).toBe(2);
+    // regression: progress events must never carry totalIndexed (to not clobber the total via merge)
+    for (const ev of progressEvents) {
+      expect(ev.totalIndexed).toBeUndefined();
+    }
+  });
+
+  it("vault_info reports embedded note count, excluding empty notes", async () => {
+    const { server, getState } = await freshModule(async (args) => {
+      if (args[0] === "files" && args[1] === "list")
+        return "real1.md\nreal2.md\nempty1.md\nempty2.md\nempty3.md\n";
+      if (args[0] === "read" && (args[1] === "path=real1.md" || args[1] === "path=real2.md"))
+        return NOTE_A_CONTENT;
+      return "---\nx: 1\n---\n";
+    });
+    await waitForReady(getState);
+
+    const result = await callTool(server, "vault_info");
+    // regression: count showed 5 (all notes incl. empty) before fix; should be 2 (embedded only)
+    expect(result.content[0].text).toContain("Indexed notes: 2");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// regression: adding a note refreshes totalIndexed after next search
+// ---------------------------------------------------------------------------
+
+describe("regression: incremental add refreshes totalIndexed after next search", () => {
+  // The real bug: after adding a note, the tray count stayed stale until restart.
+  // syncNewAndDeleted runs on every search; once it detects a new note while
+  // indexState is already "ready", it should emit a fresh ready event with the
+  // updated totalIndexed.
+
+  const ORIGINAL_PARENT_PORT = (process as unknown as { parentPort?: unknown }).parentPort;
+  function setParentPort(value: unknown): void {
+    (process as unknown as { parentPort?: unknown }).parentPort = value;
+  }
+  beforeEach(() => setParentPort(undefined));
+  afterAll(() => setParentPort(ORIGINAL_PARENT_PORT));
+
+  it("emits a fresh ready event with updated totalIndexed after a new note is synced", async () => {
+    const posted: unknown[] = [];
+    setParentPort({ postMessage: (msg: unknown) => posted.push(msg) });
+
+    let includeSecondNote = false;
+    const { server, getState, mockRun } = await freshModule(async (args) => {
+      if (args[0] === "files" && args[1] === "list")
+        return includeSecondNote ? "real1.md\nreal2.md\n" : "real1.md\n";
+      return NOTE_A_CONTENT;
+    });
+    await waitForReady(getState);
+
+    // Clear events from initial build, expose second note, trigger a search sync.
+    posted.length = 0;
+    includeSecondNote = true;
+    mockRun.mockImplementation(async (args: string[]) => {
+      if (args[0] === "files" && args[1] === "list") return "real1.md\nreal2.md\n";
+      return NOTE_A_CONTENT;
+    });
+    await callTool(server, "semantic_search", { query: "test", min_score: 0 });
+
+    const events = posted
+      .filter((m): m is { __vaultgate_index__: Record<string, unknown> } =>
+        typeof m === "object" && m !== null && "__vaultgate_index__" in m
+      )
+      .map((m) => m.__vaultgate_index__);
+
+    const refreshReadyEvent = events
+      .filter((e) => e.type === "state" && e.state === "ready")
+      .at(-1);
+
+    // regression: tray count was stale after adding a note — required restart to update
+    expect(refreshReadyEvent?.totalIndexed).toBe(2);
   });
 });
 

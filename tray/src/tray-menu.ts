@@ -163,7 +163,7 @@ export function createTrayMenu(): void {
 
   serverManager.on("indexProgress", (event) => {
     rebuildMenu();
-    if (event.state === "ready") notifySmartSearchReadyOnce(event.filesProcessed ?? 0);
+    if (event.state === "ready") notifySmartSearchReadyOnce(event.totalIndexed ?? 0);
   });
 }
 

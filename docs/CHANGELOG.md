@@ -11,6 +11,22 @@ A section may be absent if that distribution had no changes in the release.
 
 ## [Unreleased]
 
+### Server
+
+#### Fixed
+
+- **Smart search tray label shows the correct indexed-note count.** Two bugs combined to display
+  the wrong number. (1) Notes whose content is empty after cleaning (blank files, frontmatter-only)
+  were never stored in the index, so every sync treated them as new and re-embedded them —
+  emitting spurious progress events. (2) Those progress events carried a `filesProcessed` field
+  that the tray's event-merge overwrote the authoritative `filesProcessed` total from the last
+  "ready" event, leaving the tray permanently showing the empty-note count instead of the real
+  indexed total. Fix: empty-chunk notes are now stored (using their real content hash so they
+  re-embed correctly if content is added later); a dedicated `totalIndexed` field on ready events
+  carries the searchable note count and is never touched by progress events; and an incremental
+  ready event is emitted after a search-time sync detects new notes, so the count refreshes
+  without requiring a restart.
+
 ## [0.2.5] — 2026-08-14
 
 ### Server

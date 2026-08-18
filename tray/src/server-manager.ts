@@ -40,6 +40,8 @@ export interface IndexProgressEvent {
   progress?: number;
   filesProcessed?: number;
   totalFiles?: number;
+  /** Authoritative count of embedded (searchable) notes. Set only by state/ready events. */
+  totalIndexed?: number;
   error?: string;
 }
 

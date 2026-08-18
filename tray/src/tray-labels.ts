@@ -21,7 +21,7 @@ export function connectionUrl(port: number): string {
 /** Pretty-prints the smart-search row label for the current index state. */
 export function smartSearchLabel(ev: IndexProgressEvent): string {
   if (ev.state === "ready") {
-    const n = ev.filesProcessed ?? 0;
+    const n = ev.totalIndexed ?? 0;
     return `✓ Smart search ready — ${n} note${n === 1 ? "" : "s"}`;
   }
   if (ev.state === "building") {

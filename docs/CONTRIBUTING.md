@@ -648,6 +648,8 @@ The headless npm path leaves `process.parentPort` undefined, and the `emitProgre
 | Tray → Server | `__vaultgate_config__` | `{ vault?: string }` | Live vault switch without restarting the server |
 | Tray → Server | `__vaultgate_control__` | `{ command: "rebuild_index" \| "clear_index" }` | Manual index control from the tray menu |
 
+**`IndexProgressEvent` contract:** The `IndexProgressEvent` interface is defined identically in both `server/src/tools/semantic.ts` (private) and `tray/src/server-manager.ts` (exported) and kept in sync manually — the two packages have separate build graphs and share no source files. When adding a field, update both copies. Key field distinction: `totalIndexed` (set only by `state: "ready"` events — authoritative searchable note count) vs `filesProcessed`/`totalFiles` (set only by `type: "progress"` events — transient per-note build counter). The tray merges all events via `{ ...latestIndex, ...ev }`, so progress events must never carry `totalIndexed` to avoid clobbering the display total.
+
 `rebuild_index` triggers `handleControlCommand("rebuild_index")` in `semantic.ts`: calls `fullReHash` in-place, `indexState` stays `"ready"`, searches remain live throughout.
 
 `clear_index` triggers `handleControlCommand("clear_index")`: deletes the on-disk embeddings file, nulls `liveIndex`, transitions `indexState` to `"building"`, then runs a full rebuild via `startBackgroundIndex`.

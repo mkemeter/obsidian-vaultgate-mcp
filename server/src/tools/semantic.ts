@@ -120,6 +120,8 @@ interface IndexProgressEvent {
   progress?: number;
   filesProcessed?: number;
   totalFiles?: number;
+  /** Authoritative count of embedded (searchable) notes. Set only by state/ready events. */
+  totalIndexed?: number;
   error?: string;
 }
 
@@ -329,6 +331,11 @@ function md5(text: string): string {
   return crypto.createHash("md5").update(text).digest("hex");
 }
 
+/** Returns the number of notes that have at least one embedding chunk (i.e. are searchable). */
+function countEmbeddedNotes(idx: VaultIndex): number {
+  return Object.values(idx.files).filter((e) => e.chunks.length > 0).length;
+}
+
 // ---------------------------------------------------------------------------
 // Vector math
 // ---------------------------------------------------------------------------
@@ -451,6 +458,7 @@ async function syncNewAndDeleted(idx: VaultIndex, pruneDeleted = true): Promise<
   if (total > 0) {
     console.error(`[VaultGate] Embedding ${total} note(s) — loading model on first run...`);
   }
+  const embeddedBefore = countEmbeddedNotes(idx);
   let processed = 0;
   for (const p of freshNewPaths) {
     // Yield to the event loop between notes so V8 GC can reclaim ONNX-allocated
@@ -462,9 +470,9 @@ async function syncNewAndDeleted(idx: VaultIndex, pruneDeleted = true): Promise<
       const content = await readNote(p);
       const hash = md5(content);
       const chunks = await embedNote(content);
-      if (chunks.length > 0) {
-        idx.files[p] = { hash, chunks };
-      }
+      // Store unconditionally — empty-chunk entries prevent re-embedding on every
+      // sync. The real content hash ensures fullReHash re-embeds if content changes.
+      idx.files[p] = { hash, chunks };
     } catch {
       // Skip notes that can't be read — non-fatal.
     }
@@ -478,9 +486,20 @@ async function syncNewAndDeleted(idx: VaultIndex, pruneDeleted = true): Promise<
         progress: Math.round((processed / total) * 100),
         filesProcessed: processed,
         totalFiles: total,
+        // totalIndexed intentionally omitted — progress events must not clobber
+        // the authoritative total set by the ready event (server-manager merges all events).
       });
     }
   }
+
+  // If the embedded count changed during an incremental sync (indexState already
+  // "ready"), emit a fresh ready event so the tray reflects the new total without
+  // requiring a restart.
+  const embeddedAfter = countEmbeddedNotes(idx);
+  if (indexState === "ready" && embeddedAfter !== embeddedBefore) {
+    emitProgress({ type: "state", state: "ready", totalIndexed: embeddedAfter });
+  }
+
   return paths.length;
 }
 
@@ -511,9 +530,9 @@ async function fullReHash(idx: VaultIndex): Promise<void> {
         const hash = md5(content);
         if (idx.files[p]?.hash !== hash) {
           const chunks = await embedNote(content);
-          if (chunks.length > 0) {
-            idx.files[p] = { hash, chunks };
-          }
+          // Store unconditionally — empty-chunk entries prevent re-embedding on
+          // every sync. Real hash ensures re-embed if content later gains body.
+          idx.files[p] = { hash, chunks };
         }
       } catch {
         // Non-fatal.
@@ -643,7 +662,7 @@ function startBackgroundIndex(): void {
       emitProgress({
         type: "state",
         state: "ready",
-        filesProcessed: Object.keys(idx.files).length,
+        totalIndexed: countEmbeddedNotes(idx),
       });
     } catch (err) {
       // Build failed (e.g. Obsidian plugin not yet ready at startup).
@@ -690,6 +709,7 @@ async function semanticQuery(
   const results: SearchResult[] = [];
   for (const [p, entry] of Object.entries(liveIndex.files)) {
     if (p === excludePath) continue;
+    if (entry.chunks.length === 0) continue; // stored but not embeddable — skip
     let bestScore = 0;
     let bestHeading = "";
     for (const chunk of entry.chunks) {
@@ -893,7 +913,7 @@ export function registerSemanticTools(server: McpServer): void {
       }
 
       if (dryRun) {
-        const count = Object.keys(liveIndex.files).length;
+        const count = countEmbeddedNotes(liveIndex);
         return {
           content: [
             {
@@ -906,7 +926,7 @@ export function registerSemanticTools(server: McpServer): void {
 
       try {
         await fullReHash(liveIndex);
-        const count = Object.keys(liveIndex.files).length;
+        const count = countEmbeddedNotes(liveIndex);
         return {
           content: [
             {
@@ -1005,7 +1025,7 @@ export function registerSemanticTools(server: McpServer): void {
         };
       }
 
-      const count = Object.keys(liveIndex.files).length;
+      const count = countEmbeddedNotes(liveIndex);
       const ts = liveIndex.lastReHash ? new Date(liveIndex.lastReHash).toLocaleString() : "unknown";
 
       return {

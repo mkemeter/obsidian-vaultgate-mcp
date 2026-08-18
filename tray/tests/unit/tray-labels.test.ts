@@ -74,23 +74,33 @@ describe("stoppedHeaderLabel", () => {
 
 describe("smartSearchLabel", () => {
   it("renders the ready label with a singular 'note' for one note", () => {
-    const ev: IndexProgressEvent = { type: "state", state: "ready", filesProcessed: 1 };
+    const ev: IndexProgressEvent = { type: "state", state: "ready", totalIndexed: 1 };
     expect(smartSearchLabel(ev)).toBe("✓ Smart search ready — 1 note");
   });
 
   it("renders the ready label with plural 'notes' for many notes", () => {
-    const ev: IndexProgressEvent = { type: "state", state: "ready", filesProcessed: 523 };
+    const ev: IndexProgressEvent = { type: "state", state: "ready", totalIndexed: 523 };
     expect(smartSearchLabel(ev)).toBe("✓ Smart search ready — 523 notes");
   });
 
   it("renders zero notes correctly", () => {
-    const ev: IndexProgressEvent = { type: "state", state: "ready", filesProcessed: 0 };
+    const ev: IndexProgressEvent = { type: "state", state: "ready", totalIndexed: 0 };
     expect(smartSearchLabel(ev)).toBe("✓ Smart search ready — 0 notes");
   });
 
-  it("falls back to zero when filesProcessed is missing on a ready event", () => {
+  it("falls back to zero when totalIndexed is missing on a ready event", () => {
     const ev: IndexProgressEvent = { type: "state", state: "ready" };
     expect(smartSearchLabel(ev)).toBe("✓ Smart search ready — 0 notes");
+  });
+
+  // regression: per-note progress events clobbered the ready note count via the
+  // server-manager merge (latestIndex = {...latestIndex, ...ev}), so the tray
+  // showed the empty-note count (e.g. 5) instead of the indexed total (162)
+  it("keeps totalIndexed on the ready label when a later progress event is merged", () => {
+    const ready: IndexProgressEvent = { type: "state", state: "ready", totalIndexed: 162 };
+    const progress: IndexProgressEvent = { type: "progress", filesProcessed: 5, totalFiles: 5 };
+    const merged = { ...ready, ...progress }; // replicates server-manager.ts:259
+    expect(smartSearchLabel(merged)).toBe("✓ Smart search ready — 162 notes");
   });
 
   it("renders progress with counts when both are known during build", () => {
