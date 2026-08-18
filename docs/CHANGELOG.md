@@ -13,6 +13,24 @@ A section may be absent if that distribution had no changes in the release.
 
 ### Server
 
+#### Changed
+
+- **Semantic embedding model switched from `Xenova/bge-small-en-v1.5` to `Xenova/all-MiniLM-L6-v2`.**
+  `all-MiniLM-L6-v2` (Microsoft Research / SBERT) is ~33% smaller (~23 MB vs ~34 MB) and faster.
+  Both models produce 384-dim L2-normalised vectors; the embedding call, similarity math, and all
+  tool interfaces are unchanged.
+  `DEFAULT_MIN_SCORE` is lowered from `0.25` to `0.20` to compensate for MiniLM's slightly lower
+  absolute similarity scores relative to BGE's retrieval-optimised training.
+  **Index cache version bumped to 3** — existing embedding caches are automatically discarded and
+  rebuilt on first run after the update. Searches return "being indexed" during the rebuild window.
+
+### Tray
+
+#### Changed
+
+- Pre-bundled embedding model updated from `Xenova/bge-small-en-v1.5` to `Xenova/all-MiniLM-L6-v2`
+  (see server entry above). DMG size decreases by ~11 MB.
+
 #### Fixed
 
 - **Smart search tray label shows the correct indexed-note count.** Two bugs combined to display

@@ -225,8 +225,8 @@ async function freshModuleWithCache(runMock: (args: string[]) => Promise<string>
   // one note with empty chunks (exercises averageAndNormalise([]) guard),
   // lastReHash=0 so REHASH_INTERVAL_MS has elapsed → fullReHash fires.
   const seededIndex = {
-    version: 2,
-    model: "Xenova/bge-small-en-v1.5",
+    version: 3,
+    model: "Xenova/all-MiniLM-L6-v2",
     lastReHash: 0,
     files: {
       "note-a.md": { hash: "abc123", chunks: [{ heading: "Note A", embedding: FAKE_VEC_A }] },
@@ -323,8 +323,8 @@ describe("cache-hit startup path — configured vault syncs immediately", () => 
 
     // Cache has 2 notes, but the vault now contains only 1
     const seededIndex = {
-      version: 2,
-      model: "Xenova/bge-small-en-v1.5",
+      version: 3,
+      model: "Xenova/all-MiniLM-L6-v2",
       lastReHash: Date.now(),
       files: {
         "note-a.md": { hash: "abc", chunks: [{ heading: "Note A", embedding: FAKE_VEC_A }] },
@@ -1153,7 +1153,7 @@ describe("vault switch heuristic", () => {
     const cacheFile = path.join(cacheDir, "embeddings-default.json");
     fs.writeFileSync(
       cacheFile,
-      JSON.stringify({ files: cachedFiles, model: "Xenova/bge-small-en-v1.5", version: 2, lastReHash: 0 }),
+      JSON.stringify({ files: cachedFiles, model: "Xenova/all-MiniLM-L6-v2", version: 3, lastReHash: 0 }),
       "utf-8"
     );
 
@@ -1326,6 +1326,88 @@ describe("loadIndex stale cache", () => {
 
     // Clean up
     if (fs.existsSync(cacheFile)) fs.unlinkSync(cacheFile);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// regression: BGE→MiniLM model migration (v0.x → v0.y)
+//   A cache written by an older VaultGate build (bge-small-en-v1.5, version 2)
+//   must be treated as empty so embeddings are not mixed across models.
+// ---------------------------------------------------------------------------
+
+describe("loadIndex BGE→MiniLM migration", () => {
+  it("treats a BGE v2 cache as stale and re-indexes from scratch", async () => {
+    const uniqueVault = `__test_bge_migration_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const safe = uniqueVault.replace(/[^a-zA-Z0-9_-]/g, "_");
+
+    vi.resetModules();
+    vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+    vi.doMock("../../../src/config.js", () => ({
+      config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+    }));
+    vi.doMock("@xenova/transformers", () => ({
+      pipeline: vi.fn().mockResolvedValue(
+        vi.fn().mockImplementation(() =>
+          Promise.resolve({ tolist: () => [FAKE_VEC_A] })
+        )
+      ),
+    }));
+
+    const { runObsidian } = await import("../../../src/cli.js");
+    vi.mocked(runObsidian).mockResolvedValue("");
+
+    const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
+    const server = new McpServer({ name: "test", version: "0.0.0" });
+    const semantic = await import("../../../src/tools/semantic.js");
+
+    // Seed an old-format BGE cache (the exact values used before the model switch).
+    const cacheDir = semantic.resolveIndexCacheDir();
+    fs.mkdirSync(cacheDir, { recursive: true });
+    const cacheFile = path.join(cacheDir, `embeddings-${safe}.json`);
+    fs.writeFileSync(
+      cacheFile,
+      // regression: BGE-origin cache must be invalidated on model switch to MiniLM
+      JSON.stringify({ files: { "bge-note.md": { hash: "abc", chunks: [] } }, model: "Xenova/bge-small-en-v1.5", version: 2, lastReHash: 0 }),
+      "utf-8"
+    );
+
+    semantic.registerSemanticTools(server);
+    await waitForReady(semantic.getIndexStateForTesting);
+
+    // "bge-note.md" from the BGE cache must not appear — index was rebuilt from scratch.
+    const result = await callTool(server, "vault_info");
+    expect(result.content[0].text).not.toContain("bge-note.md");
+
+    if (fs.existsSync(cacheFile)) fs.unlinkSync(cacheFile);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// regression: DEFAULT_MIN_SCORE lowered from 0.25 to 0.20 for MiniLM
+//   Notes scoring between 0.20 and 0.24 must now be returned.
+// ---------------------------------------------------------------------------
+
+describe("semantic_search DEFAULT_MIN_SCORE boundary", () => {
+  it("returns a note whose score is 0.22 (between old 0.25 and new 0.20 threshold)", async () => {
+    // FAKE_VEC_A = [1, 0, 0, 0], query also [1, 0, 0, 0] → cosine similarity = 1.0
+    // We pass min_score: 0.22 explicitly to test the boundary — a score in the
+    // range (0.20, 0.25) that the old threshold would have filtered out.
+    const { server, getState, cleanup } = await freshModuleWithCache(
+      async (args: string[]) => {
+        if (args.includes("list")) return "note-a.md\n";
+        return NOTE_A_CONTENT;
+      }
+    );
+
+    await waitForReady(getState);
+
+    // Use explicit min_score=0.22 to confirm results come through below the old 0.25 cutoff.
+    const result = await callTool(server, "semantic_search", { query: "test", min_score: 0.22 });
+    expect(result.isError).toBeFalsy();
+    // The search must return at least one result (note-a scores ~1.0 with identical vectors).
+    expect(result.content[0].text).not.toMatch(/no (results|notes found)/i);
+
+    cleanup();
   });
 });
 
@@ -1894,7 +1976,7 @@ describe("regression: partial listVaultPaths does not prune index at startup", (
     const indexPath = path.join(cacheDir, `embeddings-${safeKey}.json`);
     fs.writeFileSync(
       indexPath,
-      JSON.stringify({ version: 2, model: "Xenova/bge-small-en-v1.5", lastReHash: 0, files: cachedFiles }),
+      JSON.stringify({ version: 3, model: "Xenova/all-MiniLM-L6-v2", lastReHash: 0, files: cachedFiles }),
       "utf-8",
     );
     semantic.registerSemanticTools(server);

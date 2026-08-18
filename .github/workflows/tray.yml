@@ -50,7 +50,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: tray/assets/models
-          key: models-bge-small-en-v1.5
+          key: models-all-MiniLM-L6-v2
 
       - name: Install tray deps (rebuilds onnxruntime-node via @electron/rebuild postinstall)
         run: npm ci

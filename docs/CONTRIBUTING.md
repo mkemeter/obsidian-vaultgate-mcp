@@ -662,8 +662,8 @@ Use `env.cacheDir`, not `env.localModelPath`. The two APIs expect different dire
 
 | API | Layout |
 |-----|--------|
-| `env.cacheDir` | `models--Xenova--bge-small-en-v1.5/snapshots/<hash>/...` (HuggingFace snapshot format) |
-| `env.localModelPath` | `Xenova/bge-small-en-v1.5/...` (flat layout) |
+| `env.cacheDir` | `models--Xenova--all-MiniLM-L6-v2/snapshots/<hash>/...` (HuggingFace snapshot format) |
+| `env.localModelPath` | `Xenova/all-MiniLM-L6-v2/...` (flat layout) |
 
 Mixing them causes a silent model-load failure. `tray/scripts/download-models.js` populates the cache in `env.cacheDir` format.
 

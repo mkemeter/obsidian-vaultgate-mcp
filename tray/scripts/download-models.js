@@ -5,7 +5,7 @@
  *
  * The download uses `env.cacheDir` so the resulting directory layout is the
  * exact HuggingFace snapshot format that `@xenova/transformers` expects at
- * runtime — `models--Xenova--bge-small-en-v1.5/snapshots/<hash>/...`.
+ * runtime — `models--Xenova--all-MiniLM-L6-v2/snapshots/<hash>/...`.
  *
  * Idempotent: skipped automatically if the model is already present in the
  * target cache (CI also caches `tray/assets/models/`).
@@ -23,8 +23,8 @@ const fs = require("node:fs");
   env.cacheDir = cacheDir;
   env.allowRemoteModels = true;
 
-  const MODEL_ID = "Xenova/bge-small-en-v1.5";
-  const expectedDir = path.join(cacheDir, "models--Xenova--bge-small-en-v1.5");
+  const MODEL_ID = "Xenova/all-MiniLM-L6-v2";
+  const expectedDir = path.join(cacheDir, "models--Xenova--all-MiniLM-L6-v2");
   if (fs.existsSync(expectedDir)) {
     console.log(`[download-models] cache hit — ${expectedDir}`);
     return;

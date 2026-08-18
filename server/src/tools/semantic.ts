@@ -80,12 +80,12 @@ let embedderInstance: Awaited<ReturnType<typeof pipeline>> | null = null;
 let emptyListRetries = 0;
 const MAX_EMPTY_LIST_RETRIES = 3;
 
-const MODEL_ID = "Xenova/bge-small-en-v1.5";
-const INDEX_VERSION = 2;
+const MODEL_ID = "Xenova/all-MiniLM-L6-v2";
+const INDEX_VERSION = 3;
 const CHUNK_SIZE = 2000;
 const REHASH_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 h
 const DEFAULT_TOP_N = 10;
-const DEFAULT_MIN_SCORE = 0.25;
+const DEFAULT_MIN_SCORE = 0.2;
 
 // ---------------------------------------------------------------------------
 // Pre-bundled model cache (used by the VaultGate tray app)

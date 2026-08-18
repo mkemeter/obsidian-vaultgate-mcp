@@ -410,7 +410,7 @@ When `@xenova/transformers` is available (installed as an optional dependency), 
 - `index_vault` — re-embed changed notes without discarding the existing cache (routine re-index)
 - `clear_index` — delete the cache file entirely and rebuild from scratch; use only when the cache is corrupted or after a version change. **Do not use before `index_vault`** — `index_vault` already handles incremental updates without data loss.
 
-The embedding model (`bge-small-en-v1.5`, ~100 MB) downloads once to `~/.cache/huggingface/`. All subsequent operations are fully offline. If `@xenova/transformers` fails to load on the current platform, VaultGate starts normally with the base tool set — no configuration change required.
+The embedding model (`all-MiniLM-L6-v2`, ~23 MB) downloads once to `~/.cache/huggingface/`. All subsequent operations are fully offline. If `@xenova/transformers` fails to load on the current platform, VaultGate starts normally with the base tool set — no configuration change required.
 
 > [!WARNING]
 > The `@xenova/transformers` package depends on `onnxruntime-web`, which in turn depends on `protobufjs` v6.x. The v6.x branch of protobufjs has [known vulnerabilities](https://github.com/protobufjs/protobuf.js/security/advisories). Your vault content is never sent to the network — the only external traffic is the one-time model download from HuggingFace. The risk is limited to the model download path and is inherited from the supply chain; it cannot be patched from this package until upstream updates.
@@ -570,7 +570,7 @@ Saving any change **restarts the server** so the new settings take effect immedi
 
 ### Smart Search
 
-The tray app ships with the [`Xenova/bge-small-en-v1.5`](https://huggingface.co/Xenova/bge-small-en-v1.5) embedding model pre-bundled (~34 MB). On first launch:
+The tray app ships with the [`Xenova/all-MiniLM-L6-v2`](https://huggingface.co/Xenova/all-MiniLM-L6-v2) embedding model pre-bundled (~23 MB). On first launch:
 
 - The model is loaded from the bundle — **no download, no network call**.
 - A background job embeds your vault note-by-note. Progress is shown in the tray menu (`○ Building index (142/523)…`).
