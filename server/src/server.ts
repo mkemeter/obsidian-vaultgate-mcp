@@ -62,7 +62,7 @@ export function getIconDataUri(): string {
  * both stdio (Claude Code) and HTTP (URL-based MCP clients) transports.
  * Callers attach the appropriate transport in `index.ts`.
  *
- * Semantic search tools (semantic_search, find_similar, index_vault, vault_info)
+ * Semantic search tools (semantic_search, find_similar, index_vault, clear_index, vault_info)
  * are registered automatically when @xenova/transformers is available on the
  * platform. If the optional dependency is absent the server starts normally
  * with BASE_TOOL_COUNT tools.
@@ -74,9 +74,12 @@ export function getIconDataUri(): string {
 export async function createServer(iconUrl?: string): Promise<McpServer> {
   const dataUri = getIconDataUri();
 
+  const pkgPath = path.join(path.dirname(url.fileURLToPath(import.meta.url)), "..", "package.json");
+  const pkgVersion: string = JSON.parse(fs.readFileSync(pkgPath, "utf-8")).version;
+
   const serverInfo: ConstructorParameters<typeof McpServer>[0] = {
     name: "obsidian-vaultgate-mcp",
-    version: "0.2.0",
+    version: pkgVersion,
   };
 
   if (dataUri) {
