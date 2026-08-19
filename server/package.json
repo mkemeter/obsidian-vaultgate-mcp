@@ -61,12 +61,12 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.16",
-    "@types/node": "^25.9.3",
+    "@types/node": "^26.2.0",
     "@vitest/coverage-v8": "^4.1.9",
     "knip": "^6.16.1",
     "lefthook": "^2.1.10",
     "type-coverage": "^2.30.1",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.9"
   },
   "knip": {
