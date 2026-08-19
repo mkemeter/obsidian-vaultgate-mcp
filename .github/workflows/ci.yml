@@ -50,6 +50,8 @@ jobs:
       - run: npm ci
       - name: Type-check
         run: npm run typecheck
+      - name: Type coverage
+        run: npm run type-coverage
 
   audit:
     name: Security Audit
