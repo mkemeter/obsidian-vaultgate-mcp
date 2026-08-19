@@ -8,6 +8,7 @@ coverage/
 CLAUDE.md
 .biome/
 internal/
+docs/demo-vault/.obsidian/
 # Stray compiled JS at repo root (accidental tsc output)
 /*.js
 /*.d.ts
