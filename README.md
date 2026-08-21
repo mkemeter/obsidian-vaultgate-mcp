@@ -274,7 +274,7 @@ Verify it's running:
 curl http://localhost:3001/health   # should print: OK
 ```
 
-Add a new MCP server in your AI app. The server prints its URLs on startup — use those values, since the port shifts automatically if 3001 is already taken:
+Add a new MCP server in your AI app, using the URLs the server prints on startup. If port 3001 is already in use the server exits with an error — set `OBSIDIAN_MCP_PORT` to a free port and restart:
 
 | Transport | Default URL |
 |-----------|-------------|

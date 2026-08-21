@@ -53,7 +53,8 @@ function startTestServer(): Promise<{ server: http.Server; baseUrl: string; port
     if (origin) {
       res.setHeader("Access-Control-Allow-Origin", origin);
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Accept");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Accept, mcp-session-id");
+      res.setHeader("Access-Control-Expose-Headers", "mcp-session-id");
     }
 
     if (req.method === "OPTIONS") {
@@ -197,6 +198,39 @@ describe("HTTP server", () => {
       headers: { Origin: "http://localhost" },
     });
     expect(res.status).toBe(204);
+  });
+
+  it("OPTIONS response includes mcp-session-id in Access-Control-Allow-Headers", async () => {
+    const res = await fetch(`${baseUrl}/mcp`, {
+      method: "OPTIONS",
+      headers: { Origin: "http://localhost" },
+    });
+    const allowHeaders = res.headers.get("Access-Control-Allow-Headers") ?? "";
+    expect(allowHeaders).toContain("mcp-session-id");
+  });
+
+  it("POST /mcp initialize response exposes mcp-session-id via Access-Control-Expose-Headers", async () => {
+    const res = await fetch(`${baseUrl}/mcp`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+        Origin: "http://localhost",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {
+          protocolVersion: "2024-11-05",
+          capabilities: {},
+          clientInfo: { name: "test-client", version: "0" },
+        },
+      }),
+    });
+    expect(res.status).toBe(200);
+    const exposeHeaders = res.headers.get("Access-Control-Expose-Headers") ?? "";
+    expect(exposeHeaders).toContain("mcp-session-id");
   });
 
   // --- Streamable HTTP (POST /mcp) -----------------------------------------

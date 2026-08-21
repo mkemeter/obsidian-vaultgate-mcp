@@ -85,7 +85,8 @@ async function startHttp(): Promise<void> {
       if (origin) {
         res.setHeader("Access-Control-Allow-Origin", origin);
         res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-        res.setHeader("Access-Control-Allow-Headers", "Content-Type, Accept");
+        res.setHeader("Access-Control-Allow-Headers", "Content-Type, Accept, mcp-session-id");
+        res.setHeader("Access-Control-Expose-Headers", "mcp-session-id");
       }
 
       if (req.method === "OPTIONS") {

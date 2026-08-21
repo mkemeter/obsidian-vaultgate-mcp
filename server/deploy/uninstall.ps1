@@ -3,8 +3,10 @@ Write-Host "Uninstalling VaultGate..." -ForegroundColor Cyan
 # --- Remove scheduled task ------------------------------------------------
 $task = Get-ScheduledTask -TaskName "VaultGate" -ErrorAction SilentlyContinue
 if ($task) {
+    Stop-ScheduledTask -TaskName "VaultGate" -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 2
     Unregister-ScheduledTask -TaskName "VaultGate" -Confirm:$false
-    Write-Host "  ✓ Scheduled task removed." -ForegroundColor Green
+    Write-Host "  ✓ Scheduled task stopped and removed." -ForegroundColor Green
 }
 
 # --- Remove wrapper .cmd --------------------------------------------------
@@ -16,7 +18,11 @@ if (Test-Path $wrapperDir) {
 
 # --- Remove npm package ---------------------------------------------------
 npm uninstall -g obsidian-vaultgate-mcp
-Write-Host "  ✓ Package removed." -ForegroundColor Green
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "  ✓ Package removed." -ForegroundColor Green
+} else {
+    Write-Host "  ⚠ npm uninstall exited with code $LASTEXITCODE — check manually." -ForegroundColor Yellow
+}
 
 # --- Remove embedding cache -----------------------------------------------
 $cacheDir = "$env:USERPROFILE\.cache\obsidian-vaultgate-mcp"

@@ -34,7 +34,7 @@ $obsidianPath = $obsidianCandidates | Where-Object { Test-Path $_ -PathType Leaf
 if (-not $obsidianPath) {
     $attempts = 0
     while ($true) {
-        $entered = Read-Host "Enter the absolute path to Obsidian.exe (the file, not the folder)"
+        $entered = (Read-Host "Enter the absolute path to Obsidian.exe (the file, not the folder)").Trim()
         if (Test-Path $entered -PathType Leaf) {
             $obsidianPath = $entered
             break
@@ -51,7 +51,7 @@ Write-Host "Obsidian:        $obsidianPath"
 
 # --- Vault name -----------------------------------------------------------
 Write-Host ""
-$vaultName = Read-Host "Vault name (leave blank to use last focused vault)"
+$vaultName = (Read-Host "Vault name (leave blank to use last focused vault)").Trim()
 
 # --- Write wrapper .cmd (env vars + quoted paths, safe for spaces) --------
 $wrapperDir  = "$env:APPDATA\VaultGate"
