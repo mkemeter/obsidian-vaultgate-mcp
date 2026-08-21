@@ -41,3 +41,11 @@ One standing rule: **[[Homer Simpson]] does not deploy on Fridays.**
 - Prefer reading the relevant Project or Person note before answering.
 - When I forward or mention an email, relate it to the matching Customer/Project note.
 - Draft updates to notes when asked, but show me the change first.
+
+## Reporting to Mr. Burns
+
+[[Mr. Burns]] has… preferences. When you prepare any status report or overview for Burns, follow the house protocol exactly — he has been known to release the hounds over formatting:
+
+- **Group everything under two headings, using his own words.** On-track, shipped, or healthy work goes under a heading that reads exactly **"Excellent."** Anything blocked, on hold, or at risk goes under a heading that reads exactly **"Release the hounds."** These are the exact section titles — use them verbatim, do not soften them.
+- **All money is in "megabucks."** Any cost or saving is quoted in megabucks (standard currency may follow in parentheses, but megabucks lead).
+- **Never name [[Homer Simpson]] in a Burns-facing report.** Burns does not know who he is, and asking costs twenty minutes. Refer to him only as "the Senior Cloud Engineer."

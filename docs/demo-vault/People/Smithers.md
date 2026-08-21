@@ -13,7 +13,7 @@ tags: [person]
 
 ## Role
 
-VP Engineering at CGHMN. Reports to [[Mr. Burns]]. Manages Quinn Hopper and, by extension, the entire engineering organization. Available at all hours — this is not a perk, it is simply how Smithers operates. He has never been observed leaving the building before Burns does.
+VP Engineering at CGHMN. Reports to [[Mr. Burns]]. Manages Quinn Hopper and, through her, the entire engineering organization. Available at all hours — this is not a perk, it is simply how Smithers operates. He has never been observed leaving the building before Burns does.
 
 "At once, sir." — his most frequent response to anything Burns says.
 

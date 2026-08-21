@@ -33,6 +33,6 @@ Two blockers are preventing go-live confirmation:
 
 I'm holding the go-live date pending Lisa's sign-off on data quality. Duffman does not fully understand why. The phrase "data-quality issue" has been explained twice. Duffman believes it can be resolved by trying harder.
 
-Homer's cloud environment is ready. Lisa's checklist is not. These two facts exist in productive tension.
+Homer's cloud environment is ready. Lisa's checklist is not. These two facts do not sit comfortably together.
 
 See also: [[Duff Brewery]], [[Sprint S35E09]], [[Exec Review - Burns Q4]].
