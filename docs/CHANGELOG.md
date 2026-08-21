@@ -127,7 +127,7 @@ A section may be absent if that distribution had no changes in the release.
 
 #### Fixed
 
-- Windows installer (`deploy/install.ps1`) now detects the standard per-user install location `%LOCALAPPDATA%\Programs\Obsidian\Obsidian.exe` (plus fallbacks) and validates the resolved/entered path is a file, so `start.cmd` can no longer be written with a directory path. The startup health check also rejects an `OBSIDIAN_CLI_PATH` that points at a directory, with an actionable message instead of a later opaque `ENOENT` (#11).
+- Windows installer (`server/deploy/install.ps1`) now detects the standard per-user install location `%LOCALAPPDATA%\Programs\Obsidian\Obsidian.exe` (plus fallbacks) and validates the resolved/entered path is a file, so `start.cmd` can no longer be written with a directory path. The startup health check also rejects an `OBSIDIAN_CLI_PATH` that points at a directory, with an actionable message instead of a later opaque `ENOENT` (#11).
 
 ### Tray
 

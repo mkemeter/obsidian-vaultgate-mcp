@@ -16,8 +16,10 @@ import {
   saveConfig,
   type VaultGateConfig,
 } from "./config-store.js";
+import { findFreePort } from "./port-utils.js";
 import * as serverManager from "./server-manager.js";
-import { findFreePort } from "./port-utils.js";let prefsWindow: BrowserWindow | undefined;
+
+let prefsWindow: BrowserWindow | undefined;
 
 /** Resolves the renderer asset directory (dev vs packaged). */
 function rendererDir(): string {
@@ -34,7 +36,8 @@ export function registerPrefsIpc(): void {
     const current = loadConfig();
     saveConfig(patch);
 
-    const vaultChanged = patch.vault !== undefined && patch.vault !== current.vault;
+    const nextVault = patch.vault;
+    const vaultChanged = nextVault !== undefined && nextVault !== current.vault;
     const requiresRestart =
       (patch.port !== undefined && patch.port !== current.port) ||
       (patch.obsidianPath !== undefined && patch.obsidianPath !== current.obsidianPath) ||
@@ -48,7 +51,7 @@ export function registerPrefsIpc(): void {
       // is preserved. Also reset the "Smart Search ready" flag so the user gets
       // a fresh notification once the new vault's index is built.
       saveConfig({ smartSearchReadyNotified: false });
-      serverManager.sendVaultChange(patch.vault!);
+      serverManager.sendVaultChange(nextVault);
     }
   });
   ipcMain.handle("prefs:listVaults", () => getRegisteredVaults());

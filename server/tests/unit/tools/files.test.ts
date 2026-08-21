@@ -89,6 +89,13 @@ describe("files_read", () => {
     expect(result.content[0].text).toMatch(/file name must not be empty/i);
     expect(mockRun).not.toHaveBeenCalled();
   });
+
+  it("returns isError=true on CLI failure", async () => {
+    mockRun.mockRejectedValue(new Error("read failed"));
+    const result = await invoke(makeServer(), "files_read", { file: "My Note" });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("read failed");
+  });
 });
 
 describe("note_create (destructive)", () => {

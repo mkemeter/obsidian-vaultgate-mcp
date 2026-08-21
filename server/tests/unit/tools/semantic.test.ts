@@ -106,9 +106,9 @@ describe("cosineSimilarity", () => {
 
   beforeEach(async () => {
     vi.resetModules();
-    vi.mock("@xenova/transformers", () => ({ pipeline: vi.fn() }));
-    vi.mock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
-    vi.mock("../../../src/config.js", () => ({
+    vi.doMock("@xenova/transformers", () => ({ pipeline: vi.fn() }));
+    vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+    vi.doMock("../../../src/config.js", () => ({
       config: { vault: undefined, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
     }));
     ({ cosineSimilarity } = await import("../../../src/tools/semantic.js"));

@@ -16,11 +16,7 @@ import { EventEmitter } from "node:events";
 import * as fs from "node:fs";
 import * as http from "node:http";
 import * as path from "node:path";
-import {
-  app,
-  utilityProcess,
-  type UtilityProcess,
-} from "electron";
+import { app, type UtilityProcess, utilityProcess } from "electron";
 import { loadConfig } from "./config-store.js";
 
 /** High-level state of the server lifecycle (drives tray menu rendering). */
@@ -143,21 +139,20 @@ function setState(next: ServerState): void {
  */
 function checkHealth(port: number): Promise<"vaultgate" | "other" | "none"> {
   return new Promise((resolve) => {
-    const req = http.get(
-      { host: "127.0.0.1", port, path: "/health", timeout: 500 },
-      (res) => {
-        let body = "";
-        res.setEncoding("utf8");
-        res.on("data", (chunk: string) => { body += chunk; });
-        res.on("end", () => {
-          if (res.statusCode === 200 && body.trim() === "OK") {
-            resolve("vaultgate");
-          } else {
-            resolve("other");
-          }
-        });
-      }
-    );
+    const req = http.get({ host: "127.0.0.1", port, path: "/health", timeout: 500 }, (res) => {
+      let body = "";
+      res.setEncoding("utf8");
+      res.on("data", (chunk: string) => {
+        body += chunk;
+      });
+      res.on("end", () => {
+        if (res.statusCode === 200 && body.trim() === "OK") {
+          resolve("vaultgate");
+        } else {
+          resolve("other");
+        }
+      });
+    });
     req.on("error", () => resolve("none"));
     req.on("timeout", () => {
       req.destroy();
@@ -171,7 +166,7 @@ async function waitForHealthy(port: number): Promise<boolean> {
   const deadline = Date.now() + HEALTH_TIMEOUT_MS;
   let delay = 100;
   while (Date.now() < deadline) {
-    if (await checkHealth(port) === "vaultgate") return true;
+    if ((await checkHealth(port)) === "vaultgate") return true;
     await new Promise((r) => setTimeout(r, delay));
     delay = Math.min(delay * 2, 800);
   }

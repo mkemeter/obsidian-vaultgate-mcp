@@ -92,4 +92,12 @@ describe("findFreePort", () => {
     expect(result).toBeGreaterThanOrEqual(1024);
     expect(result).toBeLessThanOrEqual(65535);
   });
+
+  it("skips an out-of-range preferred port (< 1024) and selects a valid one", async () => {
+    // preferred=80 is a privileged port; it must be skipped rather than returned,
+    // so selection falls through to the valid DEFAULT_PORT range.
+    mockSocketResult.value = "free";
+    const result = await findFreePort(80);
+    expect(result).toBeGreaterThanOrEqual(1024);
+  });
 });

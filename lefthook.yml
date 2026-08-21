@@ -4,6 +4,9 @@ pre-commit:
     biome:
       root: "server/"
       run: npm run check
+    biome-tray:
+      root: "tray/"
+      run: npm run check
     typecheck-server:
       root: "server/"
       run: npm run typecheck
@@ -13,3 +16,16 @@ pre-commit:
     type-coverage:
       root: "server/"
       run: npm run type-coverage
+    type-coverage-tray:
+      root: "tray/"
+      run: npm run type-coverage
+
+pre-push:
+  parallel: true
+  commands:
+    test-server:
+      root: "server/"
+      run: npm test
+    test-tray:
+      root: "tray/"
+      run: npm test

@@ -242,4 +242,13 @@ describe("getRegisteredVaults", () => {
     const { getRegisteredVaults } = await import("../../src/config-store.js");
     expect(getRegisteredVaults()).toEqual([]);
   });
+
+  it("returns an empty list on an unsupported platform (e.g. win32)", async () => {
+    // win32 has no entry in platformPaths, so filePath is undefined and the
+    // function returns early before touching the filesystem.
+    setPlatform("win32");
+
+    const { getRegisteredVaults } = await import("../../src/config-store.js");
+    expect(getRegisteredVaults()).toEqual([]);
+  });
 });

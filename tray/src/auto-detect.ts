@@ -6,12 +6,7 @@
  * up an Electron app context.
  */
 
-import {
-  detectObsidianPath,
-  getRegisteredVaults,
-  hasConfig,
-  saveConfig,
-} from "./config-store.js";
+import { detectObsidianPath, getRegisteredVaults, hasConfig, saveConfig } from "./config-store.js";
 
 /**
  * Populates the config store with auto-detected Obsidian binary + vault on

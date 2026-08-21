@@ -351,6 +351,7 @@ All configuration via environment variables. None are required for single-vault 
 | `OBSIDIAN_MCP_TRANSPORT` | _(auto-detect)_ | `http` to force HTTP mode, `stdio` to force stdio. Auto-detected from `stdin.isTTY`. |
 | `OBSIDIAN_CLI_PATH` | `obsidian` | Absolute path to the Obsidian binary. Required in service contexts where `PATH` differs from the user shell. |
 | `OBSIDIAN_CONTEXT_FILE` | `VAULTGATE.md` | Filename of the vault conventions file (in the vault root). Point it at an existing file such as `CLAUDE.md` to reuse it. Bare `.md` filename only — no path. |
+| `VAULTGATE_MODEL_CACHE_DIR` | _(bundled/default cache)_ | Points the semantic-search embedding model at a pre-populated HuggingFace cache directory and disables remote downloads. For offline/air-gapped setups; normally set automatically by the tray. |
 
 ### Available tools
 
@@ -482,7 +483,7 @@ The tray icon shows server state — running, indexing, error — without openin
 <td width="50%">
 
 **🔍 Pre-bundled Smart Search**
-The embedding model (~34 MB) ships inside the app. Fully offline — no download, no network call, ever.
+The embedding model (~23 MB) ships inside the app. Fully offline — no download, no network call, ever.
 
 </td>
 </tr>
@@ -650,7 +651,8 @@ obsidian-vaultgate-mcp/
 │   ├── CONTRIBUTING.md
 │   ├── CHANGELOG.md
 │   ├── SECURITY.md
-│   └── THIRD_PARTY_NOTICES.md
+│   ├── THIRD_PARTY_NOTICES.md
+│   └── demo-vault/  Simpsons-themed sample vault for documentation/demos
 └── .github/workflows/      CI (ci.yml = server, tray.yml = tray)
 ```
 

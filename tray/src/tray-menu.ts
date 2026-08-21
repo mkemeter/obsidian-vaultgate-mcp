@@ -13,8 +13,8 @@ import {
   clipboard,
   Menu,
   type MenuItemConstructorOptions,
-  nativeImage,
   Notification,
+  nativeImage,
   shell,
   Tray,
 } from "electron";

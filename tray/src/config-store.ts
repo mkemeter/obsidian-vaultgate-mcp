@@ -112,7 +112,10 @@ export function getRegisteredVaults(): RegisteredVault[] {
   const home = os.homedir();
   const platformPaths: Record<string, string> = {
     darwin: path.join(home, "Library/Application Support/obsidian/obsidian.json"),
-    linux: path.join(process.env.XDG_CONFIG_HOME ?? path.join(home, ".config"), "obsidian/obsidian.json"),
+    linux: path.join(
+      process.env.XDG_CONFIG_HOME ?? path.join(home, ".config"),
+      "obsidian/obsidian.json"
+    ),
   };
   const filePath = platformPaths[process.platform];
   if (!filePath) return [];

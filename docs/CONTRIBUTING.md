@@ -51,6 +51,8 @@ npm run build
 npm test
 ```
 
+> **Git hooks:** the lefthook pre-commit/pre-push gates install via `server/`'s postinstall. If you only run `npm install` inside `tray/`, run `cd server && npm install` once to activate the hooks.
+
 ### Development scripts (run inside `server/` or `tray/`)
 
 | Command | Purpose |
@@ -58,11 +60,11 @@ npm test
 | `npm run build` | Compile TypeScript → `build/` (server) or `dist/` (tray) |
 | `npm test` | Run full test suite |
 | `npm run test:coverage` | Tests + coverage report |
-| `npm run check` | Biome lint + format check (CI-equivalent) — server only |
-| `npm run lint:fix` | Auto-fix Biome lint violations — server only |
-| `npm run format` | Auto-format source files — server only |
+| `npm run check` | Biome lint + format check (CI-equivalent) |
+| `npm run lint:fix` | Auto-fix Biome lint violations |
+| `npm run format` | Auto-format source files |
 | `npm run typecheck` | Type-check without building |
-| `npm run knip` | Dead-code check locally — server only |
+| `npm run knip` | Dead-code check locally |
 
 You do **not** need Obsidian installed to develop or run tests — the test suite mocks the CLI binary entirely.
 

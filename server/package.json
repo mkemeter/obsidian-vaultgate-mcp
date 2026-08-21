@@ -70,16 +70,8 @@
     "vitest": "^4.1.9"
   },
   "knip": {
-    "entry": [
-      "src/index.ts",
-      "src/install.ts",
-      "src/uninstall.ts"
-    ],
     "project": [
       "src/**/*.ts"
-    ],
-    "ignoreDependencies": [
-      "@xenova/transformers"
     ]
   }
 }
