@@ -71,7 +71,8 @@ Write-Host "Wrapper written: $wrapperPath"
 $action   = New-ScheduledTaskAction -Execute $wrapperPath
 $trigger  = New-ScheduledTaskTrigger -AtLogOn
 $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit 0 `
-              -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
+              -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) `
+              -StopIfGoingOnBatteries $false -DisallowDemandStart $false
 
 Register-ScheduledTask -TaskName "VaultGate" -Action $action `
   -Trigger $trigger -Settings $settings -RunLevel Limited -Force | Out-Null

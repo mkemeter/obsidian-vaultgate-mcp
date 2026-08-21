@@ -300,6 +300,18 @@ Add to `~/.claude/settings.json`:
 
 Claude Code manages the process lifecycle via stdio — no separate startup needed. Omit `env` if you only have one vault.
 
+> [!NOTE]
+> **Windows users:** You must also set `OBSIDIAN_CLI_PATH` to the absolute path of `Obsidian.exe`. Claude Code runs in an environment where `PATH` differs from your shell, so the bare `obsidian` default won't resolve.
+>
+> ```json
+> "env": {
+>   "OBSIDIAN_VAULT": "My Vault",
+>   "OBSIDIAN_CLI_PATH": "C:\\Users\\<YourName>\\AppData\\Local\\Programs\\Obsidian\\Obsidian.exe"
+> }
+> ```
+>
+> Replace the path with your actual install location. The standard per-user NSIS install lands at `%LOCALAPPDATA%\Programs\Obsidian\Obsidian.exe`.
+
 ### Auto-start at login
 
 ```bash
@@ -440,6 +452,12 @@ This is intentional — these tools are designed to hand work off to you in the 
 
 **`xdg-open: command not found` (Linux)**
 Install `xdg-utils` via your package manager (e.g. `sudo apt install xdg-utils`) to enable URI dispatch.
+
+**Windows: VaultGate exits immediately with "Obsidian binary not found" (Claude Code)**
+The health check uses a file-existence test, not a `PATH` search — so the bare default `obsidian` never resolves on Windows, even if Obsidian is on your `PATH`. You must set `OBSIDIAN_CLI_PATH` explicitly in your Claude Code settings. See the [Windows note in the Claude Code section](#claude-code) above for the exact JSON to add.
+
+**Windows: server works in the terminal but stops when running on battery power**
+The Task Scheduler task is configured to stop on battery by default. To fix: open **Task Scheduler** → find the `VaultGate` task → **Properties → Conditions** tab → uncheck **"Stop if the computer switches to battery power"**. Re-run the installer to get this fixed automatically.
 
 ---
 
