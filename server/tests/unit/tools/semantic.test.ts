@@ -282,11 +282,13 @@ describe("cache-hit startup path", () => {
 
 // regression: configured-vault cache-hit showed stale note count until first MCP request
 describe("cache-hit startup path — configured vault syncs immediately", () => {
-  it("runs syncNewAndDeleted on cache-hit so filesProcessed reflects the actual file list", async () => {
-    // Seed a cache with 2 notes, but CLI returns only 1 note (simulates vault change).
-    // Before the fix, startBackgroundIndex() on a configured-vault cache-hit became
-    // "ready" immediately without calling syncNewAndDeleted(). The tray would show the
-    // stale count (2) until the first MCP search request triggered a sync.
+  it("runs syncNewAndDeleted on cache-hit; preserves deleted notes until fullReHash", async () => {
+    // Seed a cache with 2 notes, but CLI returns only 1 note (note-b.md was deleted).
+    // regression: before d5ce12a, startBackgroundIndex() on a configured-vault cache-hit
+    // became "ready" without calling syncNewAndDeleted() at all. The fix calls it with
+    // pruneDeleted=false so a truncated Obsidian response cannot shrink the index.
+    // Consequence: on cache-hit, deleted notes are preserved until fullReHash (24h cycle
+    // or manual rebuild). vault_info correctly shows the full cached count (2).
     vi.resetModules();
 
     const vaultName = `__test_sync_${Date.now()}_${Math.random().toString(36).slice(2)}`;
@@ -337,11 +339,11 @@ describe("cache-hit startup path — configured vault syncs immediately", () => 
 
     await waitForReady(semantic.getIndexStateForTesting);
 
-    // vault_info must reflect the actual current count (1), not the stale cache count (2)
+    // Cache-hit sync uses pruneDeleted=false — both cached notes are preserved even
+    // though the vault reports only 1. vault_info must show the full cached count (2).
     const result = await callTool(server, "vault_info", {});
     expect(result.isError).toBeFalsy();
-    expect(result.content[0].text).toContain("1");
-    expect(result.content[0].text).not.toMatch(/\b2\b.*note/);
+    expect(result.content[0].text).toContain("Indexed notes: 2");
 
     try { fs.unlinkSync(indexPath); } catch { /* already gone */ }
   });
