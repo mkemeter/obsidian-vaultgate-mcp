@@ -1,6 +1,6 @@
 {
   "name": "vaultgate",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "private": true,
   "description": "VaultGate tray companion — runs the obsidian-vaultgate-mcp server with a menu-bar UI.",
   "author": "Mathias Kemeter",
@@ -49,8 +49,14 @@
     "vitest": "^4.1.9"
   },
   "knip": {
-    "entry": ["src/preload.ts"],
-    "project": ["src/**/*.ts"],
-    "ignoreBinaries": ["create-dmg"]
+    "entry": [
+      "src/preload.ts"
+    ],
+    "project": [
+      "src/**/*.ts"
+    ],
+    "ignoreBinaries": [
+      "create-dmg"
+    ]
   }
 }

@@ -9,6 +9,16 @@ Both distributions — the headless npm package (`server/`) and the Electron tra
 (`tray/`) — share a single version line. Each release entry groups changes by distribution.
 A section may be absent if that distribution had no changes in the release.
 
+## [0.2.7] — 2026-08-24
+
+### Server
+
+#### Fixed
+
+- **Windows: HTTP transport compatibility** — resolved an HTTP client incompatibility that prevented connections on Windows. Installer robustness improvements for the Windows deploy script.
+- **Windows: battery-power fix and `OBSIDIAN_CLI_PATH` guidance** — the server no longer exits when the machine is on battery power; added clearer guidance for setting a custom CLI path on Windows.
+- **Version reporting** — `serverInfo.version` is now read from `package.json` at runtime instead of being hardcoded, so MCP clients that display server version always see the correct value.
+
 ## [0.2.6] — 2026-08-18
 
 ### Server
