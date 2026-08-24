@@ -282,13 +282,14 @@ describe("cache-hit startup path", () => {
 
 // regression: configured-vault cache-hit showed stale note count until first MCP request
 describe("cache-hit startup path — configured vault syncs immediately", () => {
-  it("runs syncNewAndDeleted on cache-hit; preserves deleted notes until fullReHash", async () => {
-    // Seed a cache with 2 notes, but CLI returns only 1 note (note-b.md was deleted).
+  it("runs syncNewAndDeleted on cache-hit so new notes are embedded before ready", async () => {
     // regression: before d5ce12a, startBackgroundIndex() on a configured-vault cache-hit
-    // became "ready" without calling syncNewAndDeleted() at all. The fix calls it with
-    // pruneDeleted=false so a truncated Obsidian response cannot shrink the index.
-    // Consequence: on cache-hit, deleted notes are preserved until fullReHash (24h cycle
-    // or manual rebuild). vault_info correctly shows the full cached count (2).
+    // became "ready" immediately without calling syncNewAndDeleted(). New notes added
+    // while the server was offline would be invisible until the next search triggered a sync.
+    //
+    // Proof strategy: seed the cache with 1 note, but CLI reports 2 (note-b.md is new).
+    // If syncNewAndDeleted runs, note-b.md gets embedded and vault_info shows 2.
+    // If it doesn't run, the count stays at 1 — the regression reappears.
     vi.resetModules();
 
     const vaultName = `__test_sync_${Date.now()}_${Math.random().toString(36).slice(2)}`;
@@ -308,10 +309,11 @@ describe("cache-hit startup path — configured vault syncs immediately", () => 
     }));
 
     const { runObsidian } = await import("../../../src/cli.js");
-    // CLI now reports only 1 note (note-b.md was deleted)
+    // CLI reports 2 notes — note-b.md was added while the server was offline
     vi.mocked(runObsidian).mockImplementation(async (args: string[]) => {
-      if (args.includes("list")) return "note-a.md\n";
-      return NOTE_A_CONTENT;
+      if (args.includes("list")) return "note-a.md\nnote-b.md\n";
+      if (args.includes("path=note-a.md")) return NOTE_A_CONTENT;
+      return NOTE_B_CONTENT;
     });
 
     const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
@@ -323,14 +325,13 @@ describe("cache-hit startup path — configured vault syncs immediately", () => 
     fs.mkdirSync(cacheDir, { recursive: true });
     const indexPath = path.join(cacheDir, `embeddings-${safeKey}.json`);
 
-    // Cache has 2 notes, but the vault now contains only 1
+    // Cache has only 1 note; vault now has 2 (note-b.md is new)
     const seededIndex = {
       version: 3,
       model: "Xenova/all-MiniLM-L6-v2",
       lastReHash: Date.now(),
       files: {
         "note-a.md": { hash: "abc", chunks: [{ heading: "Note A", embedding: FAKE_VEC_A }] },
-        "note-b.md": { hash: "def", chunks: [{ heading: "Note B", embedding: FAKE_VEC_A }] },
       },
     };
     fs.writeFileSync(indexPath, JSON.stringify(seededIndex), "utf-8");
@@ -339,8 +340,8 @@ describe("cache-hit startup path — configured vault syncs immediately", () => 
 
     await waitForReady(semantic.getIndexStateForTesting);
 
-    // Cache-hit sync uses pruneDeleted=false — both cached notes are preserved even
-    // though the vault reports only 1. vault_info must show the full cached count (2).
+    // syncNewAndDeleted must have run: note-b.md was embedded, so the count is 2.
+    // If the regression recurs (sync skipped), the count stays at 1 and this fails.
     const result = await callTool(server, "vault_info", {});
     expect(result.isError).toBeFalsy();
     expect(result.content[0].text).toContain("Indexed notes: 2");
