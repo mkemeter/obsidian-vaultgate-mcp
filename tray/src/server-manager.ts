@@ -235,6 +235,9 @@ export async function start(): Promise<void> {
       // Semantic search: point at pre-bundled cache, disable remote download.
       VAULTGATE_MODEL_CACHE_DIR: modelDir,
       VAULTGATE_ALLOW_REMOTE_MODELS: "false",
+      // Vault conventions injection
+      VAULTGATE_INJECT_CONVENTIONS: String(config.injectConventions ?? true),
+      VAULTGATE_INJECT_INTERVAL: String(config.injectIntervalSecs ?? 30),
     },
     stdio: "pipe",
   });
@@ -382,6 +385,21 @@ export function sendVaultChange(vault: string): void {
   }
   log(`sendVaultChange(${vault || "(empty)"})`);
   child.postMessage({ __vaultgate_config__: { vault } });
+}
+
+/**
+ * Sends injection-config changes to the running server process so they take
+ * effect immediately without a restart. No-op if the server is not running.
+ */
+export function sendInjectionConfig(enabled: boolean, intervalSecs: number): void {
+  if (!child) {
+    log("sendInjectionConfig — no child process, skipping");
+    return;
+  }
+  log(`sendInjectionConfig(enabled=${String(enabled)}, interval=${String(intervalSecs)}s)`);
+  child.postMessage({
+    __vaultgate_config__: { injectConventions: enabled, injectIntervalSecs: intervalSecs },
+  });
 }
 
 /**

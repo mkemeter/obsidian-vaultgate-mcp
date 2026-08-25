@@ -100,6 +100,8 @@ describe("loadConfig / saveConfig / hasConfig", () => {
       port: 3002,
       obsidianPath: "",
       contextFileName: "VAULTGATE.md",
+      injectConventions: true,
+      injectIntervalSecs: 30,
       smartSearchReadyNotified: false,
     });
   });
@@ -114,6 +116,8 @@ describe("loadConfig / saveConfig / hasConfig", () => {
       port: 4242,
       obsidianPath: "",
       contextFileName: "VAULTGATE.md",
+      injectConventions: true,
+      injectIntervalSecs: 30,
       smartSearchReadyNotified: false,
     });
   });

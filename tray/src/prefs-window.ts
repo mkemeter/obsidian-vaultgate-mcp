@@ -43,15 +43,27 @@ export function registerPrefsIpc(): void {
       (patch.obsidianPath !== undefined && patch.obsidianPath !== current.obsidianPath) ||
       (patch.contextFileName !== undefined && patch.contextFileName !== current.contextFileName);
 
+    const injectionChanged =
+      (patch.injectConventions !== undefined &&
+        patch.injectConventions !== current.injectConventions) ||
+      (patch.injectIntervalSecs !== undefined &&
+        patch.injectIntervalSecs !== current.injectIntervalSecs);
+
     if (requiresRestart) {
       // Port or binary path changed — must restart to rebind the HTTP listener.
       await serverManager.restart();
-    } else if (vaultChanged) {
-      // Vault-only change: update the running server in place so the MCP session
-      // is preserved. Also reset the "Smart Search ready" flag so the user gets
-      // a fresh notification once the new vault's index is built.
-      saveConfig({ smartSearchReadyNotified: false });
-      serverManager.sendVaultChange(nextVault);
+    } else {
+      if (vaultChanged) {
+        // Vault-only change: update the running server in place so the MCP session
+        // is preserved. Also reset the "Smart Search ready" flag so the user gets
+        // a fresh notification once the new vault's index is built.
+        saveConfig({ smartSearchReadyNotified: false });
+        serverManager.sendVaultChange(nextVault);
+      }
+      if (injectionChanged) {
+        const next = loadConfig();
+        serverManager.sendInjectionConfig(next.injectConventions, next.injectIntervalSecs);
+      }
     }
   });
   ipcMain.handle("prefs:listVaults", () => getRegisteredVaults());
@@ -83,7 +95,7 @@ export function openPrefsWindow(): void {
 
   prefsWindow = new BrowserWindow({
     width: 420,
-    height: 440,
+    height: 580,
     resizable: false,
     minimizable: false,
     maximizable: false,

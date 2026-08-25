@@ -11,6 +11,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { app } from "electron";
 import { DEFAULT_CONTEXT_FILE } from "./context-file.js";
+import { DEFAULT_INJECT_INTERVAL } from "./inject-interval.js";
 
 /** User-editable VaultGate settings persisted to disk. */
 export interface VaultGateConfig {
@@ -26,6 +27,19 @@ export interface VaultGateConfig {
    * existing file such as `CLAUDE.md`.
    */
   contextFileName: string;
+  /**
+   * Whether the server automatically injects vault conventions into tool results.
+   * When enabled, conventions are merged into the first tool result of each new
+   * conversation. Configurable via Preferences or the `VAULTGATE_INJECT_CONVENTIONS`
+   * env var.
+   */
+  injectConventions: boolean;
+  /**
+   * How often (in seconds) vault conventions are re-injected. Acts as a
+   * conversation-boundary detector. Configurable via Preferences or the
+   * `VAULTGATE_INJECT_INTERVAL` env var.
+   */
+  injectIntervalSecs: number;
   /** Whether the user has been notified once that the index is ready. */
   smartSearchReadyNotified: boolean;
 }
@@ -43,6 +57,8 @@ const DEFAULTS: VaultGateConfig = {
   port: 3002,
   obsidianPath: "",
   contextFileName: DEFAULT_CONTEXT_FILE,
+  injectConventions: true,
+  injectIntervalSecs: DEFAULT_INJECT_INTERVAL,
   smartSearchReadyNotified: false,
 };
 

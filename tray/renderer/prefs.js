@@ -18,6 +18,10 @@
   const obsidianInput = document.getElementById("obsidian");
   const contextFileInput = document.getElementById("context-file");
   const contextFileError = document.getElementById("context-file-error");
+  const injectConventionsInput = document.getElementById("inject-conventions");
+  const injectIntervalRow = document.getElementById("inject-interval-row");
+  const injectIntervalInput = document.getElementById("inject-interval");
+  const injectIntervalError = document.getElementById("inject-interval-error");
   const autostartInput = document.getElementById("autostart");
   const browseBtn = document.getElementById("browse");
   const saveBtn = document.getElementById("save");
@@ -48,6 +52,9 @@
   obsidianInput.value =
     config.obsidianPath || (await api.detectObsidianPath()) || "";
   contextFileInput.value = config.contextFileName || "VAULTGATE.md";
+  injectConventionsInput.checked = config.injectConventions ?? true;
+  injectIntervalInput.value = String(config.injectIntervalSecs ?? 30);
+  injectIntervalRow.style.display = injectConventionsInput.checked ? "" : "none";
   autostartInput.checked = Boolean(autostart);
 
   // Wire server state into status indicator ------------------------------------
@@ -111,9 +118,36 @@
 
   contextFileInput.addEventListener("input", validateContextFile);
 
-  // Run initial validation (the suggested port should always be free, but
-  // if the saved port differs it may be in conflict).
+  // Injection settings ---------------------------------------------------------
+  function setIntervalError(msg) {
+    injectIntervalError.textContent = msg;
+    injectIntervalInput.classList.toggle("error", Boolean(msg));
+    saveBtn.disabled = Boolean(msg);
+  }
+
+  function validateInterval() {
+    if (!injectConventionsInput.checked) {
+      setIntervalError("");
+      return;
+    }
+    const value = Number.parseInt(injectIntervalInput.value, 10);
+    if (!Number.isFinite(value) || value < 1 || value > 3600) {
+      setIntervalError("Must be between 1 and 3600 seconds.");
+    } else {
+      setIntervalError("");
+    }
+  }
+
+  injectConventionsInput.addEventListener("change", () => {
+    injectIntervalRow.style.display = injectConventionsInput.checked ? "" : "none";
+    validateInterval();
+  });
+
+  injectIntervalInput.addEventListener("input", validateInterval);
+
+  // Run initial validation
   await validatePort();
+  validateInterval();
 
   // Browse for Obsidian path ---------------------------------------------------
   browseBtn.addEventListener("click", async () => {
@@ -123,25 +157,25 @@
 
   // Save -----------------------------------------------------------------------
   saveBtn.addEventListener("click", async () => {
-    // Re-validate synchronously before saving in case the user typed fast.
-    // validateContextFile first, then validatePort — validatePort runs last and
-    // sets the final saveBtn.disabled state, so guard on both errors explicitly.
     validateContextFile();
+    validateInterval();
     const contextFileInvalid = Boolean(contextFileError.textContent);
+    const intervalInvalid = Boolean(injectIntervalError.textContent);
     await validatePort();
-    if (saveBtn.disabled || contextFileInvalid) {
-      // Re-assert disabled in case validatePort cleared it while the filename
-      // is still invalid.
+    if (saveBtn.disabled || contextFileInvalid || intervalInvalid) {
       saveBtn.disabled = true;
       return;
     }
 
     const port = Number.parseInt(portInput.value, 10);
+    const injectIntervalSecs = Number.parseInt(injectIntervalInput.value, 10);
     const patch = {
       vault: vaultSelect.value,
       port: Number.isFinite(port) ? port : config.port,
       obsidianPath: obsidianInput.value,
       contextFileName: contextFileInput.value.trim() || "VAULTGATE.md",
+      injectConventions: injectConventionsInput.checked,
+      injectIntervalSecs: Number.isFinite(injectIntervalSecs) ? injectIntervalSecs : 30,
     };
     await api.setAutostart(autostartInput.checked);
     await api.saveConfig(patch);
