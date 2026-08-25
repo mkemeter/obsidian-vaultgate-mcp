@@ -34,7 +34,7 @@
     "type-coverage": "type-coverage --at-least 98 --strict"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.16",
+    "@biomejs/biome": "^2.5.10",
     "@electron/rebuild": "^4.2.0",
     "@types/node": "^26.2.0",
     "@vitest/coverage-v8": "^4.1.11",
