@@ -9,6 +9,26 @@ Both distributions — the headless npm package (`server/`) and the Electron tra
 (`tray/`) — share a single version line. Each release entry groups changes by distribution.
 A section may be absent if that distribution had no changes in the release.
 
+## [0.3.0] — 2026-08-25
+
+### Tray
+
+#### Changed
+
+- **Preferences: Vault Conventions section** — the three vault conventions settings (conventions
+  file, inject checkbox, re-inject interval) are now grouped under a labelled "VAULT CONVENTIONS"
+  section with a brief hint line, making their relationship immediately clear.
+- **Re-inject interval rendered inline** — the interval field now appears as a compact
+  `Re-inject after [ 30 ] seconds` row instead of a stacked label/input.
+- **Status bar spacing** — the VaultGate heading is padded to clear the macOS traffic-light
+  buttons on hidden-inset title bars; the status bar region is draggable.
+
+#### Fixed
+
+- Preferences window no longer shows a scrollbar; `overflow: hidden` added as a backstop.
+
+---
+
 ## [0.2.7] — 2026-08-24
 
 ### Server
