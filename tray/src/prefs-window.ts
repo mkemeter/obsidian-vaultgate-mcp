@@ -95,7 +95,7 @@ export function openPrefsWindow(): void {
 
   prefsWindow = new BrowserWindow({
     width: 420,
-    height: 580,
+    height: 600,
     resizable: false,
     minimizable: false,
     maximizable: false,
