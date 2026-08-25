@@ -189,7 +189,9 @@ Use sentence case for note titles. No special characters except hyphens.
 You can also ask your AI assistant: *"Help me set up vault conventions"* — it will analyse your vault structure and draft `VAULTGATE.md` for you using the `vault_context_set` tool.
 
 > [!NOTE]
-> `VAULTGATE.md` is read at connection time. To pick up edits mid-session, ask your assistant to call `vault_context` — it always reads the current file content.
+> `VAULTGATE.md` is automatically delivered at the start of each conversation — conventions are merged into the first tool result your AI requests, so it always knows your vault structure without you having to ask. If you edit the file mid-session and want the AI to pick up the changes immediately, ask your assistant to call `vault_context` again.
+>
+> **Injection is configurable:** use `VAULTGATE_INJECT_CONVENTIONS=false` to disable, or `VAULTGATE_INJECT_INTERVAL=<seconds>` to change how often conventions are re-injected (default: 30s). Both settings are also available in the tray Preferences dialog.
 
 ---
 
@@ -351,6 +353,8 @@ All configuration via environment variables. None are required for single-vault 
 | `OBSIDIAN_MCP_TRANSPORT` | _(auto-detect)_ | `http` to force HTTP mode, `stdio` to force stdio. Auto-detected from `stdin.isTTY`. |
 | `OBSIDIAN_CLI_PATH` | `obsidian` | Absolute path to the Obsidian binary. Required in service contexts where `PATH` differs from the user shell. |
 | `OBSIDIAN_CONTEXT_FILE` | `VAULTGATE.md` | Filename of the vault conventions file (in the vault root). Point it at an existing file such as `CLAUDE.md` to reuse it. Bare `.md` filename only — no path. |
+| `VAULTGATE_INJECT_CONVENTIONS` | `true` | Set to `false` to disable automatic injection of vault conventions into tool results. When enabled, conventions are merged into the first tool result of each new conversation. Configurable in the tray Preferences dialog. |
+| `VAULTGATE_INJECT_INTERVAL` | `30` | How often (seconds) to re-inject vault conventions. Acts as a conversation-boundary detector: tool calls within a single thread happen seconds apart, so conventions are delivered exactly once at the start of each new conversation thread. Valid range: 1–3600. Configurable in the tray Preferences dialog. |
 | `VAULTGATE_MODEL_CACHE_DIR` | _(bundled/default cache)_ | Points the semantic-search embedding model at a pre-populated HuggingFace cache directory and disables remote downloads. For offline/air-gapped setups; normally set automatically by the tray. |
 
 ### Available tools
@@ -388,7 +392,7 @@ Dispatch `obsidian://` URIs through the OS to trigger navigation inside the runn
 | `dev_console` | Console log output from Obsidian (requires `dev:debug on` first — run once via `eval`) |
 | `dev_css` | Computed CSS for a DOM selector |
 | `dev_dom` | DOM subtree of the Obsidian window |
-| `vault_context` | Read vault conventions from `VAULTGATE.md` (fallback if conventions were not delivered at session start) |
+| `vault_context` | Read vault conventions from `VAULTGATE.md` — called automatically at session start to ensure all responses follow the vault's naming rules, folder structure, and writing style |
 
 #### Write (dry-run by default)
 

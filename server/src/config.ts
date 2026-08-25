@@ -51,10 +51,34 @@ export interface Config {
    * existing file such as `CLAUDE.md` instead of maintaining a separate one.
    */
   contextFileName: string;
+
+  /**
+   * Whether the server automatically injects vault conventions into tool
+   * results. When enabled, conventions are merged into the first tool result
+   * of each new conversation (determined by `injectIntervalSecs`).
+   *
+   * Defaults to `true`. Set `VAULTGATE_INJECT_CONVENTIONS=false` to disable.
+   * Configurable at runtime via the tray Preferences dialog.
+   */
+  injectConventions: boolean;
+
+  /**
+   * How often (in seconds) vault conventions are re-injected into tool results.
+   * Acts as a conversation boundary detector: tool calls within a single
+   * thread happen seconds apart, so conventions are delivered exactly once at
+   * the start of each new conversation.
+   *
+   * Defaults to `30`. Set `VAULTGATE_INJECT_INTERVAL` to an integer ≥ 1.
+   * Configurable at runtime via the tray Preferences dialog.
+   */
+  injectIntervalSecs: number;
 }
 
 /** Default conventions filename when `OBSIDIAN_CONTEXT_FILE` is unset. */
 const DEFAULT_CONTEXT_FILE = "VAULTGATE.md";
+
+/** Default injection interval in seconds. */
+const DEFAULT_INJECT_INTERVAL = 30;
 
 /**
  * Normalises and validates the configured conventions filename.
@@ -105,12 +129,29 @@ export function loadConfig(): Config {
 
   const rawVault = process.env.OBSIDIAN_VAULT?.trim();
 
+  const injectConventions = process.env.VAULTGATE_INJECT_CONVENTIONS?.trim() !== "false";
+
+  const rawInterval = process.env.VAULTGATE_INJECT_INTERVAL?.trim();
+  let injectIntervalSecs = DEFAULT_INJECT_INTERVAL;
+  if (rawInterval !== undefined) {
+    const parsed = parseInt(rawInterval, 10);
+    if (Number.isNaN(parsed) || parsed < 1) {
+      console.error(
+        `[VaultGate] Invalid VAULTGATE_INJECT_INTERVAL value "${rawInterval}" — must be an integer ≥ 1. Using default (${DEFAULT_INJECT_INTERVAL}s).`
+      );
+    } else {
+      injectIntervalSecs = parsed;
+    }
+  }
+
   return {
     vault: rawVault || undefined,
     cliBin: process.env.OBSIDIAN_CLI_PATH || "obsidian",
     port,
     host: "127.0.0.1",
     contextFileName: normalizeContextFileName(process.env.OBSIDIAN_CONTEXT_FILE?.trim()),
+    injectConventions,
+    injectIntervalSecs,
   };
 }
 
@@ -124,4 +165,13 @@ export const config = loadConfig();
  */
 export function setVault(vault: string | undefined): void {
   config.vault = vault;
+}
+
+/**
+ * Updates injection settings at runtime without restarting the process.
+ * Called by the tray app via IPC when the user changes injection preferences.
+ */
+export function setInjectionConfig(enabled: boolean, intervalSecs: number): void {
+  config.injectConventions = enabled;
+  config.injectIntervalSecs = intervalSecs;
 }

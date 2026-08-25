@@ -13,6 +13,43 @@ A section may be absent if that distribution had no changes in the release.
 
 ### Server
 
+#### Changed
+
+- **Vault conventions automatically delivered at the start of each conversation** — a context guard
+  fetches the vault conventions file and merges its content into the first tool result of each new
+  conversation. This "submarine" approach requires no model action: conventions arrive automatically
+  alongside data the model already requested. Works in all MCP clients, including those that do not
+  surface `InitializeResult.instructions` (see note below).
+  - A **TTL** controls how often conventions are re-injected (default: 30 seconds). Tool calls
+    within a single conversation thread happen seconds apart, so conventions are delivered exactly
+    once at the start of each thread. After the TTL expires (new conversation), they are delivered
+    again automatically.
+  - Injection can be **disabled** via `VAULTGATE_INJECT_CONVENTIONS=false` or the tray Preferences.
+  - The TTL is configurable via `VAULTGATE_INJECT_INTERVAL=<seconds>` or the tray Preferences.
+- **`vault_context` description strengthened** — the "Skip only if vault conventions were already
+  included in the server's system instructions" clause has been removed. The description now
+  unconditionally directs the model to call this tool at the start of every session, before creating
+  or modifying any vault content.
+- **`initialize` instructions payload simplified** — the raw conventions file content is now
+  injected directly, without the trailing `"You do not need to call vault_context"` hint that could
+  suppress the tool call in clients that do read instructions.
+
+  > **Note:** The MCP standard specifies that an `InitializeResult` may carry an `instructions`
+  > field that clients should surface to the model. VaultGate has used this since v0.2.0. However,
+  > some clients (verified: Joule Desktop 1.56.0) do not consume this field. The context guard
+  > above is the VaultGate-side workaround. The correct long-term fix is for those clients to
+  > implement `client.getInstructions()` per the MCP spec.
+
+### Tray
+
+#### Added
+
+- **Preferences: vault conventions injection controls** — two new settings in the Preferences
+  dialog (and as env vars for headless use):
+  - *Inject vault conventions into tool calls* checkbox — enable or disable automatic injection.
+  - *Re-inject after (seconds)* field — configure the TTL. Both settings take effect immediately
+    without restarting the server.
+
 #### Fixed
 
 - **Windows: HTTP transport compatibility** — resolved an HTTP client incompatibility that prevented connections on Windows. Installer robustness improvements for the Windows deploy script.

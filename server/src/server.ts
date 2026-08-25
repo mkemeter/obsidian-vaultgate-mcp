@@ -9,7 +9,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { runObsidian } from "./cli.js";
 import { config } from "./config.js";
-import { registerContextTools } from "./tools/context.js";
+import { installContextGuard, registerContextTools } from "./tools/context.js";
 import { registerDailyTools } from "./tools/daily.js";
 import { registerDevTools } from "./tools/dev.js";
 import { registerFileTools } from "./tools/files.js";
@@ -96,6 +96,12 @@ export async function createServer(iconUrl?: string): Promise<McpServer> {
 
   const server = new McpServer(serverInfo);
 
+  // Install the per-session context guard before any tools are registered so
+  // every tool handler is wrapped. Until vault_context is called at least once,
+  // non-error results get a short reminder prepended nudging the model to load
+  // vault conventions first.
+  installContextGuard(server);
+
   // Lazily inject the vault conventions file as MCP instructions when a client
   // initialises. Overrides the default initialize handler on the inner Server so
   // Obsidian is only contacted when a client actually connects — not at startup.
@@ -104,7 +110,7 @@ export async function createServer(iconUrl?: string): Promise<McpServer> {
     try {
       const raw = await runObsidian(["read", `path=${config.contextFileName}`]);
       if (raw.trim()) {
-        vaultInstructions = `${raw.trim()}\n\n> Vault context received. You do not need to call \`vault_context\`.`;
+        vaultInstructions = raw.trim();
       }
     } catch {
       // File absent or vault not reachable — skip silently.

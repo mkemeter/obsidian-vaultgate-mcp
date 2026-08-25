@@ -25,7 +25,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { config, setVault } from "./config.js";
+import { config, setInjectionConfig, setVault } from "./config.js";
 import { runHealthCheck } from "./health.js";
 import { createServer, getFaviconIco, getIconDataUri, getIconSvg } from "./server.js";
 
@@ -251,7 +251,15 @@ async function startHttp(): Promise<void> {
   if (parentPort) {
     parentPort.on("message", ({ data: msg }: { data: unknown }) => {
       if (msg && typeof msg === "object" && "__vaultgate_config__" in msg) {
-        const patch = (msg as { __vaultgate_config__: { vault?: string } }).__vaultgate_config__;
+        const patch = (
+          msg as {
+            __vaultgate_config__: {
+              vault?: string;
+              injectConventions?: boolean;
+              injectIntervalSecs?: number;
+            };
+          }
+        ).__vaultgate_config__;
         if (patch.vault !== undefined) {
           console.error(
             `[VaultGate] IPC __vaultgate_config__: vault=${String(patch.vault || "(empty)")}`
@@ -265,6 +273,14 @@ async function startHttp(): Promise<void> {
             .catch(() => {
               // Semantic tools not available — nothing to reset.
             });
+        }
+        if (patch.injectConventions !== undefined || patch.injectIntervalSecs !== undefined) {
+          const enabled = patch.injectConventions ?? config.injectConventions;
+          const intervalSecs = patch.injectIntervalSecs ?? config.injectIntervalSecs;
+          setInjectionConfig(enabled, intervalSecs);
+          console.error(
+            `[VaultGate] IPC __vaultgate_config__: injectConventions=${String(enabled)}, injectIntervalSecs=${String(intervalSecs)}`
+          );
         }
       }
       if (msg && typeof msg === "object" && "__vaultgate_control__" in msg) {

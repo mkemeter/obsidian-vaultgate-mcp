@@ -168,6 +168,9 @@ describe("server initialize handler", () => {
       {}
     );
     expect(result?.instructions).toContain("My Vault");
+    // The trailing "you do not need to call vault_context" hint was removed —
+    // instructions now contains only the raw conventions content.
+    expect(result?.instructions).not.toContain("vault_context");
   });
 
   it("falls back to LATEST_PROTOCOL_VERSION for unknown protocol version", async () => {
