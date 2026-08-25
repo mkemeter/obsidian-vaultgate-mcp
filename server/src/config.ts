@@ -135,9 +135,9 @@ export function loadConfig(): Config {
   let injectIntervalSecs = DEFAULT_INJECT_INTERVAL;
   if (rawInterval !== undefined) {
     const parsed = parseInt(rawInterval, 10);
-    if (Number.isNaN(parsed) || parsed < 1) {
+    if (Number.isNaN(parsed) || parsed < 1 || parsed > 3600) {
       console.error(
-        `[VaultGate] Invalid VAULTGATE_INJECT_INTERVAL value "${rawInterval}" — must be an integer ≥ 1. Using default (${DEFAULT_INJECT_INTERVAL}s).`
+        `[VaultGate] Invalid VAULTGATE_INJECT_INTERVAL value "${rawInterval}" — must be an integer between 1 and 3600. Using default (${DEFAULT_INJECT_INTERVAL}s).`
       );
     } else {
       injectIntervalSecs = parsed;

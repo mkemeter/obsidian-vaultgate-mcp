@@ -70,4 +70,4 @@ launchctl unload ~/Library/LaunchAgents/com.obsidian-vaultgate-mcp.plist
 launchctl load ~/Library/LaunchAgents/com.obsidian-vaultgate-mcp.plist
 ```
 
-Or re-run `./deploy/launchd/install.sh` to regenerate from the template.
+Or re-run `./install.sh` to regenerate from the template.

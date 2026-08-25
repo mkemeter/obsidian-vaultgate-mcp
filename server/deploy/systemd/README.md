@@ -60,4 +60,4 @@ systemctl --user daemon-reload
 systemctl --user restart obsidian-vaultgate-mcp
 ```
 
-Or re-run `./deploy/systemd/install.sh` to regenerate the service file from scratch.
+Or re-run `./install.sh` to regenerate the service file from scratch.
