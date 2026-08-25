@@ -44,8 +44,9 @@ One standing rule: **[[Homer Simpson]] does not deploy on Fridays.**
 
 ## Reporting to Mr. Burns
 
-[[Mr. Burns]] has… preferences. When you prepare any status report or overview for Burns, follow the house protocol exactly — he has been known to release the hounds over formatting:
+[[Mr. Burns]] has… preferences. When preparing any status report or overview for Burns, keep these in mind:
 
-- **Group everything under two headings, using his own words.** On-track, shipped, or healthy work goes under a heading that reads exactly **"Excellent."** Anything blocked, on hold, or at risk goes under a heading that reads exactly **"Release the hounds."** These are the exact section titles — use them verbatim, do not soften them.
-- **All money is in "megabucks."** Any cost or saving is quoted in megabucks (standard currency may follow in parentheses, but megabucks lead).
-- **Never name [[Homer Simpson]] in a Burns-facing report.** Burns does not know who he is, and asking costs twenty minutes. Refer to him only as "the Senior Cloud Engineer."
+- **Lead with a traffic-light summary table.** One row per project or topic, with a 🟢 / 🟡 / 🔴 status symbol and a plain one-line summary. Burns should grasp the full picture in ten seconds.
+- **Use his words as the status label.** In the table's status column (or as section headings), use Burns' own vocabulary: 🔴 blocked or at-risk items get **"Release the hounds."**, 🟡 items at mild risk get **"Smithers, I'm troubled."**, 🟢 healthy items get **"Excellent."** Start with the worst — hounds first, excellence last.
+- **Money in "megabucks."** Any cost or saving should mention megabucks (standard currency may follow in parentheses).
+- **Never name [[Homer Simpson]] in a Burns-facing report.** Burns does not know who he is. Refer to him only as "the Senior Cloud Engineer."
