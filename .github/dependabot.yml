@@ -13,6 +13,8 @@ updates:
     ignore:
       - dependency-name: "@xenova/transformers"
         update-types: ["version-update:semver-major"]
+      - dependency-name: "typescript"
+        versions: [">=6"]
 
   - package-ecosystem: npm
     directory: "/tray"
@@ -24,6 +26,9 @@ updates:
       dev-dependencies:
         patterns: ["*"]
         dependency-type: "development"
+    ignore:
+      - dependency-name: "typescript"
+        versions: [">=6"]
 
   - package-ecosystem: github-actions
     directory: "/"
