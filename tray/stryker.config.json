@@ -1,0 +1,24 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "packageManager": "npm",
+  "testRunner": "vitest",
+  "checkers": ["typescript"],
+  "tsconfigFile": "tsconfig.json",
+  "coverageAnalysis": "perTest",
+  "ignorePatterns": ["dist", "coverage", "models", "assets"],
+  "mutate": [
+    "src/inject-interval.ts",
+    "src/config-store.ts",
+    "src/context-file.ts",
+    "src/tray-labels.ts",
+    "src/auto-detect.ts",
+    "src/autostart.ts",
+    "src/port-utils.ts"
+  ],
+  "reporters": ["html", "clear-text", "progress"],
+  "thresholds": {
+    "high": 90,
+    "low": 70,
+    "break": 85
+  }
+}

@@ -4,6 +4,9 @@ dist/
 .env
 *.log
 coverage/
+# Stryker mutation-testing output
+.stryker-tmp/
+reports/
 .DS_Store
 CLAUDE.md
 .biome/

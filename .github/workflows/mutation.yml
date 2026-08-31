@@ -1,0 +1,70 @@
+name: Mutation Testing
+
+# Stryker mutation testing for the server package.
+#
+# This runs SEPARATELY from the required `ci-passed` gate — it is intentionally
+# NOT in ci.yml's needs list, so a low mutation score or a slow run NEVER blocks
+# a PR merge or the release pipeline. It is a diagnostic signal, not a hard gate.
+#
+# Triggers:
+#   - Manually (workflow_dispatch) when you want an on-demand score.
+#   - Weekly, to track the trend and surface newly-weakened tests.
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Mondays at 07:17 UTC — off-peak, avoids the top-of-hour API rush.
+    - cron: "17 7 * * 1"
+
+jobs:
+  mutation:
+    name: Stryker (server)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      - name: Run mutation tests
+        run: npm run mutation
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report-server
+          path: server/reports/mutation/
+          retention-days: 14
+
+  mutation-tray:
+    name: Stryker (tray)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: tray
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: tray/package-lock.json
+      - run: npm ci
+      - name: Run mutation tests
+        run: npm run mutation
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report-tray
+          path: tray/reports/mutation/
+          retention-days: 14

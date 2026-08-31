@@ -40,6 +40,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "mutation": "stryker run",
     "typecheck": "tsc --noEmit",
     "lint": "biome lint src/",
     "lint:fix": "biome lint --write src/",
@@ -61,6 +62,9 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.9",
+    "@stryker-mutator/core": "^10.0.0",
+    "@stryker-mutator/typescript-checker": "^10.0.0",
+    "@stryker-mutator/vitest-runner": "^10.0.0",
     "@types/node": "^26.2.0",
     "@vitest/coverage-v8": "^4.1.11",
     "knip": "^6.16.1",
