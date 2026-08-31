@@ -67,6 +67,26 @@ function runObsidianAgainWith(stderr: string | undefined): Promise<string> {
   return p;
 }
 
+/** Start a runObsidian call and reject it with a Node execFile timeout shape. */
+function runObsidianTimeout(): Promise<string> {
+  const p = runObsidian(["search", "query=test"]);
+  fail(Object.assign(new Error("Command failed"), { killed: true, signal: "SIGTERM" }));
+  return p;
+}
+
+/** Start a runObsidian call and reject it with a Node maxBuffer-overflow shape. */
+function runObsidianMaxBuffer(): Promise<string> {
+  const p = runObsidian(["files", "list"]);
+  fail(
+    Object.assign(new Error("stdout maxBuffer length exceeded"), {
+      code: "ERR_CHILD_PROCESS_STDIO_MAXBUFFER",
+      killed: true,
+      signal: "SIGTERM",
+    })
+  );
+  return p;
+}
+
 describe("runObsidian", () => {
   it("returns trimmed stdout on success", async () => {
     const p = runObsidian(["files", "list"]);
@@ -100,6 +120,33 @@ describe("runObsidian", () => {
     const p = runObsidian(["help"]);
     fail(Object.assign(new Error("ENOENT"), { code: "ENOENT" }));
     await expect(p).rejects.toThrow("Obsidian CLI binary not found");
+  });
+
+  it("reports a timeout distinctly, not as a 'Register CLI' error", async () => {
+    // regression: execFile timeout does NOT set code='ETIMEDOUT' — it kills the
+    // child (killed=true, signal='SIGTERM', code null). The old generic branch
+    // mislabeled this as an unregistered-CLI error.
+    const p = runObsidian(["search", "query=test"]);
+    fail(Object.assign(new Error("Command failed"), { killed: true, signal: "SIGTERM" }));
+    await expect(p).rejects.toThrow(/timed out/i);
+    await expect(runObsidianTimeout()).rejects.not.toThrow(/Register CLI/);
+  });
+
+  it("reports a maxBuffer overflow distinctly — and NOT as a timeout", async () => {
+    // regression: maxBuffer overflow ALSO sets killed=true/signal=SIGTERM, so the
+    // buffer check must precede the timeout check or a large listing is misreported
+    // as an unresponsive-Obsidian timeout.
+    const p = runObsidian(["files", "list"]);
+    fail(
+      Object.assign(new Error("stdout maxBuffer length exceeded"), {
+        code: "ERR_CHILD_PROCESS_STDIO_MAXBUFFER",
+        killed: true,
+        signal: "SIGTERM",
+      })
+    );
+    await expect(p).rejects.toThrow(/buffer|output/i);
+    await expect(runObsidianMaxBuffer()).rejects.not.toThrow(/timed out/i);
+    await expect(runObsidianMaxBuffer()).rejects.not.toThrow(/Register CLI/);
   });
 
   it("does NOT prepend vault arg when config.vault is unset", async () => {
