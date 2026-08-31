@@ -27,6 +27,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { config, setInjectionConfig, setVault } from "./config.js";
 import { runHealthCheck } from "./health.js";
+import { parseIpcMessage } from "./ipc.js";
 import { createServer, getFaviconIco, getIconDataUri, getIconSvg } from "./server.js";
 
 /** Origin values permitted for HTTP requests (DNS rebinding protection). */
@@ -250,20 +251,17 @@ async function startHttp(): Promise<void> {
   ).parentPort;
   if (parentPort) {
     parentPort.on("message", ({ data: msg }: { data: unknown }) => {
-      if (msg && typeof msg === "object" && "__vaultgate_config__" in msg) {
-        const patch = (
-          msg as {
-            __vaultgate_config__: {
-              vault?: string;
-              injectConventions?: boolean;
-              injectIntervalSecs?: number;
-            };
-          }
-        ).__vaultgate_config__;
+      const parsed = parseIpcMessage(msg);
+      if (!parsed) {
+        // Validated at the trust boundary: unrecognized or malformed messages
+        // are logged and dropped rather than applied via a blind cast.
+        console.error("[VaultGate] IPC rejected: unrecognized or malformed message");
+        return;
+      }
+      if (parsed.kind === "config") {
+        const patch = parsed.patch;
         if (patch.vault !== undefined) {
-          console.error(
-            `[VaultGate] IPC __vaultgate_config__: vault=${String(patch.vault || "(empty)")}`
-          );
+          console.error(`[VaultGate] IPC __vaultgate_config__: vault=${patch.vault || "(empty)"}`);
           setVault(patch.vault || undefined);
           // Reset the semantic index so it rebuilds for the new vault.
           // Dynamic import avoids loading the heavy ML stack at startup when
@@ -282,22 +280,19 @@ async function startHttp(): Promise<void> {
             `[VaultGate] IPC __vaultgate_config__: injectConventions=${String(enabled)}, injectIntervalSecs=${String(intervalSecs)}`
           );
         }
+        return;
       }
-      if (msg && typeof msg === "object" && "__vaultgate_control__" in msg) {
-        const raw = (msg as { __vaultgate_control__: { command?: unknown } }).__vaultgate_control__
-          .command;
-        console.error(`[VaultGate] IPC __vaultgate_control__: command=${String(raw)}`);
-        if (raw === "rebuild_index" || raw === "clear_index") {
-          import("./tools/semantic.js")
-            .then(({ handleControlCommand }) => {
-              console.error(`[VaultGate] IPC handleControlCommand(${String(raw)})`);
-              handleControlCommand(raw);
-            })
-            .catch((err) => {
-              console.error(`[VaultGate] IPC handleControlCommand import failed: ${String(err)}`);
-            });
-        }
-      }
+      // parsed.kind === "control"
+      const command = parsed.command;
+      console.error(`[VaultGate] IPC __vaultgate_control__: command=${command}`);
+      import("./tools/semantic.js")
+        .then(({ handleControlCommand }) => {
+          console.error(`[VaultGate] IPC handleControlCommand(${command})`);
+          handleControlCommand(command);
+        })
+        .catch((err) => {
+          console.error(`[VaultGate] IPC handleControlCommand import failed: ${String(err)}`);
+        });
     });
   }
 
