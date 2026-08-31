@@ -9,6 +9,53 @@ Both distributions — the headless npm package (`server/`) and the Electron tra
 (`tray/`) — share a single version line. Each release entry groups changes by distribution.
 A section may be absent if that distribution had no changes in the release.
 
+## [Unreleased]
+
+### Server
+
+#### Fixed
+
+- **Injection interval is validated on every update, not just at startup.** Runtime updates from
+  the tray now pass the re-inject interval through the same validation as environment parsing, so an
+  out-of-range, non-integer, or otherwise invalid value can no longer reach the interval setting and
+  disable the re-injection guard (which would re-deliver conventions on every tool call).
+- **CLI timeouts and oversized output are now diagnosed distinctly.** When Obsidian stops responding
+  (30 s timeout) or a command's output exceeds the 10 MB buffer, the error now names the real cause
+  and suggested fix instead of the generic "Register CLI" hint, which applied to neither.
+- **A non-executable CLI binary is now caught at startup.** The health check verifies execute
+  permission (on Unix), so a binary that exists but cannot run fails fast with an actionable
+  `chmod +x` message instead of an opaque error on the first tool call.
+
+#### Changed
+
+- **Tray → server IPC messages are validated at the boundary.** Incoming configuration and index
+  control messages are parsed against a strict schema; malformed messages are logged and ignored
+  rather than trusted, preventing silently misapplied updates.
+
+#### Internal
+
+- **Added mutation testing (Stryker).** A `npm run mutation` script and a separate, non-blocking CI
+  job (manual and weekly) measure test effectiveness beyond line coverage. This surfaced and closed
+  several under-asserted paths in the changes above.
+
+### Tray
+
+#### Fixed
+
+- **Free-port search is now correctly covered.** `findFreePort`'s fallback scan (used when the
+  preferred port is busy) had no test exercising a busy port — only the immediate-return path.
+  Added tests for the forward scan and the port-range boundaries; no behavior change, but the logic
+  is now verified.
+
+#### Internal
+
+- **Removed a redundant branch in interval normalization** — an empty-string check that was already
+  covered by the downstream numeric validation.
+- **Added mutation testing (Stryker)** for the tray's pure-logic modules, wired into the same
+  non-blocking `mutation.yml` workflow as the server.
+
+---
+
 ## [0.3.0] — 2026-08-25
 
 ### Tray

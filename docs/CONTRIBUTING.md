@@ -65,6 +65,7 @@ npm test
 | `npm run format` | Auto-format source files |
 | `npm run typecheck` | Type-check without building |
 | `npm run knip` | Dead-code check locally |
+| `npm run mutation` | Mutation testing (Stryker) — see [Mutation testing](#mutation-testing) |
 
 You do **not** need Obsidian installed to develop or run tests — the test suite mocks the CLI binary entirely.
 
@@ -82,6 +83,7 @@ server/
 │   ├── config.ts         Loads env vars (OBSIDIAN_VAULT, OBSIDIAN_CLI_PATH, OBSIDIAN_MCP_PORT, OBSIDIAN_CONTEXT_FILE)
 │   ├── cli.ts            runObsidian() — the single point of contact with the CLI binary
 │   ├── health.ts         Startup check — verifies the binary is reachable before serving
+│   ├── ipc.ts            parseIpcMessage() — validates tray → server messages at the boundary
 │   ├── uri.ts            openUri() / runUri() — OS-level URI dispatch (obsidian:// links)
 │   ├── installer.ts      resolveInstallerCommand() / runInstaller() — spawn the platform deploy script
 │   ├── install.ts        bin shim → runInstaller("install")   (obsidian-vaultgate-mcp-install)
@@ -111,6 +113,7 @@ server/
     │   ├── cli.test.ts
     │   ├── config.test.ts
     │   ├── health.test.ts
+    │   ├── ipc.test.ts
     │   ├── installer.test.ts
     │   └── tools/        one file per tool group, mirrors src/tools/
     └── integration/
@@ -449,6 +452,25 @@ Enforced in `vitest.config.ts` for both `server/` and `tray/`:
 `npm run test:coverage` will exit non-zero if any threshold is not met.
 The most common cause of coverage gaps is an uncovered `catch` block — add an
 `isError` test for every tool.
+
+### Mutation testing
+
+Line coverage proves code *ran*; it does not prove a test would *fail* if the code were wrong.
+[Stryker](https://stryker-mutator.io/) mutates the source (flips conditionals, swaps operators,
+blanks strings) and checks whether the suite catches each change. A **surviving mutant** is a line
+your tests execute but never actually assert — a silent hole.
+
+```bash
+cd server && npm run mutation      # scoped to the highest-value pure modules
+```
+
+- Config lives in `server/stryker.config.json`; the `mutate` glob is intentionally scoped (not all
+  of `src/`) so a run stays fast. Widen it when investigating a specific module.
+- It is **not** part of the required `ci-passed` gate — a separate `mutation.yml` workflow runs it
+  manually and weekly, so a low score never blocks a merge. The `break` threshold guards against
+  regression below the current baseline.
+- When a survivor points at real logic (a conditional, a boundary, an operator), add an assertion
+  that kills it. Survivors that are only error-message prose are low value — don't chase 100%.
 
 ---
 
