@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 describe("setVault", () => {
   it("mutates config.vault in place so the running server picks up vault changes without restart", async () => {
@@ -187,5 +187,133 @@ describe("normalizeContextFileName", () => {
   it("rejects filenames that do not end in .md", async () => {
     const { normalizeContextFileName } = await import("../../src/config.js");
     expect(() => normalizeContextFileName("notes.txt")).toThrow('must be a Markdown file ending in ".md"');
+  });
+});
+
+describe("loadConfig — injection settings", () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+    delete process.env.VAULTGATE_INJECT_INTERVAL;
+    delete process.env.VAULTGATE_INJECT_CONVENTIONS;
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+    vi.restoreAllMocks();
+  });
+
+  it("defaults injectIntervalSecs to 30 and injectConventions to true when unset", async () => {
+    const { loadConfig } = await import("../../src/config.js?inj=1");
+    const cfg = loadConfig();
+    expect(cfg.injectIntervalSecs).toBe(30);
+    expect(cfg.injectConventions).toBe(true);
+  });
+
+  it("reads a valid VAULTGATE_INJECT_INTERVAL", async () => {
+    process.env.VAULTGATE_INJECT_INTERVAL = "120";
+    const { loadConfig } = await import("../../src/config.js?inj=2");
+    expect(loadConfig().injectIntervalSecs).toBe(120);
+  });
+
+  it("accepts the lower boundary of 1", async () => {
+    process.env.VAULTGATE_INJECT_INTERVAL = "1";
+    const { loadConfig } = await import("../../src/config.js?inj=3");
+    expect(loadConfig().injectIntervalSecs).toBe(1);
+  });
+
+  it("accepts the upper boundary of 3600", async () => {
+    process.env.VAULTGATE_INJECT_INTERVAL = "3600";
+    const { loadConfig } = await import("../../src/config.js?inj=4");
+    expect(loadConfig().injectIntervalSecs).toBe(3600);
+  });
+
+  it("warns and falls back to the default when the interval is below 1", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    process.env.VAULTGATE_INJECT_INTERVAL = "0";
+    const { loadConfig } = await import("../../src/config.js?inj=5");
+    expect(loadConfig().injectIntervalSecs).toBe(30);
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining("VAULTGATE_INJECT_INTERVAL"));
+  });
+
+  it("warns and falls back to the default when the interval exceeds 3600", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    process.env.VAULTGATE_INJECT_INTERVAL = "3601";
+    const { loadConfig } = await import("../../src/config.js?inj=6");
+    expect(loadConfig().injectIntervalSecs).toBe(30);
+    expect(spy).toHaveBeenCalled();
+  });
+
+  it("warns and falls back to the default when the interval is non-numeric", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    process.env.VAULTGATE_INJECT_INTERVAL = "abc";
+    const { loadConfig } = await import("../../src/config.js?inj=7");
+    expect(loadConfig().injectIntervalSecs).toBe(30);
+    expect(spy).toHaveBeenCalled();
+  });
+
+  it("disables injection when VAULTGATE_INJECT_CONVENTIONS is exactly 'false'", async () => {
+    process.env.VAULTGATE_INJECT_CONVENTIONS = "false";
+    const { loadConfig } = await import("../../src/config.js?inj=8");
+    expect(loadConfig().injectConventions).toBe(false);
+  });
+
+  it("only the literal 'false' disables injection — 'FALSE' stays enabled (documented behavior)", async () => {
+    process.env.VAULTGATE_INJECT_CONVENTIONS = "FALSE";
+    const { loadConfig } = await import("../../src/config.js?inj=9");
+    expect(loadConfig().injectConventions).toBe(true);
+  });
+});
+
+describe("setInjectionConfig", () => {
+  it("applies valid enabled + interval values", async () => {
+    const { config, setInjectionConfig } = await import("../../src/config.js?set=1");
+    setInjectionConfig(true, 90);
+    expect(config.injectConventions).toBe(true);
+    expect(config.injectIntervalSecs).toBe(90);
+  });
+
+  it("preserves a disabled flag (regression: enabled=false must be written through)", async () => {
+    const { config, setInjectionConfig } = await import("../../src/config.js?set=2");
+    setInjectionConfig(false, 30);
+    expect(config.injectConventions).toBe(false);
+  });
+
+  it("falls back to the default when the interval is 0 (regression: interval=0 disabled the TTL guard, re-injecting conventions on every tool call)", async () => {
+    const { config, setInjectionConfig } = await import("../../src/config.js?set=3");
+    setInjectionConfig(true, 0);
+    expect(config.injectIntervalSecs).toBe(30);
+  });
+
+  it("falls back to the default when the interval is negative", async () => {
+    const { config, setInjectionConfig } = await import("../../src/config.js?set=4");
+    setInjectionConfig(true, -5);
+    expect(config.injectIntervalSecs).toBe(30);
+  });
+
+  it("falls back to the default when the interval exceeds 3600", async () => {
+    const { config, setInjectionConfig } = await import("../../src/config.js?set=5");
+    setInjectionConfig(true, 3601);
+    expect(config.injectIntervalSecs).toBe(30);
+  });
+
+  it("falls back to the default when the interval is NaN", async () => {
+    const { config, setInjectionConfig } = await import("../../src/config.js?set=6");
+    setInjectionConfig(true, Number.NaN);
+    expect(config.injectIntervalSecs).toBe(30);
+  });
+
+  it("coerces a string interval arriving over IPC (regression: field typed number but the IPC boundary may deliver a string)", async () => {
+    const { config, setInjectionConfig } = await import("../../src/config.js?set=7");
+    // Simulate the untyped IPC value the type system does not see.
+    setInjectionConfig(true, "60" as unknown as number);
+    expect(config.injectIntervalSecs).toBe(60);
+  });
+
+  it("falls back to the default for a non-integer interval", async () => {
+    const { config, setInjectionConfig } = await import("../../src/config.js?set=8");
+    setInjectionConfig(true, 30.5);
+    expect(config.injectIntervalSecs).toBe(30);
   });
 });

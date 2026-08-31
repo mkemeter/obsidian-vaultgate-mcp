@@ -80,6 +80,43 @@ const DEFAULT_CONTEXT_FILE = "VAULTGATE.md";
 /** Default injection interval in seconds. */
 const DEFAULT_INJECT_INTERVAL = 30;
 
+/** Lower bound (inclusive) for the injection interval, in seconds. */
+const MIN_INJECT_INTERVAL = 1;
+
+/** Upper bound (inclusive) for the injection interval, in seconds (1 hour). */
+const MAX_INJECT_INTERVAL = 3600;
+
+/**
+ * Returns `true` if `n` is a valid injection interval: an integer between
+ * {@link MIN_INJECT_INTERVAL} and {@link MAX_INJECT_INTERVAL} inclusive.
+ */
+function isValidInterval(n: number): boolean {
+  return Number.isInteger(n) && n >= MIN_INJECT_INTERVAL && n <= MAX_INJECT_INTERVAL;
+}
+
+/**
+ * Coerces and validates an injection-interval value from any source, returning
+ * a safe integer. Accepts numbers and numeric strings (the IPC boundary may
+ * deliver either); any invalid input — NaN, out-of-range, non-integer, or a
+ * non-numeric string — falls back to {@link DEFAULT_INJECT_INTERVAL}.
+ *
+ * This is the single validation gate shared by every entry point that sets the
+ * interval (env parsing and the runtime IPC setter), so an invalid value can
+ * never reach `config.injectIntervalSecs` and disable the injection TTL guard.
+ *
+ * @param value  Raw interval from env, IPC, or a caller.
+ * @returns      A valid integer interval in seconds.
+ */
+export function sanitizeInterval(value: unknown): number {
+  const n =
+    typeof value === "string"
+      ? parseInt(value, 10)
+      : typeof value === "number"
+        ? value
+        : Number.NaN;
+  return isValidInterval(n) ? n : DEFAULT_INJECT_INTERVAL;
+}
+
 /**
  * Normalises and validates the configured conventions filename.
  *
@@ -135,12 +172,12 @@ export function loadConfig(): Config {
   let injectIntervalSecs = DEFAULT_INJECT_INTERVAL;
   if (rawInterval !== undefined) {
     const parsed = parseInt(rawInterval, 10);
-    if (Number.isNaN(parsed) || parsed < 1 || parsed > 3600) {
-      console.error(
-        `[VaultGate] Invalid VAULTGATE_INJECT_INTERVAL value "${rawInterval}" — must be an integer between 1 and 3600. Using default (${DEFAULT_INJECT_INTERVAL}s).`
-      );
-    } else {
+    if (isValidInterval(parsed)) {
       injectIntervalSecs = parsed;
+    } else {
+      console.error(
+        `[VaultGate] Invalid VAULTGATE_INJECT_INTERVAL value "${rawInterval}" — must be an integer between ${MIN_INJECT_INTERVAL} and ${MAX_INJECT_INTERVAL}. Using default (${DEFAULT_INJECT_INTERVAL}s).`
+      );
     }
   }
 
@@ -170,8 +207,12 @@ export function setVault(vault: string | undefined): void {
 /**
  * Updates injection settings at runtime without restarting the process.
  * Called by the tray app via IPC when the user changes injection preferences.
+ *
+ * The interval is passed through {@link sanitizeInterval} so an out-of-range,
+ * non-integer, or string value from the IPC boundary can never disable the
+ * injection TTL guard (which would re-inject conventions on every tool call).
  */
 export function setInjectionConfig(enabled: boolean, intervalSecs: number): void {
   config.injectConventions = enabled;
-  config.injectIntervalSecs = intervalSecs;
+  config.injectIntervalSecs = sanitizeInterval(intervalSecs);
 }
