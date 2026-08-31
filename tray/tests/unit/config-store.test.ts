@@ -183,6 +183,17 @@ describe("detectObsidianPath", () => {
     expect(detectObsidianPath()).toBe("");
   });
 
+  it("checks Linux paths (not macOS paths) when running on Linux", async () => {
+    // regression: without this, the darwin/else branch is indistinguishable — a
+    // test only proves the branch is taken if a Linux-only path is returned that
+    // the macOS branch would never find.
+    setPlatform("linux");
+    mockState.fsExistsSync = (c) => c === "/usr/bin/obsidian";
+
+    const { detectObsidianPath } = await import("../../src/config-store.js");
+    expect(detectObsidianPath()).toBe("/usr/bin/obsidian");
+  });
+
   it("treats fs.existsSync exceptions as 'not found' rather than propagating", async () => {
     setPlatform("darwin");
     mockState.fsExistsSync = () => {

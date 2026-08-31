@@ -34,7 +34,10 @@ export function isValidInterval(value: unknown): boolean {
  * @returns    A valid integer interval, or the default.
  */
 export function normalizeInterval(raw: string | number | undefined): number {
-  if (raw === undefined || raw === "") return DEFAULT_INJECT_INTERVAL;
+  // An empty string needs no special case: parseInt("") is NaN, which
+  // isValidInterval rejects, so it falls back to the default like any other
+  // invalid input.
+  if (raw === undefined) return DEFAULT_INJECT_INTERVAL;
   const n = typeof raw === "string" ? parseInt(raw, 10) : Math.trunc(raw);
   return isValidInterval(n) ? n : DEFAULT_INJECT_INTERVAL;
 }

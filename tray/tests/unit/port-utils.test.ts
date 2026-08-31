@@ -9,10 +9,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Controls how the mock TCP socket behaves in the current test.
 const mockSocketResult = vi.hoisted(() => ({
+  // Default result for any port without a specific override:
   // "free"    → connection refused  → port is available
   // "taken"   → connection success  → port is in use
   // "timeout" → socket timeout      → treated as free
   value: "free" as "free" | "taken" | "timeout",
+  // Per-port overrides, so a test can make one port taken and another free.
+  byPort: {} as Record<number, "free" | "taken" | "timeout">,
 }));
 
 vi.mock("node:net", () => {
@@ -28,11 +31,12 @@ vi.mock("node:net", () => {
 
     destroy() { return this; }
 
-    connect(_port: number, _host: string) {
+    connect(port: number, _host: string) {
+      const state = mockSocketResult.byPort[port] ?? mockSocketResult.value;
       queueMicrotask(() => {
-        if (mockSocketResult.value === "taken") {
+        if (state === "taken") {
           this.handlers["connect"]?.();
-        } else if (mockSocketResult.value === "timeout") {
+        } else if (state === "timeout") {
           this.handlers["timeout"]?.();
         } else {
           this.handlers["error"]?.(); // "free" → connection refused
@@ -49,6 +53,7 @@ import { findFreePort, isPortFree } from "../../src/port-utils.js";
 
 beforeEach(() => {
   mockSocketResult.value = "free";
+  mockSocketResult.byPort = {};
 });
 
 describe("isPortFree", () => {
@@ -99,5 +104,43 @@ describe("findFreePort", () => {
     mockSocketResult.value = "free";
     const result = await findFreePort(80);
     expect(result).toBeGreaterThanOrEqual(1024);
+  });
+
+  it("returns the next candidate when the preferred port is taken", async () => {
+    // regression: the fallback search (the whole point of findFreePort) had no
+    // test exercising a busy preferred port — only the immediate-return path.
+    mockSocketResult.value = "free";
+    mockSocketResult.byPort = { 5000: "taken" }; // preferred busy, 3002 free
+    expect(await findFreePort(5000)).toBe(3002);
+  });
+
+  it("scans forward through the DEFAULT_PORT range, not backward", async () => {
+    // regression: the candidate offset must be DEFAULT_PORT + i. A backward scan
+    // (DEFAULT_PORT - i) would hand out a lower, unintended port.
+    mockSocketResult.value = "free";
+    mockSocketResult.byPort = { 5000: "taken", 3002: "taken", 3001: "taken" };
+    // preferred(5000) taken → 3002 taken → 3003 (DEFAULT_PORT+1) is the first free.
+    expect(await findFreePort(5000)).toBe(3003);
+  });
+
+  it("accepts a preferred port exactly at the lower boundary (1024)", async () => {
+    // Boundary: 1024 is valid (the guard is `< 1024`, not `<= 1024`).
+    mockSocketResult.value = "free";
+    expect(await findFreePort(1024)).toBe(1024);
+  });
+
+  it("accepts a preferred port exactly at the upper boundary (65535)", async () => {
+    // Boundary: 65535 is valid (the guard is `> 65535`, not `>= 65535`).
+    mockSocketResult.value = "free";
+    expect(await findFreePort(65535)).toBe(65535);
+  });
+
+  it("skips an out-of-range preferred port (> 65535)", async () => {
+    // regression: a preferred port above the valid range must be skipped, not
+    // returned — otherwise the removal of the upper-bound check goes unnoticed.
+    mockSocketResult.value = "free";
+    const result = await findFreePort(70000);
+    expect(result).not.toBe(70000);
+    expect(result).toBe(3002);
   });
 });
