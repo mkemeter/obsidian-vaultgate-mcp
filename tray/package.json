@@ -35,18 +35,18 @@
     "type-coverage": "type-coverage --at-least 99 --strict"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.10",
+    "@biomejs/biome": "^2.5.11",
     "@electron/rebuild": "^4.2.0",
     "@stryker-mutator/core": "^10.0.0",
     "@stryker-mutator/typescript-checker": "^10.0.0",
     "@stryker-mutator/vitest-runner": "^10.0.0",
-    "@types/node": "^26.2.0",
+    "@types/node": "^26.4.0",
     "@vitest/coverage-v8": "^4.1.11",
     "@xenova/transformers": "^2.17.0",
-    "electron": "^43.4.1",
+    "electron": "^44.0.0",
     "electron-builder": "^26.15.3",
-    "knip": "^6.16.1",
-    "sharp": "^0.35.3",
+    "knip": "^6.33.0",
+    "sharp": "^0.35.4",
     "type-coverage": "^2.30.1",
     "typescript": "^5.9.3",
     "vitest": "^4.1.11"
