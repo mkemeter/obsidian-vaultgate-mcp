@@ -70,6 +70,17 @@ export function dryRunPreview(args: string[]): string {
 }
 
 /**
+ * Extracts a message string from an unknown catch-clause value without an
+ * `as Error` type assertion. Avoids untyped tokens flagged by type-coverage.
+ *
+ * @param e  The caught value.
+ * @returns  `e.message` if `e` is an `Error`, otherwise `String(e)`.
+ */
+export function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
+/**
  * Builds the `file=` or `path=` argument array for commands that accept
  * a file target.
  *

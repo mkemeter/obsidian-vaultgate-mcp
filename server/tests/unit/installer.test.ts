@@ -103,6 +103,14 @@ describe("runInstaller", () => {
     await expect(p).rejects.toThrow("install exited with code 1");
   });
 
+  it("rejects with 'unknown' when the child exits with null code", async () => {
+    // regression: code ?? "unknown" fallback branch (installer.ts line 105) was never exercised
+    Object.defineProperty(process, "platform", { value: "darwin", configurable: true });
+    const p = runInstaller("install");
+    mockState.child.emit("exit", null);
+    await expect(p).rejects.toThrow("install exited with code unknown");
+  });
+
   it("rejects with a helpful message when the launcher is not found (ENOENT)", async () => {
     Object.defineProperty(process, "platform", { value: "win32", configurable: true });
     const p = runInstaller("install");

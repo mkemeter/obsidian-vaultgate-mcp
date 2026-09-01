@@ -1,7 +1,13 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
-import { buildFileArgs, dryRunPreview, dryRunSchema, optionalBoolSchema } from "./_helpers.js";
+import {
+  buildFileArgs,
+  dryRunPreview,
+  dryRunSchema,
+  errorMessage,
+  optionalBoolSchema,
+} from "./_helpers.js";
 
 /**
  * Registers file and note operation tools on the MCP server.
@@ -46,7 +52,7 @@ export function registerFileTools(server: McpServer): void {
         return { content: [{ type: "text", text: output }] };
       } catch (error) {
         return {
-          content: [{ type: "text", text: (error as Error).message }],
+          content: [{ type: "text", text: errorMessage(error) }],
           isError: true,
         };
       }
@@ -97,7 +103,7 @@ export function registerFileTools(server: McpServer): void {
         return { content: [{ type: "text", text: output }] };
       } catch (error) {
         return {
-          content: [{ type: "text", text: (error as Error).message }],
+          content: [{ type: "text", text: errorMessage(error) }],
           isError: true,
         };
       }
@@ -165,7 +171,7 @@ export function registerFileTools(server: McpServer): void {
         return { content: [{ type: "text", text: output || `Created: ${path ?? name}` }] };
       } catch (error) {
         return {
-          content: [{ type: "text", text: (error as Error).message }],
+          content: [{ type: "text", text: errorMessage(error) }],
           isError: true,
         };
       }
@@ -201,7 +207,7 @@ export function registerFileTools(server: McpServer): void {
         return { content: [{ type: "text", text: output || "Content appended." }] };
       } catch (error) {
         return {
-          content: [{ type: "text", text: (error as Error).message }],
+          content: [{ type: "text", text: errorMessage(error) }],
           isError: true,
         };
       }
@@ -238,7 +244,7 @@ export function registerFileTools(server: McpServer): void {
         return { content: [{ type: "text", text: output || "Content prepended." }] };
       } catch (error) {
         return {
-          content: [{ type: "text", text: (error as Error).message }],
+          content: [{ type: "text", text: errorMessage(error) }],
           isError: true,
         };
       }
@@ -278,7 +284,7 @@ export function registerFileTools(server: McpServer): void {
         return { content: [{ type: "text", text: output || `Updated: ${path}` }] };
       } catch (error) {
         return {
-          content: [{ type: "text", text: (error as Error).message }],
+          content: [{ type: "text", text: errorMessage(error) }],
           isError: true,
         };
       }
@@ -315,7 +321,7 @@ export function registerFileTools(server: McpServer): void {
         return { content: [{ type: "text", text: output || `Moved to trash: ${path}` }] };
       } catch (error) {
         return {
-          content: [{ type: "text", text: (error as Error).message }],
+          content: [{ type: "text", text: errorMessage(error) }],
           isError: true,
         };
       }

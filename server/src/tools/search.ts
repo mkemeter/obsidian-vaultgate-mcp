@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
+import { errorMessage } from "./_helpers.js";
 
 /**
  * Registers the vault search tool on the MCP server.
@@ -29,7 +30,7 @@ export function registerSearchTools(server: McpServer): void {
         return { content: [{ type: "text", text: output }] };
       } catch (error) {
         return {
-          content: [{ type: "text", text: (error as Error).message }],
+          content: [{ type: "text", text: errorMessage(error) }],
           isError: true,
         };
       }

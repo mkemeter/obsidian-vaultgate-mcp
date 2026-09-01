@@ -15,7 +15,7 @@
   "reporters": ["html", "clear-text", "progress"],
   "thresholds": {
     "high": 90,
-    "low": 70,
-    "break": 70
+    "low": 80,
+    "break": 85
   }
 }

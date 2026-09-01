@@ -16,9 +16,9 @@ export default defineConfig({
         "src/uninstall.ts",
       ],
       thresholds: {
-        lines: 90,
-        functions: 90,
-        branches: 85,
+        lines: 95,
+        functions: 95,
+        branches: 90,
       },
       reporter: ["text", "lcov"],
     },

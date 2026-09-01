@@ -47,7 +47,7 @@
     "format": "biome format --write src/",
     "check": "biome check src/",
     "knip": "knip",
-    "type-coverage": "type-coverage --at-least 98 --strict",
+    "type-coverage": "type-coverage --at-least 99 --strict",
     "postinstall": "lefthook install",
     "prepublishOnly": "npm run build && npm test"
   },

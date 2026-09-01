@@ -3,8 +3,8 @@ import { defineConfig } from "vitest/config";
 /**
  * Tray companion test config.
  *
- * Coverage thresholds match the root project (lines 90 / functions 90 /
- * branches 85). The tray is held to the same bar as everything else, with a
+ * Coverage thresholds match the root project (lines 95 / functions 95 /
+ * branches 90). The tray is held to the same bar as everything else, with a
  * deliberately small set of exclusions justified file-by-file below.
  *
  * Where a file mixed pure logic with Electron wiring, the pure logic was
@@ -57,9 +57,9 @@ export default defineConfig({
         "src/server-manager.ts",
       ],
       thresholds: {
-        lines: 90,
-        functions: 90,
-        branches: 85,
+        lines: 95,
+        functions: 95,
+        branches: 90,
       },
       // Always list every included file in the report — by default v8's
       // text reporter hides files at 100% coverage, which makes it look

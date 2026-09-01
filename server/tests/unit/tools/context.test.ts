@@ -4,6 +4,7 @@ import {
   installContextGuard,
   registerContextTools,
   CONVENTIONS_ENVELOPE_PREFIX,
+  NOT_FOUND_MESSAGE,
 } from "../../../src/tools/context.js";
 
 vi.mock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
@@ -37,6 +38,28 @@ function makeServer() {
   registerContextTools(server);
   return server;
 }
+
+function listTools(server: McpServer) {
+  // @ts-ignore
+  return server.server._requestHandlers.get("tools/list")?.(
+    { method: "tools/list", params: {} },
+    {}
+  );
+}
+
+describe("NOT_FOUND_MESSAGE content", () => {
+  it("contains all required guidance sections", () => {
+    // Pin each StringLiteral to kill Stryker mutants on NOT_FOUND_MESSAGE lines 9-11.
+    // Exported so Stryker can properly attribute module-level mutations to this test.
+    expect(NOT_FOUND_MESSAGE).toContain("No vault conventions file found");
+    expect(NOT_FOUND_MESSAGE).toContain(
+      "optional note that documents conventions for AI assistants"
+    );
+    expect(NOT_FOUND_MESSAGE).toContain("folder structure, naming rules, tag taxonomy");
+    expect(NOT_FOUND_MESSAGE).toContain("To create one, ask your AI assistant");
+    expect(NOT_FOUND_MESSAGE).toContain("vault_context_set");
+  });
+});
 
 describe("vault_context", () => {
   beforeEach(() => {
@@ -278,6 +301,50 @@ describe("installContextGuard — submarine behaviour", () => {
     expect(result2.content[0].text).toContain(CONVENTIONS_ENVELOPE_PREFIX);
   });
 
+  it("injects conventions as a new leading block when result has no text content blocks", async () => {
+    // regression: no-text-block prepend path (context.ts line 109) was never exercised
+    const server = makeServer();
+    // Register a no-params tool whose result has only non-text content (e.g. image block)
+    // biome-ignore lint/suspicious/noExplicitAny: test harness accesses internals
+    (server as any).tool("dummy_tool", async () => ({
+      content: [{ type: "image", data: "base64data", mimeType: "image/png" }],
+    }));
+    mockRun.mockResolvedValueOnce("# Conventions"); // submarine fetch
+    const result = await invoke(server, "dummy_tool", {});
+    // Conventions should be prepended as the first block
+    expect(result.content[0].type).toBe("text");
+    expect(result.content[0].text).toContain(CONVENTIONS_ENVELOPE_PREFIX);
+    expect(result.content[0].text).toContain("# Conventions");
+    // Original image block preserved
+    expect(result.content[1].type).toBe("image");
+  });
+
+  it("passes through tool() calls with no function argument to the original handler", async () => {
+    // regression: handlerIndex === -1 pass-through (context.ts line 71) was never exercised
+    // Spy on server.tool BEFORE installing the guard so we can verify pass-through.
+    const server = new McpServer({ name: "t", version: "0" });
+    const originalToolSpy = vi.spyOn(server, "tool");
+    installContextGuard(server);
+    // Call with only string args — no function → handlerIndex === -1
+    try {
+      // biome-ignore lint/suspicious/noExplicitAny: test harness accesses internals
+      (server as any).tool("no_handler", "description only");
+    } catch {
+      // SDK may reject missing handler — expected
+    }
+    expect(originalToolSpy).toHaveBeenCalledWith("no_handler", "description only");
+  });
+
+  it("vault_context tool description pins required instruction substrings", async () => {
+    // Pin StringLiteral mutants on vault_context description lines 146-149.
+    const result = await listTools(makeServer());
+    const tool = result.tools.find((t: { name: string }) => t.name === "vault_context");
+    expect(tool.description).toContain("Read the vault owner's conventions");
+    expect(tool.description).toContain("task format, naming rules");
+    expect(tool.description).toContain("Call this tool at the start of every session");
+    expect(tool.description).toContain("writing anything to the vault");
+  });
+
   it("envelope prefix does not match JWD high-confidence injection patterns", () => {
     const highConfidencePatterns = [
       /ignore\s+(all\s+)?(previous|prior|above)\s+(instructions|prompts|rules)/i,
@@ -308,5 +375,64 @@ describe("installContextGuard — submarine behaviour", () => {
     mockRun.mockResolvedValueOnce("# Conventions");
     await invoke(server, "vault_context_set", { content: "x", dryRun: true });
     expect(mockRun).toHaveBeenCalledWith(["read", "path=CLAUDE.md"]);
+  });
+
+  it("re-injects at exactly the TTL boundary (not one ms before)", async () => {
+    // regression: < ttlMs → <= ttlMs (context.ts line 87) — with <= the boundary value
+    // is treated as still-within-TTL, skipping injection when it should happen
+    vi.useFakeTimers();
+    const server = makeServer();
+    mockRun.mockResolvedValueOnce("# Conventions");
+    await invoke(server, "vault_context_set", { content: "x", dryRun: true });
+    // Advance EXACTLY injectIntervalSecs * 1000 — boundary: < is false (inject), <= is true (skip)
+    vi.advanceTimersByTime(30_000);
+    mockRun.mockResolvedValueOnce("# Conventions updated");
+    const result = await invoke(server, "vault_context_set", { content: "x", dryRun: true });
+    expect(result.content[0].text).toContain(CONVENTIONS_ENVELOPE_PREFIX);
+  });
+
+  it("merges conventions into a text block that is not at index 0", async () => {
+    // regression: firstTextIdx !== -1 → !== 1 (context.ts line 99 UnaryOperator) —
+    // with !== 1, a text block at index 1 would be treated as "not found" and
+    // conventions would be prepended as a new block instead of merged
+    const server = new McpServer({ name: "t", version: "0" });
+    installContextGuard(server);
+    // biome-ignore lint/suspicious/noExplicitAny: test harness
+    (server as any).tool("mixed_tool", async () => ({
+      content: [
+        { type: "image", data: "base64", mimeType: "image/png" },
+        { type: "text", text: "original text" },
+      ],
+    }));
+    registerContextTools(server);
+    mockRun.mockResolvedValueOnce("# Conventions");
+    const result = await invoke(server, "mixed_tool", {});
+    // Conventions merged into the text block at index 1 (image stays at 0)
+    expect(result.content).toHaveLength(2);
+    expect(result.content[0].type).toBe("image");
+    expect(result.content[1].type).toBe("text");
+    expect(result.content[1].text).toContain(CONVENTIONS_ENVELOPE_PREFIX);
+    expect(result.content[1].text).toContain("original text");
+  });
+
+  it("preserves all original content items when merging conventions", async () => {
+    // regression: [...content] → [] (context.ts line 101) — an empty array would
+    // drop all content items except the one at firstTextIdx after merge
+    const server = new McpServer({ name: "t", version: "0" });
+    installContextGuard(server);
+    // biome-ignore lint/suspicious/noExplicitAny: test harness
+    (server as any).tool("multi_content_tool", async () => ({
+      content: [
+        { type: "text", text: "first text" },
+        { type: "image", data: "base64", mimeType: "image/png" },
+      ],
+    }));
+    registerContextTools(server);
+    mockRun.mockResolvedValueOnce("# Conventions");
+    const result = await invoke(server, "multi_content_tool", {});
+    // Both original items preserved (text merged, image kept)
+    expect(result.content).toHaveLength(2);
+    expect(result.content[0].text).toContain(CONVENTIONS_ENVELOPE_PREFIX);
+    expect(result.content[1].type).toBe("image");
   });
 });

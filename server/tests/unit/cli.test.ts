@@ -106,20 +106,35 @@ describe("runObsidian", () => {
     const p = runObsidian(["search", "query=test"]);
     fail(Object.assign(new Error("exit 1"), { stderr: "some opaque obsidian error" }));
     await expect(p).rejects.toThrow(/some opaque obsidian error/);
-    await expect(runObsidianAgainWith("some opaque obsidian error")).rejects.toThrow(
-      /Register CLI/
-    );
+    const msg = await runObsidianAgainWith("some opaque obsidian error").catch((e: Error) => e.message);
+    // Pin the full hint string to kill StringLiteral mutants on those lines
+    expect(msg).toContain("Settings → General → Command line interface → Register CLI.");
   });
 
   it("still appends guidance when the CLI error has no stderr", async () => {
     // regression: no stderr (empty output) must not swallow the actionable hint.
-    await expect(runObsidianAgainWith(undefined)).rejects.toThrow(/Register CLI/);
+    const msg = await runObsidianAgainWith(undefined).catch((e: Error) => e.message);
+    expect(msg).toContain("Settings → General → Command line interface → Register CLI.");
+  });
+
+  it("falls back to err.message when stderr is whitespace-only", async () => {
+    // regression: err.stderr?.trim() || err.message (cli.ts line 80) — without .trim(),
+    // "   " is truthy and the detail would be "   " instead of the original err.message
+    const msg = await runObsidianAgainWith("   ").catch((e: Error) => e.message);
+    expect(msg).toContain("exit 1");
+    expect(msg).not.toContain("   ");
   });
 
   it("throws a helpful error when binary is not found (ENOENT)", async () => {
     const p = runObsidian(["help"]);
     fail(Object.assign(new Error("ENOENT"), { code: "ENOENT" }));
     await expect(p).rejects.toThrow("Obsidian CLI binary not found");
+    // Verify the full actionable hint is included (kills StringLiteral mutants on those lines)
+    const p2 = runObsidian(["help"]);
+    fail(Object.assign(new Error("ENOENT"), { code: "ENOENT" }));
+    const err2 = await p2.catch((e: Error) => e.message);
+    expect(err2).toContain("OBSIDIAN_CLI_PATH");
+    expect(err2).toContain("enable the CLI in Obsidian");
   });
 
   it("reports a timeout distinctly, not as a 'Register CLI' error", async () => {
@@ -128,7 +143,9 @@ describe("runObsidian", () => {
     // mislabeled this as an unregistered-CLI error.
     const p = runObsidian(["search", "query=test"]);
     fail(Object.assign(new Error("Command failed"), { killed: true, signal: "SIGTERM" }));
-    await expect(p).rejects.toThrow(/timed out/i);
+    const msg = await p.catch((e: Error) => e.message);
+    // Pin the exact hint string to kill StringLiteral mutants on that line
+    expect(msg).toContain("Check that Obsidian is running and responsive, then try again.");
     await expect(runObsidianTimeout()).rejects.not.toThrow(/Register CLI/);
   });
 
@@ -144,7 +161,9 @@ describe("runObsidian", () => {
         signal: "SIGTERM",
       })
     );
-    await expect(p).rejects.toThrow(/buffer|output/i);
+    const msg = await p.catch((e: Error) => e.message);
+    // Pin the exact hint string to kill StringLiteral mutants on that line
+    expect(msg).toContain("Narrow the request (e.g. add a limit= argument) and try again.");
     await expect(runObsidianMaxBuffer()).rejects.not.toThrow(/timed out/i);
     await expect(runObsidianMaxBuffer()).rejects.not.toThrow(/Register CLI/);
   });

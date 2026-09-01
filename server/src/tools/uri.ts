@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runUri } from "../uri.js";
+import { errorMessage } from "./_helpers.js";
 
 /**
  * Registers URI navigation tools on the MCP server.
@@ -53,7 +54,7 @@ export function registerUriTools(server: McpServer): void {
         return { content: [{ type: "text", text: `Opened '${fileValue}' in Obsidian.` }] };
       } catch (error) {
         return {
-          content: [{ type: "text", text: (error as Error).message }],
+          content: [{ type: "text", text: errorMessage(error) }],
           isError: true,
         };
       }
@@ -76,7 +77,7 @@ export function registerUriTools(server: McpServer): void {
         return { content: [{ type: "text", text: `Opened Obsidian search for: ${query}` }] };
       } catch (error) {
         return {
-          content: [{ type: "text", text: (error as Error).message }],
+          content: [{ type: "text", text: errorMessage(error) }],
           isError: true,
         };
       }
@@ -97,7 +98,7 @@ export function registerUriTools(server: McpServer): void {
         return { content: [{ type: "text", text: "Opened today's daily note in Obsidian." }] };
       } catch (error) {
         return {
-          content: [{ type: "text", text: (error as Error).message }],
+          content: [{ type: "text", text: errorMessage(error) }],
           isError: true,
         };
       }

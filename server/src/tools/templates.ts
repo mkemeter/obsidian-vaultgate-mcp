@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
-import { buildFileArgs, dryRunPreview, dryRunSchema } from "./_helpers.js";
+import { buildFileArgs, dryRunPreview, dryRunSchema, errorMessage } from "./_helpers.js";
 
 /**
  * Registers template tools on the MCP server.
@@ -22,7 +22,7 @@ export function registerTemplateTools(server: McpServer): void {
       return { content: [{ type: "text", text: output }] };
     } catch (error) {
       return {
-        content: [{ type: "text", text: (error as Error).message }],
+        content: [{ type: "text", text: errorMessage(error) }],
         isError: true,
       };
     }
@@ -57,7 +57,7 @@ export function registerTemplateTools(server: McpServer): void {
         return { content: [{ type: "text", text: output || "Template applied." }] };
       } catch (error) {
         return {
-          content: [{ type: "text", text: (error as Error).message }],
+          content: [{ type: "text", text: errorMessage(error) }],
           isError: true,
         };
       }

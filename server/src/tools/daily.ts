@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
-import { dryRunPreview, dryRunSchema } from "./_helpers.js";
+import { dryRunPreview, dryRunSchema, errorMessage } from "./_helpers.js";
 
 /**
  * Registers daily note tools on the MCP server.
@@ -22,7 +22,7 @@ export function registerDailyTools(server: McpServer): void {
       return { content: [{ type: "text", text: output }] };
     } catch (error) {
       return {
-        content: [{ type: "text", text: (error as Error).message }],
+        content: [{ type: "text", text: errorMessage(error) }],
         isError: true,
       };
     }
@@ -56,7 +56,7 @@ export function registerDailyTools(server: McpServer): void {
         return { content: [{ type: "text", text: output || "Content appended to daily note." }] };
       } catch (error) {
         return {
-          content: [{ type: "text", text: (error as Error).message }],
+          content: [{ type: "text", text: errorMessage(error) }],
           isError: true,
         };
       }

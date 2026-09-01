@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { sanitizeInterval } from "../../src/config.js";
 
 describe("setVault", () => {
   it("mutates config.vault in place so the running server picks up vault changes without restart", async () => {
@@ -315,5 +316,15 @@ describe("setInjectionConfig", () => {
     const { config, setInjectionConfig } = await import("../../src/config.js?set=8");
     setInjectionConfig(true, 30.5);
     expect(config.injectIntervalSecs).toBe(30);
+  });
+});
+
+describe("sanitizeInterval", () => {
+  it("falls back to the default when the value is neither a string nor a number", () => {
+    // regression: the Number.NaN fallback branch (config.ts line 116) was never
+    // exercised — all setInjectionConfig tests pass strings or numbers
+    expect(sanitizeInterval(null)).toBe(30);
+    expect(sanitizeInterval({})).toBe(30);
+    expect(sanitizeInterval(undefined)).toBe(30);
   });
 });

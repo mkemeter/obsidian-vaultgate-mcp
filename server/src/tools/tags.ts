@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
-import { buildFileArgs, optionalBoolSchema } from "./_helpers.js";
+import { buildFileArgs, errorMessage, optionalBoolSchema } from "./_helpers.js";
 
 /**
  * Registers tag and link analysis tools on the MCP server.
@@ -36,7 +36,7 @@ export function registerTagTools(server: McpServer): void {
         return { content: [{ type: "text", text: output }] };
       } catch (error) {
         return {
-          content: [{ type: "text", text: (error as Error).message }],
+          content: [{ type: "text", text: errorMessage(error) }],
           isError: true,
         };
       }
@@ -63,7 +63,7 @@ export function registerTagTools(server: McpServer): void {
         return { content: [{ type: "text", text: output }] };
       } catch (error) {
         return {
-          content: [{ type: "text", text: (error as Error).message }],
+          content: [{ type: "text", text: errorMessage(error) }],
           isError: true,
         };
       }
@@ -83,7 +83,7 @@ export function registerTagTools(server: McpServer): void {
         return { content: [{ type: "text", text: output }] };
       } catch (error) {
         return {
-          content: [{ type: "text", text: (error as Error).message }],
+          content: [{ type: "text", text: errorMessage(error) }],
           isError: true,
         };
       }

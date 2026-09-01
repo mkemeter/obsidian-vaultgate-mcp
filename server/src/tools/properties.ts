@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
-import { buildFileArgs, dryRunPreview, dryRunSchema } from "./_helpers.js";
+import { buildFileArgs, dryRunPreview, dryRunSchema, errorMessage } from "./_helpers.js";
 
 /**
  * Registers frontmatter/properties tools on the MCP server.
@@ -34,7 +34,7 @@ export function registerPropertyTools(server: McpServer): void {
         return { content: [{ type: "text", text: output }] };
       } catch (error) {
         return {
-          content: [{ type: "text", text: (error as Error).message }],
+          content: [{ type: "text", text: errorMessage(error) }],
           isError: true,
         };
       }
@@ -71,7 +71,7 @@ export function registerPropertyTools(server: McpServer): void {
         return { content: [{ type: "text", text: output || `Set ${name}=${value}` }] };
       } catch (error) {
         return {
-          content: [{ type: "text", text: (error as Error).message }],
+          content: [{ type: "text", text: errorMessage(error) }],
           isError: true,
         };
       }

@@ -1,7 +1,13 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
-import { dryRunPreview, dryRunSchema, optionalBoolSchema, requiredBoolSchema } from "./_helpers.js";
+import {
+  dryRunPreview,
+  dryRunSchema,
+  errorMessage,
+  optionalBoolSchema,
+  requiredBoolSchema,
+} from "./_helpers.js";
 
 /**
  * Registers developer and debug tools on the MCP server.
@@ -63,7 +69,7 @@ export function registerDevTools(server: McpServer): void {
         return { content: [{ type: "text", text: output }] };
       } catch (error) {
         return {
-          content: [{ type: "text", text: (error as Error).message }],
+          content: [{ type: "text", text: errorMessage(error) }],
           isError: true,
         };
       }
@@ -83,7 +89,7 @@ export function registerDevTools(server: McpServer): void {
         return { content: [{ type: "text", text: output || "No errors found." }] };
       } catch (error) {
         return {
-          content: [{ type: "text", text: (error as Error).message }],
+          content: [{ type: "text", text: errorMessage(error) }],
           isError: true,
         };
       }
@@ -111,7 +117,7 @@ export function registerDevTools(server: McpServer): void {
         return { content: [{ type: "text", text: output || "No console output." }] };
       } catch (error) {
         return {
-          content: [{ type: "text", text: (error as Error).message }],
+          content: [{ type: "text", text: errorMessage(error) }],
           isError: true,
         };
       }
@@ -136,7 +142,7 @@ export function registerDevTools(server: McpServer): void {
         return { content: [{ type: "text", text: output }] };
       } catch (error) {
         return {
-          content: [{ type: "text", text: (error as Error).message }],
+          content: [{ type: "text", text: errorMessage(error) }],
           isError: true,
         };
       }
@@ -162,7 +168,7 @@ export function registerDevTools(server: McpServer): void {
         return { content: [{ type: "text", text: output }] };
       } catch (error) {
         return {
-          content: [{ type: "text", text: (error as Error).message }],
+          content: [{ type: "text", text: errorMessage(error) }],
           isError: true,
         };
       }
@@ -193,7 +199,7 @@ export function registerDevTools(server: McpServer): void {
         return { content: [{ type: "text", text: output || `Screenshot saved to: ${path}` }] };
       } catch (error) {
         return {
-          content: [{ type: "text", text: (error as Error).message }],
+          content: [{ type: "text", text: errorMessage(error) }],
           isError: true,
         };
       }
@@ -228,7 +234,7 @@ export function registerDevTools(server: McpServer): void {
         };
       } catch (error) {
         return {
-          content: [{ type: "text", text: (error as Error).message }],
+          content: [{ type: "text", text: errorMessage(error) }],
           isError: true,
         };
       }

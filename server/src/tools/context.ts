@@ -2,9 +2,9 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
 import { config } from "../config.js";
-import { dryRunPreview, dryRunSchema } from "./_helpers.js";
+import { dryRunPreview, dryRunSchema, errorMessage } from "./_helpers.js";
 
-const NOT_FOUND_MESSAGE =
+export const NOT_FOUND_MESSAGE =
   "No vault conventions file found in the vault root.\n\n" +
   "The vault conventions file is an optional note that documents conventions for AI assistants " +
   "(folder structure, naming rules, tag taxonomy, frontmatter schema, template usage, etc.).\n\n" +
@@ -111,7 +111,7 @@ export function installContextGuard(server: McpServer): void {
           content: [{ type: "text", text: CONVENTIONS_ENVELOPE_PREFIX + conventions }, ...content],
         };
       } catch (error) {
-        const msg = (error as Error).message ?? "";
+        const msg = errorMessage(error) ?? "";
         if (isNotFoundError(msg)) {
           // File absent — accept this state, don't retry within TTL.
           lastInjectedAt = Date.now();
@@ -153,7 +153,7 @@ export function registerContextTools(server: McpServer): void {
         const content = await runObsidian(["read", `path=${config.contextFileName}`]);
         return { content: [{ type: "text", text: content }] };
       } catch (error) {
-        const msg = (error as Error).message ?? "";
+        const msg = errorMessage(error) ?? "";
         if (isNotFoundError(msg)) {
           return { content: [{ type: "text", text: NOT_FOUND_MESSAGE }] };
         }
@@ -192,7 +192,7 @@ export function registerContextTools(server: McpServer): void {
         return { content: [{ type: "text", text: "Vault conventions file updated." }] };
       } catch (error) {
         return {
-          content: [{ type: "text", text: (error as Error).message }],
+          content: [{ type: "text", text: errorMessage(error) }],
           isError: true,
         };
       }

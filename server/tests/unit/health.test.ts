@@ -21,6 +21,13 @@ const mockExistsSync = vi.mocked(nodefs.existsSync);
 const mockStatSync = vi.mocked(nodefs.statSync);
 const mockAccessSync = vi.mocked(nodefs.accessSync);
 
+// Top-level import (same approach as cli.test.ts) so Stryker can properly
+// apply mutations to the source and have the tests catch those mutations.
+// Per-test query-string imports (e.g. "health.js?v=fail") create a separate
+// Vitest module-registry key that Stryker does not patch, causing all
+// StringLiteral mutants in health.ts to survive even when assertions exist.
+const { runHealthCheck } = await import("../../src/health.js");
+
 describe("runHealthCheck", () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -29,26 +36,26 @@ describe("runHealthCheck", () => {
   it("resolves without error when the CLI binary exists and is a file", async () => {
     mockExistsSync.mockReturnValue(true);
     mockStatSync.mockReturnValue({ isFile: () => true } as fs.Stats);
-    const { runHealthCheck } = await import("../../src/health.js");
     await expect(runHealthCheck()).resolves.toBeUndefined();
     expect(mockExistsSync).toHaveBeenCalledWith("obsidian");
   });
 
   it("writes an actionable error to stderr and exits when binary is missing", async () => {
     mockExistsSync.mockReturnValue(false);
-    // process.exit is stubbed to a no-op below, so execution falls through to
-    // the statSync guard; stub it to a file so the fall-through doesn't throw.
     mockStatSync.mockReturnValue({ isFile: () => true } as fs.Stats);
 
     const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
     const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {}) as never);
 
-    const { runHealthCheck } = await import("../../src/health.js?v=fail");
     await runHealthCheck();
 
     expect(stderrSpy).toHaveBeenCalledWith(
       expect.stringContaining("ERROR: Obsidian CLI binary not found")
     );
+    // Pin exact hint substrings to kill StringLiteral mutants on those lines
+    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("Troubleshooting:"));
+    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("Ensure Obsidian v1.8.9+"));
+    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("OBSIDIAN_CLI_PATH="));
     expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("Register CLI"));
     expect(exitSpy).toHaveBeenCalledWith(1);
 
@@ -65,12 +72,17 @@ describe("runHealthCheck", () => {
     const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
     const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {}) as never);
 
-    const { runHealthCheck } = await import("../../src/health.js?v=dir");
     await runHealthCheck();
 
     expect(stderrSpy).toHaveBeenCalledWith(
       expect.stringContaining("points to a directory, not the Obsidian binary")
     );
+    // Pin exact hint substrings to kill StringLiteral mutants on those lines
+    expect(stderrSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Set it to the executable file itself")
+    );
+    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("Windows:"));
+    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("macOS:"));
     expect(exitSpy).toHaveBeenCalledWith(1);
 
     stderrSpy.mockRestore();
@@ -90,10 +102,14 @@ describe("runHealthCheck", () => {
     const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
     const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {}) as never);
 
-    const { runHealthCheck } = await import("../../src/health.js?v=eacces");
     await runHealthCheck();
 
     expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("not executable"));
+    // Pin exact hint substrings to kill StringLiteral mutants on those lines
+    expect(stderrSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Fix the file permissions")
+    );
+    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("chmod +x"));
     expect(exitSpy).toHaveBeenCalledWith(1);
 
     stderrSpy.mockRestore();

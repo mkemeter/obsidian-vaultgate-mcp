@@ -84,6 +84,13 @@ describe("openUri — macOS", () => {
     fail(Object.assign(new Error("exit 1"), { stderr: "permission denied" }));
     await expect(p).rejects.toThrow("URI open error: permission denied");
   });
+
+  it("falls back to err.message when stderr is absent", async () => {
+    // regression: err.stderr?.trim() || err.message fallback branch (uri.ts line 33) was never exercised
+    const p = openUri("obsidian://open?file=Test");
+    fail(Object.assign(new Error("process failed"), { stderr: "" }));
+    await expect(p).rejects.toThrow("URI open error: process failed");
+  });
 });
 
 describe("openUri — Linux", () => {

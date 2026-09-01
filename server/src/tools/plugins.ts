@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
-import { dryRunPreview, dryRunSchema } from "./_helpers.js";
+import { dryRunPreview, dryRunSchema, errorMessage } from "./_helpers.js";
 
 /**
  * Registers plugin management tools on the MCP server.
@@ -26,7 +26,7 @@ export function registerPluginTools(server: McpServer): void {
         return { content: [{ type: "text", text: output }] };
       } catch (error) {
         return {
-          content: [{ type: "text", text: (error as Error).message }],
+          content: [{ type: "text", text: errorMessage(error) }],
           isError: true,
         };
       }
@@ -61,7 +61,7 @@ export function registerPluginTools(server: McpServer): void {
         return { content: [{ type: "text", text: output || `Plugin "${id}" reloaded.` }] };
       } catch (error) {
         return {
-          content: [{ type: "text", text: (error as Error).message }],
+          content: [{ type: "text", text: errorMessage(error) }],
           isError: true,
         };
       }
