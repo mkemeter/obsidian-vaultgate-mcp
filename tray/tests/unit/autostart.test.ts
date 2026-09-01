@@ -1,9 +1,9 @@
 /**
  * Unit tests for `tray/src/autostart.ts`.
  *
- * Verifies the cross-platform autostart wrapper delegates to Electron's
+ * Verifies the autostart wrapper delegates to Electron's
  * `app.setLoginItemSettings` / `getLoginItemSettings` with the expected
- * options shape (`openAsHidden: true`).
+ * options shape.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -33,13 +33,12 @@ beforeEach(() => {
 });
 
 describe("setAutostart", () => {
-  it("calls setLoginItemSettings with openAtLogin=true and openAsHidden=true when enabled", async () => {
+  it("calls setLoginItemSettings with openAtLogin=true when enabled", async () => {
     const { setAutostart } = await import("../../src/autostart.js");
     setAutostart(true);
     expect(settingsState.setCalls).toHaveLength(1);
     expect(settingsState.setCalls[0]).toMatchObject({
       openAtLogin: true,
-      openAsHidden: true,
     });
   });
 
@@ -49,7 +48,6 @@ describe("setAutostart", () => {
     expect(settingsState.setCalls).toHaveLength(1);
     expect(settingsState.setCalls[0]).toMatchObject({
       openAtLogin: false,
-      openAsHidden: true,
     });
   });
 });
