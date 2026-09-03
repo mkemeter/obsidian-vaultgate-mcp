@@ -37,7 +37,7 @@ function cleanup() {
 
 try {
   console.log(`[smoke] Installing ${basename(absPath)} into ${dir}…`);
-  execSync(`npm install --prefix ${dir} --ignore-scripts ${absPath}`, { stdio: 'pipe' });
+  execSync(`npm install --prefix ${dir} --ignore-scripts --omit=optional ${absPath}`, { stdio: 'pipe' });
 
   // Health check requires a binary file at OBSIDIAN_CLI_PATH.
   // We don't need it to be executable — just to exist as a regular file.
