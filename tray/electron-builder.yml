@@ -41,6 +41,8 @@ asarUnpack:
   - "node_modules/onnxruntime-node/**"
   - "node_modules/sharp/**"
 
+afterPack: scripts/apply-fuses.cjs
+
 mac:
   category: public.app-category.productivity
   icon: build/icon.png

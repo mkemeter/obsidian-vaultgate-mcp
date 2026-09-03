@@ -48,8 +48,9 @@
     "check": "biome check src/",
     "knip": "knip",
     "type-coverage": "type-coverage --at-least 99 --strict",
-    "postinstall": "lefthook install",
-    "prepublishOnly": "npm run build && npm test"
+    "postinstall": "lefthook install || true",
+    "prepublishOnly": "npm run build && npm test",
+    "smoke": "node scripts/smoke.mjs"
   },
   "engines": {
     "node": ">=18.0.0"

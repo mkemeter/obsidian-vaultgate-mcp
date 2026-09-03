@@ -330,8 +330,120 @@ describe("HTTP server", () => {
   });
 });
 
-// regression: warmup (startBackgroundIndex) was deferred until the first MCP request
-// in HTTP mode — the tray showed "warming up…" indefinitely until JWD sent a request.
+// regression: SDK DNS rebinding protection (enableDnsRebindingProtection + allowedHosts)
+// was not wired to the StreamableHTTPServerTransport — only the custom Origin gate was active,
+// leaving a gap for non-browser clients that omit the Origin header but forge the Host.
+describe("HTTP Host-header validation (SDK DNS rebinding protection)", () => {
+  let hostServer: http.Server;
+  let hostPort: number;
+
+  beforeAll(async () => {
+    // This server mirrors the production config: enableDnsRebindingProtection + allowedHosts.
+    // Port is unknown until listen(), so the transport is created per-request.
+    hostServer = http.createServer(async (req, res) => {
+      if (req.method !== "POST" || (req.url ?? "") !== "/mcp") {
+        res.writeHead(404);
+        res.end();
+        return;
+      }
+      const mcpServer = await createMcpServer();
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => crypto.randomUUID(),
+        enableDnsRebindingProtection: true,
+        allowedHosts: [`127.0.0.1:${hostPort}`],
+        allowedOrigins: [
+          "http://127.0.0.1",
+          `http://127.0.0.1:${hostPort}`,
+        ],
+      });
+      await mcpServer.connect(transport);
+      await transport.handleRequest(req, res);
+    });
+
+    await new Promise<void>((resolve) => {
+      hostServer.listen(0, "127.0.0.1", () => {
+        hostPort = (hostServer.address() as { port: number }).port;
+        resolve();
+      });
+    });
+  });
+
+  afterAll(() => hostServer.close());
+
+  it("rejects POST /mcp with forged Host header (403)", async () => {
+    const statusCode = await new Promise<number>((resolve, reject) => {
+      const req = http.request(
+        {
+          hostname: "127.0.0.1",
+          port: hostPort,
+          path: "/mcp",
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json, text/event-stream",
+            Host: "evil.com",
+          },
+        },
+        (res) => {
+          res.resume();
+          resolve(res.statusCode ?? 0);
+        }
+      );
+      req.on("error", reject);
+      req.write(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "initialize",
+          params: {
+            protocolVersion: "2024-11-05",
+            capabilities: {},
+            clientInfo: { name: "test", version: "0" },
+          },
+        })
+      );
+      req.end();
+    });
+    expect(statusCode).toBe(403);
+  });
+
+  it("accepts POST /mcp with correct Host header (200)", async () => {
+    const statusCode = await new Promise<number>((resolve, reject) => {
+      const req = http.request(
+        {
+          hostname: "127.0.0.1",
+          port: hostPort,
+          path: "/mcp",
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json, text/event-stream",
+            Host: `127.0.0.1:${hostPort}`,
+          },
+        },
+        (res) => {
+          res.resume();
+          resolve(res.statusCode ?? 0);
+        }
+      );
+      req.on("error", reject);
+      req.write(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "initialize",
+          params: {
+            protocolVersion: "2024-11-05",
+            capabilities: {},
+            clientInfo: { name: "test", version: "0" },
+          },
+        })
+      );
+      req.end();
+    });
+    expect(statusCode).toBe(200);
+  });
+});
 // After the fix, createServer() is called eagerly at HTTP-server startup so indexing
 // begins without waiting for a client connection.
 describe("HTTP mode — eager server creation", () => {

@@ -1,14 +1,10 @@
-name: Mutation Testing
+name: Mutation Testing (weekly full scan)
 
-# Stryker mutation testing for the server package.
+# Stryker full-repo mutation scan, supplementing the per-PR path-filtered jobs in ci.yml.
 #
-# This runs SEPARATELY from the required `ci-passed` gate — it is intentionally
-# NOT in ci.yml's needs list, so a low mutation score or a slow run NEVER blocks
-# a PR merge or the release pipeline. It is a diagnostic signal, not a hard gate.
-#
-# Triggers:
-#   - Manually (workflow_dispatch) when you want an on-demand score.
-#   - Weekly, to track the trend and surface newly-weakened tests.
+# ci.yml runs Stryker only when server/ or tray/ files changed (path-filtered, blocking).
+# This workflow runs on the full codebase weekly to catch slow score drift that per-PR
+# path filtering might miss, and on-demand for investigative runs.
 
 on:
   workflow_dispatch:

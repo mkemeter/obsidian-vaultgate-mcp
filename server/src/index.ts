@@ -165,6 +165,16 @@ async function startHttp(): Promise<void> {
           defaultServer = null; // consumed — future sessions each get a fresh instance
           transport = new StreamableHTTPServerTransport({
             sessionIdGenerator: () => crypto.randomUUID(),
+            enableDnsRebindingProtection: true,
+            allowedHosts: [`127.0.0.1:${config.port}`, `localhost:${config.port}`],
+            allowedOrigins: [
+              "http://localhost",
+              `http://localhost:${config.port}`,
+              "http://127.0.0.1",
+              `http://127.0.0.1:${config.port}`,
+              "http://[::1]",
+              `http://[::1]:${config.port}`,
+            ],
           });
           await server.connect(transport);
           await transport.handleRequest(req, res);

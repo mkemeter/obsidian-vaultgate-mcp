@@ -1,6 +1,8 @@
 pre-commit:
   parallel: true
   commands:
+    gitleaks:
+      run: gitleaks protect --staged --no-banner --exit-code 1
     biome:
       root: "server/"
       run: npm run check
@@ -29,3 +31,9 @@ pre-push:
     test-tray:
       root: "tray/"
       run: npm test
+    audit-server:
+      root: "server/"
+      run: npm audit --audit-level=high --omit=dev --omit=optional
+    audit-tray:
+      root: "tray/"
+      run: npm audit --audit-level=high --omit=dev --omit=optional

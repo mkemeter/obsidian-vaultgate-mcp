@@ -36,6 +36,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.11",
+    "@electron/fuses": "^2.1.3",
     "@electron/rebuild": "^4.2.0",
     "@stryker-mutator/core": "^10.0.0",
     "@stryker-mutator/typescript-checker": "^10.0.0",
@@ -53,7 +54,8 @@
   },
   "knip": {
     "entry": [
-      "src/preload.ts"
+      "src/preload.ts",
+      "scripts/apply-fuses.cjs"
     ],
     "project": [
       "src/**/*.ts"

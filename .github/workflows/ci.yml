@@ -59,6 +59,19 @@ jobs:
       - name: Run tests
         run: npm test
 
+  security:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   audit:
     name: Security Audit
     runs-on: ubuntu-latest
@@ -74,6 +87,25 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      - name: Audit dependencies
+        run: npm audit --audit-level=high --omit=dev --omit=optional
+
+  audit-tray:
+    name: Security Audit (tray)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: tray
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: tray/package-lock.json
       - run: npm ci
       - name: Audit dependencies
         run: npm audit --audit-level=high --omit=dev --omit=optional
@@ -111,9 +143,110 @@ jobs:
           path: server/coverage/
           retention-days: 7
 
+  package-smoke:
+    name: Pack & Smoke Test
+    needs: [test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      - name: Sync version from VERSION file
+        run: node ../scripts/sync-version.js
+      - name: Build
+        run: npm run build
+      - name: Pack
+        run: npm pack
+      - name: Smoke test
+        run: node scripts/smoke.mjs obsidian-vaultgate-mcp-*.tgz
+
+  changes:
+    name: Detect changed packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      server: ${{ steps.filter.outputs.server }}
+      tray: ${{ steps.filter.outputs.tray }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            server:
+              - 'server/**'
+            tray:
+              - 'tray/**'
+
+  mutation:
+    name: Stryker (server)
+    needs: [changes]
+    if: needs.changes.outputs.server == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      - name: Run mutation tests
+        run: npm run mutation
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report-server
+          path: server/reports/mutation/
+          retention-days: 14
+
+  mutation-tray:
+    name: Stryker (tray)
+    needs: [changes]
+    if: needs.changes.outputs.tray == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: tray
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: tray/package-lock.json
+      - run: npm ci
+      - name: Run mutation tests
+        run: npm run mutation
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report-tray
+          path: tray/reports/mutation/
+          retention-days: 14
+
   ci-passed:
     name: CI passed
-    needs: [lint, lint-tray, audit, test]
+    needs: [lint, lint-tray, security, audit, audit-tray, test, package-smoke, changes, mutation, mutation-tray]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -121,8 +254,21 @@ jobs:
         run: |
           if [[ "${{ needs.lint.result }}" != "success" ||
                 "${{ needs.lint-tray.result }}" != "success" ||
+                "${{ needs.security.result }}" != "success" ||
                 "${{ needs.audit.result }}" != "success" ||
-                "${{ needs.test.result }}" != "success" ]]; then
-            echo "One or more jobs failed"
+                "${{ needs.audit-tray.result }}" != "success" ||
+                "${{ needs.test.result }}" != "success" ||
+                "${{ needs.package-smoke.result }}" != "success" ||
+                "${{ needs.changes.result }}" != "success" ]]; then
+            echo "One or more required jobs failed"
+            exit 1
+          fi
+          # Mutation jobs are path-filtered — "skipped" means no relevant files changed, which is fine
+          if [[ "${{ needs.mutation.result }}" != "success" && "${{ needs.mutation.result }}" != "skipped" ]]; then
+            echo "Server mutation tests failed"
+            exit 1
+          fi
+          if [[ "${{ needs.mutation-tray.result }}" != "success" && "${{ needs.mutation-tray.result }}" != "skipped" ]]; then
+            echo "Tray mutation tests failed"
             exit 1
           fi
