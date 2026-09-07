@@ -15,6 +15,13 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "typescript"
         versions: [">=6"]
+      # vitest 5 breaks @stryker-mutator/vitest-runner@10 — whole function bodies
+      # survive mutation despite tests having correct assertions. Unblock when Stryker
+      # ships support for vitest 5 (check @stryker-mutator/vitest-runner releases).
+      - dependency-name: "vitest"
+        versions: [">=5"]
+      - dependency-name: "@vitest/coverage-v8"
+        versions: [">=5"]
 
   - package-ecosystem: npm
     directory: "/tray"
@@ -29,6 +36,13 @@ updates:
     ignore:
       - dependency-name: "typescript"
         versions: [">=6"]
+      # vitest 5 breaks @stryker-mutator/vitest-runner@10 — whole function bodies
+      # survive mutation despite tests having correct assertions. Unblock when Stryker
+      # ships support for vitest 5 (check @stryker-mutator/vitest-runner releases).
+      - dependency-name: "vitest"
+        versions: [">=5"]
+      - dependency-name: "@vitest/coverage-v8"
+        versions: [">=5"]
 
   - package-ecosystem: github-actions
     directory: "/"
