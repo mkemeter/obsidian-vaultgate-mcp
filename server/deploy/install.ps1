@@ -22,7 +22,7 @@ Write-Host "Package script:  $mcpScript"
 # --- Detect Obsidian binary -----------------------------------------------
 # Probe the known per-user and system-wide install locations. Each candidate
 # is tested with -PathType Leaf so a directory never passes as the binary.
-# The standard NSIS per-user install lives under \Programs\ — check it first.
+# The standard NSIS per-user install lives under \Programs\ -- check it first.
 $obsidianCandidates = @(
     "$env:LOCALAPPDATA\Programs\Obsidian\Obsidian.exe",
     "$env:LOCALAPPDATA\Obsidian\Obsidian.exe",
@@ -62,7 +62,7 @@ $cmd  = "@echo off`r`n"
 $cmd += "set OBSIDIAN_MCP_TRANSPORT=http`r`n"
 $cmd += "set OBSIDIAN_CLI_PATH=$obsidianPath`r`n"
 if ($vaultName) { $cmd += "set OBSIDIAN_VAULT=$vaultName`r`n" }
-$cmd += "`"$nodePath`" `"$mcpScript`"`r`n"
+$cmd += '"' + $nodePath + '" "' + $mcpScript + '"' + "`r`n"
 Set-Content -Path $wrapperPath -Value $cmd -Encoding ASCII
 
 Write-Host "Wrapper written: $wrapperPath"
@@ -78,7 +78,7 @@ Register-ScheduledTask -TaskName "VaultGate" -Action $action `
   -Trigger $trigger -Settings $settings -RunLevel Limited -Force | Out-Null
 
 Write-Host ""
-Write-Host "✓ VaultGate will start automatically at login." -ForegroundColor Green
+Write-Host "[OK] VaultGate will start automatically at login." -ForegroundColor Green
 Write-Host "  MCP URL:      http://127.0.0.1:3001/mcp"
 Write-Host "  Start now:    Start-ScheduledTask -TaskName VaultGate"
 Write-Host "  Check status: Get-ScheduledTask -TaskName VaultGate"

@@ -472,6 +472,24 @@ cd server && npm run mutation      # scoped to the highest-value pure modules
 - When a survivor points at real logic (a conditional, a boundary, an operator), add an assertion
   that kills it. Survivors that are only error-message prose are low value — don't chase 100%.
 
+### Deploy-script linting
+
+The platform installers under [`server/deploy/`](../server/deploy/) are shell (`.sh`) and PowerShell
+(`.ps1`) — outside the TypeScript test suite, so they get their own static gate. The `lint-scripts`
+job in [`ci.yml`](../.github/workflows/ci.yml) is **path-filtered to `server/deploy/**`** (skipped,
+and treated as passing, when nothing there changed) and runs:
+
+- **`.sh`** → `bash -n` (parse) + `shellcheck` (real quoting/word-splitting bugs).
+- **`.ps1`** → a hard parse assertion via `[System.Management.Automation.Language.Parser]::ParseFile`
+  (any parse error fails the build) + PSScriptAnalyzer (Errors block; `PSAvoidUsingWriteHost` is
+  excluded because installer UX intentionally uses `Write-Host`).
+- **ASCII-only guard on `.ps1`** — Windows PowerShell 5.1 reads BOM-less files as the system ANSI
+  codepage, so a stray non-ASCII byte (e.g. a `✓`) mojibakes the installer output. Keep `.ps1`
+  files ASCII (use markers like `[OK]`/`[WARN]`), or add a BOM.
+
+`shellcheck` and `pwsh` are preinstalled on the GitHub `ubuntu-latest` runner, so no Windows runner
+is needed. This is a static gate only — it does not exercise scheduled-task/launchd registration.
+
 ---
 
 ## Code style

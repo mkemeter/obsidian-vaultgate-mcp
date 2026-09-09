@@ -177,6 +177,7 @@ jobs:
     outputs:
       server: ${{ steps.filter.outputs.server }}
       tray: ${{ steps.filter.outputs.tray }}
+      deploy: ${{ steps.filter.outputs.deploy }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
@@ -187,6 +188,63 @@ jobs:
               - 'server/**'
             tray:
               - 'tray/**'
+            deploy:
+              - 'server/deploy/**'
+
+  lint-scripts:
+    name: Lint deploy scripts
+    needs: [changes]
+    if: needs.changes.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      # shellcheck and pwsh are preinstalled on the GitHub ubuntu-latest image.
+      - name: Shell scripts — syntax check
+        run: |
+          for f in server/deploy/*.sh; do
+            echo "== bash -n $f =="
+            bash -n "$f"
+          done
+      - name: Shell scripts — shellcheck
+        run: shellcheck server/deploy/*.sh
+      - name: PowerShell scripts — ASCII-only guard
+        # Windows PowerShell 5.1 reads BOM-less .ps1 files as the system ANSI
+        # codepage, mojibake-ing any non-ASCII byte. Keep these scripts ASCII.
+        run: |
+          fail=0
+          for f in server/deploy/*.ps1; do
+            if LC_ALL=C grep -nP '[^\x00-\x7F]' "$f"; then
+              echo "::error file=$f::Non-ASCII bytes in a BOM-less .ps1 file (breaks Windows PowerShell 5.1)"
+              fail=1
+            fi
+          done
+          exit $fail
+      - name: PowerShell scripts — parse check + PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
+          $failed = $false
+          foreach ($s in Get-ChildItem -Path server/deploy -Filter *.ps1 -File) {
+            Write-Host "== $($s.Name) =="
+            # Hard gate: any parse error (unbalanced quotes, bad delimiters, ...) fails the build.
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($s.FullName, [ref]$null, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) {
+              $failed = $true
+              foreach ($e in $errors) {
+                Write-Host "::error file=$($s.FullName),line=$($e.Extent.StartLineNumber)::$($e.Message)"
+              }
+            }
+            # PSScriptAnalyzer: Errors block the build. Write-Host is intentional installer UX.
+            # Warnings are surfaced but non-blocking until the baseline is clean.
+            $findings = Invoke-ScriptAnalyzer -Path $s.FullName -ExcludeRule PSAvoidUsingWriteHost
+            if ($findings) { $findings | Format-Table -AutoSize | Out-String | Write-Host }
+            if ($findings | Where-Object { $_.Severity -eq 'Error' }) { $failed = $true }
+          }
+          if ($failed) { throw 'PowerShell script checks failed' }
 
   mutation:
     name: Stryker (server)
@@ -246,7 +304,7 @@ jobs:
 
   ci-passed:
     name: CI passed
-    needs: [lint, lint-tray, security, audit, audit-tray, test, package-smoke, changes, mutation, mutation-tray]
+    needs: [lint, lint-tray, security, audit, audit-tray, test, package-smoke, changes, lint-scripts, mutation, mutation-tray]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -270,5 +328,10 @@ jobs:
           fi
           if [[ "${{ needs.mutation-tray.result }}" != "success" && "${{ needs.mutation-tray.result }}" != "skipped" ]]; then
             echo "Tray mutation tests failed"
+            exit 1
+          fi
+          # lint-scripts is path-filtered on server/deploy/** — "skipped" is fine
+          if [[ "${{ needs.lint-scripts.result }}" != "success" && "${{ needs.lint-scripts.result }}" != "skipped" ]]; then
+            echo "Deploy script lint failed"
             exit 1
           fi

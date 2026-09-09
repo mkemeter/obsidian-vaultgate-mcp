@@ -15,6 +15,10 @@ A section may be absent if that distribution had no changes in the release.
 
 #### Fixed
 
+- **Windows installer scripts hardened.** The `start.cmd` wrapper is now generated with unambiguous
+  quoting (no backtick-escaped quotes inside a double-quoted string), and the PowerShell
+  install/uninstall scripts are ASCII-only so their status output is no longer mangled by Windows
+  PowerShell 5.1, which reads BOM-less files as the system ANSI codepage.
 - **Injection interval is validated on every update, not just at startup.** Runtime updates from
   the tray now pass the re-inject interval through the same validation as environment parsing, so an
   out-of-range, non-integer, or otherwise invalid value can no longer reach the interval setting and
@@ -37,6 +41,10 @@ A section may be absent if that distribution had no changes in the release.
 - **Added mutation testing (Stryker).** A `npm run mutation` script and a separate, non-blocking CI
   job (manual and weekly) measure test effectiveness beyond line coverage. This surfaced and closed
   several under-asserted paths in the changes above.
+- **Deploy scripts are now linted in CI.** A path-filtered `lint-scripts` job (runs only when
+  `server/deploy/**` changes) checks the shell installers with `bash -n` + shellcheck and the
+  PowerShell installers with a parse check + PSScriptAnalyzer, plus an ASCII-only guard on the
+  `.ps1` files. These installer scripts previously shipped with no automated gate.
 
 ### Tray
 
