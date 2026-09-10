@@ -309,8 +309,8 @@ jobs:
           Write-Host 'Health check passed'
       - name: Stop server
         run: |
-          $pid = Get-Content "$env:RUNNER_TEMP\server.pid" -ErrorAction SilentlyContinue
-          if ($pid) { Stop-Process -Id ([int]$pid) -Force -ErrorAction SilentlyContinue }
+          $serverPid = Get-Content "$env:RUNNER_TEMP\server.pid" -ErrorAction SilentlyContinue
+          if ($serverPid) { Stop-Process -Id ([int]$serverPid) -Force -ErrorAction SilentlyContinue }
           Get-Process -Name node -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
       - name: Run uninstaller
         run: |
