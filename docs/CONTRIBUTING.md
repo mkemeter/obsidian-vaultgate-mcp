@@ -490,6 +490,22 @@ and treated as passing, when nothing there changed) and runs:
 `shellcheck` and `pwsh` are preinstalled on the GitHub `ubuntu-latest` runner, so no Windows runner
 is needed. This is a static gate only — it does not exercise scheduled-task/launchd registration.
 
+### Windows test matrix and install e2e
+
+`npm run build` is now cross-platform — asset copying uses `scripts/copy-assets.mjs` (Node.js
+`fs.copyFileSync`) instead of the POSIX `cp` command. The `postinstall` fallback uses
+`node -e ""` instead of `true` (which cmd.exe does not have).
+
+CI covers Windows via two jobs:
+
+- **`test` matrix** — runs build + tests on `ubuntu-latest` and `windows-latest` × Node 20 + 22.
+  Coverage upload is gated to the Ubuntu/Node 20 leg to avoid duplicate artifact errors.
+- **`windows-e2e`** — path-filtered on server or deploy changes. On a real Windows runner: builds
+  the tarball, installs it globally, runs `install.ps1 -NonInteractive -ObsidianPath <stub> -VaultName test`
+  (a stub `.exe` suffices — the server never launches Obsidian for a health check), boots the server
+  via the generated `start.cmd`, polls `/health`, then uninstalls. A `Teardown` step with `if: always()`
+  cleans up the scheduled task and any stray Node processes even if an earlier step failed.
+
 ---
 
 ## Code style

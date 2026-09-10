@@ -13,8 +13,22 @@ A section may be absent if that distribution had no changes in the release.
 
 ### Server
 
+#### Added
+
+- **Windows installer accepts parameters for unattended use.** `install.ps1` now accepts
+  `-ObsidianPath`, `-VaultName`, and `-NonInteractive` parameters. Pass `-NonInteractive` to
+  suppress all prompts; add `-ObsidianPath` when Obsidian is not at a standard install location,
+  and `-VaultName` to pin the vault. Zero-parameter invocation behaves exactly as before.
+- **`npm run build` is now cross-platform.** Asset copying (`icon.svg`, `favicon.ico`, `README.md`)
+  is handled by a Node.js script (`scripts/copy-assets.mjs`) instead of the POSIX `cp` command,
+  so `npm run build` works on Windows without WSL.
+
 #### Fixed
 
+- **`npm install -g` no longer fails on Windows.** The `postinstall` hook previously used
+  `lefthook install || true` — cmd.exe has no `true` command, so the fallback itself failed and
+  the entire global install was rejected. Replaced with `node -e ""`, which exits 0 on all
+  platforms.
 - **Windows installer scripts hardened.** The `start.cmd` wrapper is now generated with unambiguous
   quoting (no backtick-escaped quotes inside a double-quoted string), and the PowerShell
   install/uninstall scripts are ASCII-only so their status output is no longer mangled by Windows
@@ -45,6 +59,10 @@ A section may be absent if that distribution had no changes in the release.
   `server/deploy/**` changes) checks the shell installers with `bash -n` + shellcheck and the
   PowerShell installers with a parse check + PSScriptAnalyzer, plus an ASCII-only guard on the
   `.ps1` files. These installer scripts previously shipped with no automated gate.
+- **Windows test matrix and install e2e added to CI.** The `test` job now runs on both
+  `ubuntu-latest` and `windows-latest` (Node 20 + 22), catching cross-platform build and
+  test regressions on every push. A separate `windows-e2e` job (path-filtered on server or
+  deploy changes) does a full install → health-check → uninstall cycle on a real Windows runner.
 
 ### Tray
 

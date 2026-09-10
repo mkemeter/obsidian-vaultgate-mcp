@@ -111,15 +111,17 @@ jobs:
         run: npm audit --audit-level=high --omit=dev --omit=optional
 
   test:
-    name: Build & Test (Node ${{ matrix.node-version }})
-    runs-on: ubuntu-latest
+    name: Build & Test (${{ matrix.os }}, Node ${{ matrix.node-version }})
+    runs-on: ${{ matrix.os }}
     permissions:
       contents: read
     defaults:
       run:
         working-directory: server
     strategy:
+      fail-fast: false
       matrix:
+        os: [ubuntu-latest, windows-latest]
         node-version: [20, 22]
     steps:
       - uses: actions/checkout@v7
@@ -136,7 +138,7 @@ jobs:
       - name: Run tests with coverage
         run: npm run test:coverage
       - name: Upload coverage report
-        if: matrix.node-version == 20
+        if: matrix.node-version == 20 && matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
@@ -246,6 +248,84 @@ jobs:
           }
           if ($failed) { throw 'PowerShell script checks failed' }
 
+  windows-e2e:
+    name: Windows install e2e
+    needs: [changes, test]
+    if: needs.changes.outputs.deploy == 'true' || needs.changes.outputs.server == 'true'
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: server
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      - name: Sync version from VERSION file
+        run: node ../scripts/sync-version.js
+      - name: Build and pack
+        run: npm run build && npm pack
+      - name: Install globally from tarball
+        run: |
+          $tgz = Get-ChildItem obsidian-vaultgate-mcp-*.tgz | Select-Object -First 1
+          npm install -g $tgz.FullName
+      - name: Create dummy Obsidian.exe
+        run: |
+          $dummy = Join-Path $env:RUNNER_TEMP 'Obsidian.exe'
+          Set-Content $dummy 'stub' -Encoding ASCII
+          Write-Host "Dummy: $dummy"
+      - name: Run installer (non-interactive)
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dummy = Join-Path $env:RUNNER_TEMP 'Obsidian.exe'
+          & "$PWD\deploy\install.ps1" -NonInteractive -ObsidianPath $dummy -VaultName test
+      - name: Assert scheduled task registered
+        run: Get-ScheduledTask -TaskName 'VaultGate' -ErrorAction Stop | Out-Null
+      - name: Start server via wrapper
+        run: |
+          $wrapper = "$env:APPDATA\VaultGate\start.cmd"
+          $script:serverProc = Start-Process $wrapper -PassThru -WindowStyle Hidden
+          Write-Host "Server PID: $($script:serverProc.Id)"
+          # Store PID for later steps
+          $script:serverProc.Id | Out-File "$env:RUNNER_TEMP\server.pid" -Encoding ASCII
+      - name: Poll /health endpoint
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ok = $false
+          for ($i = 0; $i -lt 60; $i++) {
+            try {
+              $r = Invoke-WebRequest -Uri 'http://127.0.0.1:3001/health' -UseBasicParsing -TimeoutSec 2
+              if ($r.StatusCode -eq 200) { $ok = $true; break }
+            } catch {}
+            Start-Sleep -Seconds 1
+          }
+          if (-not $ok) { throw 'Server did not respond on /health within 60 s' }
+          Write-Host 'Health check passed'
+      - name: Stop server
+        run: |
+          $pid = Get-Content "$env:RUNNER_TEMP\server.pid" -ErrorAction SilentlyContinue
+          if ($pid) { Stop-Process -Id ([int]$pid) -Force -ErrorAction SilentlyContinue }
+          Get-Process -Name node -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+      - name: Run uninstaller
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & "$PWD\deploy\uninstall.ps1"
+      - name: Assert scheduled task removed
+        run: |
+          $task = Get-ScheduledTask -TaskName 'VaultGate' -ErrorAction SilentlyContinue
+          if ($task) { throw 'Scheduled task still present after uninstall' }
+      - name: Teardown
+        if: always()
+        run: |
+          Unregister-ScheduledTask -TaskName 'VaultGate' -Confirm:$false -ErrorAction SilentlyContinue
+          Get-Process -Name node -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+
   mutation:
     name: Stryker (server)
     needs: [changes]
@@ -304,7 +384,7 @@ jobs:
 
   ci-passed:
     name: CI passed
-    needs: [lint, lint-tray, security, audit, audit-tray, test, package-smoke, changes, lint-scripts, mutation, mutation-tray]
+    needs: [lint, lint-tray, security, audit, audit-tray, test, package-smoke, changes, lint-scripts, windows-e2e, mutation, mutation-tray]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -333,5 +413,10 @@ jobs:
           # lint-scripts is path-filtered on server/deploy/** — "skipped" is fine
           if [[ "${{ needs.lint-scripts.result }}" != "success" && "${{ needs.lint-scripts.result }}" != "skipped" ]]; then
             echo "Deploy script lint failed"
+            exit 1
+          fi
+          # windows-e2e is path-filtered on server or deploy changes — "skipped" is fine
+          if [[ "${{ needs.windows-e2e.result }}" != "success" && "${{ needs.windows-e2e.result }}" != "skipped" ]]; then
+            echo "Windows e2e install test failed"
             exit 1
           fi

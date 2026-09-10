@@ -35,7 +35,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc && cp src/icon.svg build/icon.svg && cp src/favicon.ico build/favicon.ico && cp ../README.md README.md",
+    "build": "tsc && node scripts/copy-assets.mjs",
     "start": "node build/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -48,7 +48,7 @@
     "check": "biome check src/",
     "knip": "knip",
     "type-coverage": "type-coverage --at-least 99 --strict",
-    "postinstall": "lefthook install || true",
+    "postinstall": "lefthook install || node -e \"\"",
     "prepublishOnly": "npm run build && npm test",
     "smoke": "node scripts/smoke.mjs"
   },

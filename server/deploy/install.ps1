@@ -1,3 +1,8 @@
+param(
+    [string]$ObsidianPath,
+    [string]$VaultName,
+    [switch]$NonInteractive
+)
 $ErrorActionPreference = "Stop"
 Write-Host "=== obsidian-vaultgate-mcp Windows installer ===" -ForegroundColor Cyan
 Write-Host ""
@@ -20,38 +25,59 @@ if (-not (Test-Path $mcpScript)) {
 Write-Host "Package script:  $mcpScript"
 
 # --- Detect Obsidian binary -----------------------------------------------
-# Probe the known per-user and system-wide install locations. Each candidate
-# is tested with -PathType Leaf so a directory never passes as the binary.
-# The standard NSIS per-user install lives under \Programs\ -- check it first.
-$obsidianCandidates = @(
-    "$env:LOCALAPPDATA\Programs\Obsidian\Obsidian.exe",
-    "$env:LOCALAPPDATA\Obsidian\Obsidian.exe",
-    "$env:PROGRAMFILES\Obsidian\Obsidian.exe"
-)
-$obsidianPath = $obsidianCandidates | Where-Object { Test-Path $_ -PathType Leaf } | Select-Object -First 1
+# Precedence: (1) -ObsidianPath param, (2) known install locations, (3) prompt.
+if ($ObsidianPath) {
+    if (-not (Test-Path $ObsidianPath -PathType Leaf)) {
+        Write-Error "Obsidian.exe not found at '$ObsidianPath'. Pass a valid file path."
+        exit 1
+    }
+    $obsidianPath = $ObsidianPath
+} else {
+    # Probe the known per-user and system-wide install locations. Each candidate
+    # is tested with -PathType Leaf so a directory never passes as the binary.
+    # The standard NSIS per-user install lives under \Programs\ -- check it first.
+    $obsidianCandidates = @(
+        "$env:LOCALAPPDATA\Programs\Obsidian\Obsidian.exe",
+        "$env:LOCALAPPDATA\Obsidian\Obsidian.exe",
+        "$env:PROGRAMFILES\Obsidian\Obsidian.exe"
+    )
+    $obsidianPath = $obsidianCandidates | Where-Object { Test-Path $_ -PathType Leaf } | Select-Object -First 1
 
-# Fall back to an interactive prompt, re-validating until a real file is given.
-if (-not $obsidianPath) {
-    $attempts = 0
-    while ($true) {
-        $entered = (Read-Host "Enter the absolute path to Obsidian.exe (the file, not the folder)").Trim()
-        if (Test-Path $entered -PathType Leaf) {
-            $obsidianPath = $entered
-            break
-        }
-        $attempts++
-        Write-Host "  Not a file: '$entered'" -ForegroundColor Yellow
-        if ($attempts -ge 3) {
-            Write-Error "Could not locate Obsidian.exe after 3 attempts. Re-run the installer with a valid path."
+    if (-not $obsidianPath) {
+        if ($NonInteractive) {
+            Write-Error "Obsidian.exe not found in standard locations. Pass -ObsidianPath <path> to specify it."
             exit 1
+        }
+        # Fall back to an interactive prompt, re-validating until a real file is given.
+        $attempts = 0
+        while ($true) {
+            $entered = (Read-Host "Enter the absolute path to Obsidian.exe (the file, not the folder)").Trim()
+            if (Test-Path $entered -PathType Leaf) {
+                $obsidianPath = $entered
+                break
+            }
+            $attempts++
+            Write-Host "  Not a file: '$entered'" -ForegroundColor Yellow
+            if ($attempts -ge 3) {
+                Write-Error "Could not locate Obsidian.exe after 3 attempts. Re-run the installer with a valid path."
+                exit 1
+            }
         }
     }
 }
 Write-Host "Obsidian:        $obsidianPath"
 
 # --- Vault name -----------------------------------------------------------
+# Precedence: (1) -VaultName param (even if blank -- blank omits OBSIDIAN_VAULT),
+# (2) -NonInteractive -> blank (omit vault), (3) interactive prompt.
 Write-Host ""
-$vaultName = (Read-Host "Vault name (leave blank to use last focused vault)").Trim()
+if ($PSBoundParameters.ContainsKey('VaultName')) {
+    $vaultName = $VaultName
+} elseif ($NonInteractive) {
+    $vaultName = ""
+} else {
+    $vaultName = (Read-Host "Vault name (leave blank to use last focused vault)").Trim()
+}
 
 # --- Write wrapper .cmd (env vars + quoted paths, safe for spaces) --------
 $wrapperDir  = "$env:APPDATA\VaultGate"

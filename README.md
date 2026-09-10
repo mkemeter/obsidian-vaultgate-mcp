@@ -257,10 +257,16 @@ Start VaultGate:
 obsidian-vaultgate-mcp
 ```
 
-For a specific vault:
+For a specific vault (macOS/Linux):
 
 ```bash
 OBSIDIAN_VAULT="My Vault" obsidian-vaultgate-mcp
+```
+
+On Windows, set the env var before running:
+
+```powershell
+$env:OBSIDIAN_VAULT = "My Vault"; obsidian-vaultgate-mcp
 ```
 
 ```
@@ -273,15 +279,15 @@ OBSIDIAN_VAULT="My Vault" obsidian-vaultgate-mcp
 Verify it's running:
 
 ```bash
-curl http://localhost:3001/health   # should print: OK
+curl http://127.0.0.1:3001/health   # should print: OK
 ```
 
 Add a new MCP server in your AI app, using the URLs the server prints on startup. If port 3001 is already in use the server exits with an error — set `OBSIDIAN_MCP_PORT` to a free port and restart:
 
 | Transport | Default URL |
 |-----------|-------------|
-| Streamable HTTP (preferred) | `http://localhost:3001/mcp` |
-| SSE legacy | `http://localhost:3001/sse` |
+| Streamable HTTP (preferred) | `http://127.0.0.1:3001/mcp` |
+| SSE legacy | `http://127.0.0.1:3001/sse` |
 
 #### Claude Code
 
@@ -322,6 +328,16 @@ obsidian-vaultgate-mcp-install
 
 Run this in any terminal on any platform — no shell-specific syntax. It sets up the right auto-start mechanism for your OS (launchd on macOS, a systemd user service on Linux, a Task Scheduler task on Windows), so VaultGate starts at login and restarts on failure. It resolves all paths automatically and prompts for your vault name. On Windows it looks for Obsidian at `%LOCALAPPDATA%\Programs\Obsidian\Obsidian.exe` (the standard per-user install) and falls back to a prompt if your installation lives elsewhere.
 
+**Windows:** The installer writes a wrapper script to `%APPDATA%\VaultGate\start.cmd` that sets the env vars and starts the server. You can edit this file directly to change the vault name or port without re-running the installer.
+
+**Windows: unattended install.** Run in PowerShell to skip all prompts:
+
+```powershell
+obsidian-vaultgate-mcp-install -ObsidianPath "C:\path\to\Obsidian.exe" -VaultName "MyVault" -NonInteractive
+```
+
+`-ObsidianPath` is only needed when Obsidian is not in a standard install location. `-VaultName` and `-NonInteractive` can be used independently.
+
 ### Uninstall
 
 ```bash
@@ -351,7 +367,7 @@ All configuration via environment variables. None are required for single-vault 
 | `OBSIDIAN_VAULT` | _(last opened vault)_ | Target vault name (directory name, not path). Required when multiple vaults are open. |
 | `OBSIDIAN_MCP_PORT` | `3001` | TCP port for HTTP mode. |
 | `OBSIDIAN_MCP_TRANSPORT` | _(auto-detect)_ | `http` to force HTTP mode, `stdio` to force stdio. Auto-detected from `stdin.isTTY`. |
-| `OBSIDIAN_CLI_PATH` | `obsidian` | Absolute path to the Obsidian binary. Required in service contexts where `PATH` differs from the user shell. |
+| `OBSIDIAN_CLI_PATH` | `obsidian` | Full path to `Obsidian.exe` (Windows) or the Obsidian binary. Required in service contexts where `PATH` differs from the user shell. On Windows, point to the `.exe` file — not the folder. |
 | `OBSIDIAN_CONTEXT_FILE` | `VAULTGATE.md` | Filename of the vault conventions file (in the vault root). Point it at an existing file such as `CLAUDE.md` to reuse it. Bare `.md` filename only — no path. |
 | `VAULTGATE_INJECT_CONVENTIONS` | `true` | Set to `false` to disable automatic injection of vault conventions into tool results. When enabled, conventions are merged into the first tool result of each new conversation. Configurable in the tray Preferences dialog. |
 | `VAULTGATE_INJECT_INTERVAL` | `30` | How often (seconds) to re-inject vault conventions. Acts as a conversation-boundary detector: tool calls within a single thread happen seconds apart, so conventions are delivered exactly once at the start of each new conversation thread. Valid range: 1–3600. Configurable in the tray Preferences dialog. |
@@ -450,7 +466,7 @@ The embedding index is built asynchronously at startup. For large vaults this ca
 Set `OBSIDIAN_MCP_PORT=3002` and update the URL in your AI client.
 
 **Obsidian launches at login**
-This no longer happens. The startup health check only verifies the CLI binary exists on disk — it does not execute Obsidian. If Obsidian is opening at login for you, check your Login Items in System Settings.
+This no longer happens. The startup health check only verifies the CLI binary exists on disk — it does not execute Obsidian. If Obsidian is opening at login for you, check your startup entries: **Login Items** in System Settings (macOS), or the **Startup** tab in Task Manager (Windows).
 
 **`note_open` / `search_open` / `daily_open` brings Obsidian to the foreground**
 This is intentional — these tools are designed to hand work off to you in the UI.
