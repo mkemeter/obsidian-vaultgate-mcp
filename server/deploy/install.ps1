@@ -94,11 +94,21 @@ Set-Content -Path $wrapperPath -Value $cmd -Encoding ASCII
 Write-Host "Wrapper written: $wrapperPath"
 
 # --- Register scheduled task (at login, current user, no elevation) -------
-$action   = New-ScheduledTaskAction -Execute $wrapperPath
-$trigger  = New-ScheduledTaskTrigger -AtLogOn
-$settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit 0 `
-              -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) `
-              -StopIfGoingOnBatteries $false -DisallowDemandStart $false
+# --- Register scheduled task (at login, current user, no elevation) -------
+$action = New-ScheduledTaskAction -Execute $wrapperPath
+$trigger = New-ScheduledTaskTrigger -AtLogOn
+# StopIfGoingOnBatteries is absent on Windows Server editions (no batteries).
+# Use splatting so the setting is applied on Desktop but skipped on Server.
+$settingsArgs = @{
+    ExecutionTimeLimit  = 0
+    RestartCount        = 3
+    RestartInterval     = (New-TimeSpan -Minutes 1)
+    DisallowDemandStart = $false
+}
+if ((Get-Command New-ScheduledTaskSettingsSet).Parameters.ContainsKey('StopIfGoingOnBatteries')) {
+    $settingsArgs['StopIfGoingOnBatteries'] = $false
+}
+$settings = New-ScheduledTaskSettingsSet @settingsArgs
 
 Register-ScheduledTask -TaskName "VaultGate" -Action $action `
   -Trigger $trigger -Settings $settings -RunLevel Limited -Force | Out-Null
