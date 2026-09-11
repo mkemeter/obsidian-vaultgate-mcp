@@ -2211,6 +2211,280 @@ describe("emptyListRetries resets on resetIndexForVaultChange", () => {
 });
 
 // ---------------------------------------------------------------------------
+// gatedModule — freshModule plus a MUTABLE config and a GATEABLE fake embedder.
+//
+// Used by the two "in-flight build" regression suites below:
+//   - vault switch mid-build: `config.vault` is mutated to a second vault while
+//     the first build is parked, simulating the tray's sendVaultChange →
+//     resetIndexForVaultChange() sequence.
+//   - clear_index mid-build: the build is parked at a chosen note so the MCP
+//     tool can be invoked while indexState === "building".
+//
+// The fake embedder counts calls per vault (content markers) and parks every
+// A-vault embed call numbered >= parkAFrom until releaseA() — freezing the
+// background build mid-flight without touching real timers.
+// ---------------------------------------------------------------------------
+
+interface GatedModule {
+  server: McpServer;
+  getState: () => "idle" | "building" | "ready";
+  resetIndexForVaultChange: () => void;
+  /** Mutable config — swap `.vault` mid-build like the tray does. */
+  config: { vault: string };
+  /** Resume any parked A-vault embed calls. */
+  releaseA: () => void;
+  /** A-vault embed calls started so far. */
+  aEmbedCalls: () => number;
+  /** B-vault embed calls started so far. */
+  bEmbedCalls: () => number;
+  /** `files list` CLI calls started so far. */
+  listCalls: () => number;
+  vaultA: string;
+  vaultB: string;
+  cacheDir: string;
+  cleanup: () => void;
+}
+
+const A_NOTES = Array.from({ length: 51 }, (_, i) => `a-note-${i + 1}.md`);
+const B_NOTES = ["b-note-1.md", "b-note-2.md"];
+
+async function gatedModule(opts: {
+  vaultA: string;
+  vaultB: string;
+  /** A-vault embed calls numbered >= this are parked until releaseA(). */
+  parkAFrom: number;
+}): Promise<GatedModule> {
+  vi.resetModules();
+
+  // Mutable config — semantic.ts reads `config.vault` at call time, so swapping
+  // the vault mid-build works exactly like the tray's sendVaultChange().
+  const configMock = {
+    vault: opts.vaultA,
+    cliBin: "obsidian",
+    port: 3001,
+    host: "127.0.0.1",
+    contextFileName: "VAULTGATE.md",
+  };
+
+  vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+  vi.doMock("../../../src/config.js", () => ({ config: configMock }));
+
+  let aCalls = 0;
+  let bCalls = 0;
+  let listCount = 0;
+  let releaseFn: () => void = () => {};
+  const parkedPromise = new Promise<void>((resolve) => {
+    releaseFn = resolve;
+  });
+
+  vi.doMock("@xenova/transformers", () => ({
+    pipeline: vi.fn().mockResolvedValue(
+      vi.fn(async (texts: string[]) => {
+        const joined = texts.join("\n");
+        if (joined.includes("marker-A")) {
+          aCalls += 1;
+          if (aCalls >= opts.parkAFrom) await parkedPromise;
+        } else if (joined.includes("marker-B")) {
+          bCalls += 1;
+        }
+        return { tolist: () => texts.map(() => FAKE_VEC_A) };
+      })
+    ),
+  }));
+
+  const { runObsidian } = await import("../../../src/cli.js");
+  vi.mocked(runObsidian).mockImplementation(async (args: string[]) => {
+    if (args[0] === "files" && args[1] === "list") {
+      listCount += 1;
+      const notes = configMock.vault === opts.vaultA ? A_NOTES : B_NOTES;
+      return notes.join("\n") + "\n";
+    }
+    const pathArg = args.find((a) => a.startsWith("path="));
+    const filePath = pathArg ? pathArg.slice("path=".length) : undefined;
+    if (filePath?.startsWith("a-note-")) {
+      return `# A Note\n\nmarker-A body for ${filePath} — searchable payload.`;
+    }
+    if (filePath?.startsWith("b-note-")) {
+      return `# B Note\n\nmarker-B body for ${filePath} — searchable payload.`;
+    }
+    throw new Error(`unexpected obsidian args: ${args.join(" ")}`);
+  });
+
+  const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
+  const server = new McpServer({ name: "test", version: "0.0.0" });
+  const semantic = await import("../../../src/tools/semantic.js");
+  semantic.registerSemanticTools(server);
+
+  const cacheDir = semantic.resolveIndexCacheDir();
+  const fileA = path.join(cacheDir, `embeddings-${opts.vaultA}.json`);
+  const fileB = path.join(cacheDir, `embeddings-${opts.vaultB}.json`);
+
+  return {
+    server,
+    getState: semantic.getIndexStateForTesting,
+    resetIndexForVaultChange: semantic.resetIndexForVaultChange,
+    config: configMock,
+    releaseA: () => releaseFn(),
+    aEmbedCalls: () => aCalls,
+    bEmbedCalls: () => bCalls,
+    listCalls: () => listCount,
+    vaultA: opts.vaultA,
+    vaultB: opts.vaultB,
+    cacheDir,
+    cleanup: () => {
+      for (const f of [fileA, fileB]) {
+        try {
+          if (fs.existsSync(f)) fs.unlinkSync(f);
+        } catch {
+          /* best-effort */
+        }
+      }
+    },
+  };
+}
+
+/** Poll until cond() holds, or throw after deadlineMs. */
+async function waitForCond(cond: () => boolean, deadlineMs: number, what: string): Promise<void> {
+  const deadline = Date.now() + deadlineMs;
+  while (!cond()) {
+    if (Date.now() > deadline) throw new Error(`timeout waiting for: ${what}`);
+    await new Promise((r) => setTimeout(r, 25));
+  }
+}
+
+/** Resolves true once fn() has stopped changing for stableMs (or false on deadline). */
+async function waitUntilStable(
+  fn: () => number,
+  stableMs: number,
+  deadlineMs: number
+): Promise<boolean> {
+  const deadline = Date.now() + deadlineMs;
+  let prev = fn();
+  let stableSince = Date.now();
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 50));
+    const cur = fn();
+    if (cur !== prev) {
+      prev = cur;
+      stableSince = Date.now();
+    } else if (Date.now() - stableSince >= stableMs) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// ---------------------------------------------------------------------------
+// regression: vault switch mid-build (stale build must not clobber the
+// new vault's index)
+// ---------------------------------------------------------------------------
+
+describe("regression: vault switch while a build is in flight", () => {
+  it("does not write old-vault embeddings into the new vault's cache file", async () => {
+    const vaultA = `__test_gatedA_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const vaultB = `__test_gatedB_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    // Park the A build on its 2nd note so it is frozen mid-flight when the
+    // vault switches.
+    const g = await gatedModule({ vaultA, vaultB, parkAFrom: 2 });
+    try {
+      // 1. Build A embeds note 1, then parks on note 2.
+      await waitForCond(() => g.aEmbedCalls() >= 2, 5000, "A build to park at note 2");
+      expect(g.getState()).toBe("building");
+
+      // 2. Vault switch mid-build — exactly what the tray does on a
+      //    Preferences vault change (config mutation + reset).
+      g.config.vault = vaultB;
+      g.resetIndexForVaultChange();
+
+      // 3. The new vault's build must complete on its own.
+      await waitForCond(
+        () => g.bEmbedCalls() >= 2 && g.getState() === "ready",
+        5000,
+        "B build to complete"
+      );
+
+      // 4. Release the parked stale build — it was never cancelled, so it
+      //    keeps running while the on-disk cache path already points at the
+      //    NEW vault.
+      g.releaseA();
+      await waitUntilStable(() => g.aEmbedCalls(), 300, 15_000);
+      // Give the stale build's final saveIndex a moment to land on disk.
+      await new Promise((r) => setTimeout(r, 200));
+
+      // 5. The new vault's cache file must contain ONLY the new vault's notes.
+      const bFile = path.join(g.cacheDir, `embeddings-${g.vaultB}.json`);
+      const parsed = JSON.parse(fs.readFileSync(bFile, "utf-8")) as {
+        files: Record<string, unknown>;
+      };
+      const bPaths = Object.keys(parsed.files);
+      expect(bPaths).not.toContain("a-note-1.md");
+      expect(bPaths).toEqual(["b-note-1.md", "b-note-2.md"]);
+
+      // 6. The live index must reflect the new vault, not the stale one.
+      const info = (await callTool(g.server, "vault_info")) as {
+        content: { text: string }[];
+      };
+      expect(info.content[0].text).toContain("Indexed notes: 2");
+    } finally {
+      g.cleanup();
+    }
+    // Explicit ceiling: the internal wait deadlines below go up to 15 s,
+    // which exceeds vitest's default 5 s testTimeout — without this, a slow
+    // CI run would fail with a generic timeout instead of the intended
+    // assertion error.
+  }, 30_000);
+});
+
+// ---------------------------------------------------------------------------
+// regression: clear_index MCP tool while a build is in progress
+// ---------------------------------------------------------------------------
+
+describe("regression: clear_index tool while a build is in progress", () => {
+  it("is a no-op while indexState === 'building' (no cache delete, no duplicate build)", async () => {
+    const vaultA = `__test_gatedC_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const vaultB = `__test_gatedD_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    // 51 notes: syncNewAndDeleted's checkpoint (processed % 50 === 0 →
+    // saveIndex) writes the cache file after note 50, so note 51's embed
+    // parks the build WITH the file on disk — the precondition for asserting
+    // that clear_index must not delete it.
+    const g = await gatedModule({ vaultA, vaultB, parkAFrom: 51 });
+    try {
+      await waitForCond(() => g.aEmbedCalls() >= 51, 15_000, "A build to park at note 51");
+      expect(g.getState()).toBe("building");
+
+      const cacheFile = path.join(g.cacheDir, `embeddings-${vaultA}.json`);
+      expect(fs.existsSync(cacheFile), "50-note checkpoint should have saved the cache").toBe(
+        true
+      );
+
+      // The MCP tool must refuse to clear mid-build (the IPC control-command
+      // path already has this guard — the tool handler does not).
+      await callTool(g.server, "clear_index", { dryRun: false });
+
+      // The in-flight build's cache must be untouched and no second build may
+      // have started (a duplicate build re-lists and re-embeds everything).
+      expect(
+        fs.existsSync(cacheFile),
+        "cache file must survive a mid-build clear_index"
+      ).toBe(true);
+      expect(g.listCalls()).toBe(1);
+
+      // Let everything finish, then confirm exactly one build ran end-to-end.
+      g.releaseA();
+      const settled = await waitUntilStable(() => g.aEmbedCalls(), 300, 15_000);
+      expect(settled).toBe(true);
+      expect(g.aEmbedCalls()).toBe(51);
+      expect(g.listCalls()).toBe(1);
+      expect(g.getState()).toBe("ready");
+    } finally {
+      g.cleanup();
+    }
+    // Explicit ceiling — see the vault-switch suite above (vitest default
+    // testTimeout is 5 s, shorter than the 15 s internal deadlines).
+  }, 30_000);
+});
+
+// ---------------------------------------------------------------------------
 // resolveIndexCacheDir — env override vs default (both `??` branches)
 //
 // MUST be the last describe in the file: the "env deleted" test clears the

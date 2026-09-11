@@ -68,6 +68,16 @@ interface VaultIndex {
 
 let indexState: "idle" | "building" | "ready" = "idle";
 let isReHashing = false;
+/**
+ * Build generation counter. Every full rebuild consumes a fresh generation
+ * (`++buildGeneration`); in-flight builds/syncs/rehashes capture the
+ * generation they started with and abort before persisting when it no longer
+ * matches. This is what stops a build parked mid-flight from writing
+ * old-vault embeddings into the NEW vault's cache file after
+ * `resetIndexForVaultChange()` (the cache path resolves `config.vault` at
+ * save time), and from clobbering the new build's state/`liveIndex`.
+ */
+let buildGeneration = 0;
 let embedderInstance: Awaited<ReturnType<typeof pipeline>> | null = null;
 // By design: embedder lifetime is module lifetime. The transformer pipeline is
 // expensive to load (~several seconds on first run), so it is never released
@@ -429,7 +439,14 @@ async function embedNote(content: string): Promise<ChunkEntry[]> {
 // Index sync helpers
 // ---------------------------------------------------------------------------
 
-async function syncNewAndDeleted(idx: VaultIndex, pruneDeleted = true): Promise<number> {
+async function syncNewAndDeleted(
+  idx: VaultIndex,
+  pruneDeleted = true,
+  // Generation this sync started under. Background builds pass the generation
+  // captured at start; search-triggered syncs use the default (current value
+  // at call time). A superseded sync aborts before its next embed/checkpoint.
+  gen: number = buildGeneration
+): Promise<number> {
   const paths = await listVaultPaths();
   const pathSet = new Set(paths);
 
@@ -461,6 +478,12 @@ async function syncNewAndDeleted(idx: VaultIndex, pruneDeleted = true): Promise<
   const embeddedBefore = countEmbeddedNotes(idx);
   let processed = 0;
   for (const p of freshNewPaths) {
+    // Superseded since this sync started (vault switch / clear_index) —
+    // abort before the next embed. The in-memory `idx` is the old vault's
+    // object; only persisting it would corrupt the new vault's cache file
+    // (getIndexPath() resolves config.vault at save time). 0 is ignored by
+    // every caller — they re-check the generation before using the count.
+    if (gen !== buildGeneration) return 0;
     // Yield to the event loop between notes so V8 GC can reclaim ONNX-allocated
     // TypedArrays before the next inference run. Without this, rapid successive
     // allocations can corrupt the V8 heap and trigger a SIGTRAP fatal assertion.
@@ -478,8 +501,11 @@ async function syncNewAndDeleted(idx: VaultIndex, pruneDeleted = true): Promise<
     }
     processed += 1;
     // Checkpoint every 50 notes: flush to disk so a crash mid-build preserves
-    // progress and keeps peak heap usage bounded.
-    if (processed % 50 === 0) saveIndex(idx);
+    // progress and keeps peak heap usage bounded. The generation check
+    // covers the window where the build was superseded while an embed was
+    // in flight: on resume the in-memory entry is written, and without the
+    // guard a checkpoint landing here would persist old-vault data.
+    if (processed % 50 === 0 && gen === buildGeneration) saveIndex(idx);
     if (total > 0) {
       emitProgress({
         type: "progress",
@@ -492,6 +518,13 @@ async function syncNewAndDeleted(idx: VaultIndex, pruneDeleted = true): Promise<
     }
   }
 
+  // Superseded mid-sync — discard the in-memory work entirely; the new
+  // generation's build owns the state machine and the progress channel.
+  // Return 0 (same as the loop-top check): callers re-check the generation
+  // before using the count, so a stale sync must never report progress as
+  // if it happened.
+  if (gen !== buildGeneration) return 0;
+
   // If the embedded count changed during an incremental sync (indexState already
   // "ready"), emit a fresh ready event so the tray reflects the new total without
   // requiring a restart.
@@ -503,7 +536,7 @@ async function syncNewAndDeleted(idx: VaultIndex, pruneDeleted = true): Promise<
   return paths.length;
 }
 
-async function fullReHash(idx: VaultIndex): Promise<void> {
+async function fullReHash(idx: VaultIndex, gen: number = buildGeneration): Promise<void> {
   if (isReHashing) return;
   isReHashing = true;
   try {
@@ -525,6 +558,9 @@ async function fullReHash(idx: VaultIndex): Promise<void> {
 
     // Re-embed changed files
     for (const p of paths) {
+      // Superseded (vault switch / clear) — stop re-embedding; the guard
+      // below prevents the stale index from being persisted.
+      if (gen !== buildGeneration) break;
       try {
         const content = await readNote(p);
         const hash = md5(content);
@@ -539,6 +575,9 @@ async function fullReHash(idx: VaultIndex): Promise<void> {
       }
     }
 
+    // Superseded while rehashing — do not persist the old vault's index into
+    // the current vault's cache file (getIndexPath() resolves at save time).
+    if (gen !== buildGeneration) return;
     idx.lastReHash = Date.now();
     saveIndex(idx);
   } finally {
@@ -564,6 +603,10 @@ export function getIndexStateForTesting(): "idle" | "building" | "ready" {
  * restarting the server process (Option A of the vault-change flow).
  */
 export function resetIndexForVaultChange(): void {
+  // Invalidate any in-flight build/sync/rehash FIRST: it will see the
+  // generation mismatch at its next checkpoint and abort before persisting,
+  // so it can never write old-vault data into the new vault's cache file.
+  buildGeneration += 1;
   liveIndex = null;
   indexState = "idle";
   emptyListRetries = 0;
@@ -591,6 +634,9 @@ export function handleControlCommand(command: "rebuild_index" | "clear_index"): 
 
   if (command === "clear_index") {
     if (indexState === "building") return; // already building — ignore
+    // Invalidate any in-flight soft rehash so it cannot save the old index
+    // over the cache we are about to delete and rebuild.
+    buildGeneration += 1;
     const cachePath = getIndexPath();
     try {
       if (fs.existsSync(cachePath)) fs.unlinkSync(cachePath);
@@ -611,6 +657,14 @@ export function getEmptyListRetriesForTesting(): number {
 
 function startBackgroundIndex(): void {
   if (indexState !== "idle") return; // singleton guard
+  // This build's generation. The reset/clear paths (resetIndexForVaultChange,
+  // the clear_index tool, the IPC control command) bump buildGeneration once
+  // to invalidate in-flight work, then call here — this ++ is the SECOND
+  // bump, and it names the new build itself. The async work below awaits for
+  // a long time (model load + per-note embeds); a vault switch or clear_index
+  // during that window bumps buildGeneration again, and every persistence /
+  // state / emit path below re-checks the generation before running.
+  const gen = ++buildGeneration;
   indexState = "building";
   emitProgress({ type: "state", state: "building" });
 
@@ -625,7 +679,12 @@ function startBackgroundIndex(): void {
         // manual rebuild), when Obsidian is verifiably active and the list is reliable.
         const previousTotal = Object.keys(idx.files).length;
         liveIndex = idx; // assign first so in-flight searches use stale data during sync
-        const vaultSize = await syncNewAndDeleted(idx, false);
+        const vaultSize = await syncNewAndDeleted(idx, false, gen);
+
+        // Superseded while awaiting (vault switch / clear_index) — the stale
+        // index must not touch the state machine (emptyListRetries, retry
+        // scheduling) or the on-disk file.
+        if (gen !== buildGeneration) return;
 
         // Guard: if Obsidian returned an empty list, it may not be ready yet.
         // Skip saveIndex — do NOT corrupt the on-disk file — reload from disk to
@@ -653,7 +712,10 @@ function startBackgroundIndex(): void {
         indexState = "ready";
       } else {
         // No cache yet: embed all notes before becoming ready.
-        await syncNewAndDeleted(idx);
+        await syncNewAndDeleted(idx, true, gen);
+        // Superseded while embedding (vault switch / clear_index) — the stale
+        // index must not be persisted into the new vault's cache file.
+        if (gen !== buildGeneration) return;
         idx.lastReHash = Date.now();
         saveIndex(idx);
         liveIndex = idx;
@@ -665,6 +727,10 @@ function startBackgroundIndex(): void {
         totalIndexed: countEmbeddedNotes(idx),
       });
     } catch (err) {
+      // A superseded build's failure is stale — the new generation's build
+      // owns error reporting and retry scheduling (a stale reset to "idle"
+      // would clobber it, and the scheduled retry would be a duplicate).
+      if (gen !== buildGeneration) return;
       // Build failed (e.g. Obsidian plugin not yet ready at startup).
       // Emit the error so the tray can show it, then reset to idle and retry
       // after 60 s — the plugin typically initialises within a minute of launch.
@@ -965,6 +1031,21 @@ export function registerSemanticTools(server: McpServer): void {
       dryRun: dryRunSchema,
     },
     async ({ dryRun }) => {
+      // The IPC control-command path (handleControlCommand) already guards
+      // against this — the tool path must too. Clearing mid-build would
+      // delete the in-flight build's checkpoint file AND start a second
+      // concurrent build (duplicate list + re-embed of everything).
+      if (indexState === "building") {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "Index build already in progress — clear_index is ignored while the index is being built. Try again once the build completes.",
+            },
+          ],
+        };
+      }
+
       const cachePath = getIndexPath();
       const exists = fs.existsSync(cachePath);
 
@@ -985,6 +1066,8 @@ export function registerSemanticTools(server: McpServer): void {
         if (exists) fs.unlinkSync(cachePath);
         liveIndex = null;
         indexState = "idle";
+        buildGeneration += 1; // invalidate any in-flight soft rehash
+        emptyListRetries = 0; // same reset semantics as the IPC control path
         startBackgroundIndex();
         return {
           content: [
