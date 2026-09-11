@@ -1,5 +1,46 @@
 import * as fs from "node:fs";
+import * as path from "node:path";
 import { config } from "./config.js";
+
+/**
+ * Resolves the configured CLI binary to a checkable path.
+ *
+ * A value containing a path separator is used as-is (absolute or
+ * CWD-relative). A BARE name (the documented default, `obsidian`) is checked
+ * CWD-relative first, then resolved by scanning `PATH` — the registry-based
+ * CLI install puts `obsidian` on PATH, so the default configuration must
+ * work from any working directory, not only from a cwd that happens to
+ * contain a file named `obsidian`.
+ *
+ * On Windows the PATH entries are also tried with `PATHEXT` extensions
+ * (`.exe`, `.cmd`, ...), matching shell resolution.
+ *
+ * When the binary cannot be found anywhere, the original name is returned
+ * so the caller's error message shows exactly what was configured.
+ */
+function resolveCliPath(bin: string): string {
+  if (bin.includes("/") || bin.includes("\\")) return bin;
+  if (fs.existsSync(bin)) return bin; // CWD-relative hit — existing behavior
+
+  const pathEnv = process.env.PATH ?? process.env.Path ?? "";
+  for (const dir of pathEnv.split(path.delimiter)) {
+    if (!dir) continue;
+    const candidates =
+      process.platform === "win32"
+        ? [
+            path.join(dir, bin),
+            ...(process.env.PATHEXT ?? ".exe")
+              .split(";")
+              .filter((ext) => ext.length > 0)
+              .map((ext) => path.join(dir, bin + ext)),
+          ]
+        : [path.join(dir, bin)];
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate)) return candidate;
+    }
+  }
+  return bin;
+}
 
 /**
  * Verifies the Obsidian CLI binary exists on disk before the server accepts
@@ -22,10 +63,17 @@ import { config } from "./config.js";
  *      it fails later at execFile with an opaque EACCES.
  */
 export async function runHealthCheck(): Promise<void> {
-  if (!fs.existsSync(config.cliBin)) {
+  // Bare CLI names are resolved via PATH before checking (see resolveCliPath);
+  // paths containing a separator are checked as-is.
+  const cliBin = resolveCliPath(config.cliBin);
+  const wasBareName = !config.cliBin.includes("/") && !config.cliBin.includes("\\");
+
+  if (!fs.existsSync(cliBin)) {
     process.stderr.write(
       `\n` +
-        `ERROR: Obsidian CLI binary not found at: ${config.cliBin}\n\n` +
+        `ERROR: Obsidian CLI binary not found at: ${config.cliBin}` +
+        (wasBareName ? " (searched CWD and PATH)" : "") +
+        `\n\n` +
         `Troubleshooting:\n` +
         `  1. Ensure Obsidian v1.8.9+ is installed.\n` +
         `  2. Enable the CLI: Settings → General → Command line interface → Register CLI\n` +
@@ -39,11 +87,11 @@ export async function runHealthCheck(): Promise<void> {
   // A directory would pass existsSync but fail at execFile time with an opaque
   // error (see cli.ts). On Windows this happens when OBSIDIAN_CLI_PATH is set to
   // the Obsidian install folder instead of Obsidian.exe.
-  if (!fs.statSync(config.cliBin).isFile()) {
+  if (!fs.statSync(cliBin).isFile()) {
     process.stderr.write(
       `\n` +
         `ERROR: OBSIDIAN_CLI_PATH points to a directory, not the Obsidian binary:\n` +
-        `       ${config.cliBin}\n\n` +
+        `       ${cliBin}\n\n` +
         `Set it to the executable file itself, for example:\n` +
         `  Windows: %LOCALAPPDATA%\\Programs\\Obsidian\\Obsidian.exe\n` +
         `  macOS:   /Applications/Obsidian.app/Contents/MacOS/obsidian\n\n`
@@ -57,13 +105,13 @@ export async function runHealthCheck(): Promise<void> {
   // is wrong for a permissions problem). X_OK is a no-op on Windows, where
   // executability is determined by file extension, so this only guards Unix.
   try {
-    fs.accessSync(config.cliBin, fs.constants.X_OK);
+    fs.accessSync(cliBin, fs.constants.X_OK);
   } catch {
     process.stderr.write(
       `\n` +
-        `ERROR: Obsidian CLI binary is not executable: ${config.cliBin}\n\n` +
+        `ERROR: Obsidian CLI binary is not executable: ${cliBin}\n\n` +
         `Fix the file permissions, for example:\n` +
-        `  chmod +x "${config.cliBin}"\n\n`
+        `  chmod +x "${cliBin}"\n\n`
     );
     process.exit(1);
   }

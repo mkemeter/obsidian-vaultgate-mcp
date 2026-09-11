@@ -1,5 +1,7 @@
 import type * as fs from "node:fs";
 import * as nodefs from "node:fs";
+import * as nodeOs from "node:os";
+import * as nodePath from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock the fs functions we exercise but keep the real `constants` object so that
@@ -114,5 +116,104 @@ describe("runHealthCheck", () => {
 
     stderrSpy.mockRestore();
     exitSpy.mockRestore();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PATH resolution — regression: bare CLI names must be resolved via PATH.
+//
+// The documented default (OBSIDIAN_CLI_PATH unset) is the bare CLI name
+// `obsidian`, which must be found by scanning PATH. runHealthCheck() used to
+// call fs.existsSync("obsidian") — a CWD-relative filesystem check — so the
+// default configuration failed from any cwd that did not happen to contain a
+// file named `obsidian`, contradicting the documented behavior.
+// ---------------------------------------------------------------------------
+
+describe("runHealthCheck — PATH resolution for bare CLI names", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  // regression (red until fixed): a bare CLI name that resolves to an
+  // executable on PATH must pass the health check instead of exiting 1.
+  //
+  // Fix-surface note: the fake CLI is a REAL executable file in a REAL temp
+  // dir prepended to the REAL PATH, so the test is forward-compatible with
+  // either resolution strategy — an fs-based PATH scan (the mocked
+  // existsSync/statSync fall through to the real fs for resolved paths) or a
+  // shell-based one (`which` / `command -v` bypass the mocks entirely and
+  // find the real file via the real PATH). The only contract pinned here is
+  // "the fix must consult PATH at all".
+  it("resolves without exiting when the bare CLI name is an executable on PATH", async () => {
+    const realFs = await vi.importActual<typeof import("node:fs")>("node:fs");
+    const dir = realFs.mkdtempSync(nodePath.join(nodeOs.tmpdir(), "vg-health-path-"));
+    const bin = nodePath.join(dir, "obsidian");
+    realFs.writeFileSync(bin, "#!/bin/sh\nexit 0\n", "utf-8");
+    realFs.chmodSync(bin, 0o755);
+
+    const origPath = process.env.PATH;
+    const origPathCase = process.env.Path;
+    process.env.PATH = `${dir}${nodePath.delimiter}${origPath ?? ""}`;
+    // Node treats env var names case-insensitively on Windows — keep both in sync.
+    process.env.Path = process.env.PATH;
+
+    try {
+      // The bare name does NOT exist CWD-relative; the on-PATH binary does.
+      mockExistsSync.mockImplementation((p: string) =>
+        p === "obsidian" ? false : realFs.existsSync(p)
+      );
+      mockStatSync.mockImplementation((p: string) =>
+        realFs.existsSync(p) ? realFs.statSync(p) : ({ isFile: () => false } as fs.Stats)
+      );
+      // accessSync keeps its default no-op (the real file is 0o755 anyway).
+
+      const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {}) as never);
+      await runHealthCheck();
+      expect(exitSpy).not.toHaveBeenCalled();
+      exitSpy.mockRestore();
+    } finally {
+      if (origPath === undefined) delete process.env.PATH;
+      else process.env.PATH = origPath;
+      if (origPathCase === undefined) delete process.env.Path;
+      else process.env.Path = origPathCase;
+      realFs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // green pin: a CLI absent from BOTH the cwd and PATH must still be rejected
+  // with exit code 1 — the PATH-resolution fix must not turn this into a pass.
+  //
+  // Fix-contract note: this pin asserts the error message contains
+  // "not found". Keep that substring in the fixed error text (e.g.
+  // "'obsidian' not found (checked CWD and PATH)"); if the wording changes,
+  // update this assertion alongside the fix.
+  it("still exits 1 with a not-found error when the CLI is on neither CWD nor PATH", async () => {
+    const realFs = await vi.importActual<typeof import("node:fs")>("node:fs");
+    const emptyDir = realFs.mkdtempSync(nodePath.join(nodeOs.tmpdir(), "vg-health-empty-"));
+    const origPath = process.env.PATH;
+    const origPathCase = process.env.Path;
+    process.env.PATH = emptyDir;
+    process.env.Path = emptyDir;
+
+    try {
+      mockExistsSync.mockReturnValue(false);
+      mockStatSync.mockReturnValue({ isFile: () => false } as fs.Stats);
+
+      const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+      const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {}) as never);
+
+      await runHealthCheck();
+
+      expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("not found"));
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      stderrSpy.mockRestore();
+      exitSpy.mockRestore();
+    } finally {
+      if (origPath === undefined) delete process.env.PATH;
+      else process.env.PATH = origPath;
+      if (origPathCase === undefined) delete process.env.Path;
+      else process.env.Path = origPathCase;
+      realFs.rmSync(emptyDir, { recursive: true, force: true });
+    }
   });
 });
