@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 import {
   appHeaderLabel,
   connectionUrl,
+  externalServerHeaderLabel,
   runningHeaderLabel,
   smartSearchLabel,
   smartSearchReadyNotificationBody,
@@ -35,6 +36,26 @@ describe("runningHeaderLabel", () => {
 
   it("falls back to 'Active vault' when no vault is configured (default = follow Obsidian)", () => {
     expect(runningHeaderLabel("")).toBe("● Running — Active vault");
+  });
+});
+
+describe("externalServerHeaderLabel", () => {
+  it("names the port and states the server is not managed by VaultGate", () => {
+    expect(externalServerHeaderLabel(3001)).toBe(
+      "● External server on port 3001 — not managed by VaultGate"
+    );
+  });
+
+  it("respects a custom port", () => {
+    expect(externalServerHeaderLabel(4242)).toBe(
+      "● External server on port 4242 — not managed by VaultGate"
+    );
+  });
+
+  it("is distinct from the managed running header", () => {
+    // The whole point (bug 5): the unmanaged state must not be readable as
+    // the managed "Running" state.
+    expect(externalServerHeaderLabel(3001)).not.toContain("Running");
   });
 });
 

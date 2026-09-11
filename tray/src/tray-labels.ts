@@ -44,6 +44,15 @@ export function runningHeaderLabel(vaultName: string): string {
   return `● Running — ${display}`;
 }
 
+/**
+ * Returns the header label for an adopted EXTERNAL server. Deliberately
+ * distinct from `runningHeaderLabel`: VaultGate cannot control this process
+ * (no child to stop/restart/message), so the label says so (bug 5).
+ */
+export function externalServerHeaderLabel(port: number): string {
+  return `● External server on port ${port} — not managed by VaultGate`;
+}
+
 /** Returns the stopped/error state header label. */
 export function stoppedHeaderLabel(state: ServerState, port?: number): string {
   switch (state) {

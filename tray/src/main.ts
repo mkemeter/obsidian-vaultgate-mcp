@@ -67,7 +67,11 @@ void app.whenReady().then(async () => {
 
 // Quit cleanly: stop the server, then let Electron tear down. ----------------
 app.on("before-quit", async (event) => {
-  if (serverManager.getState() === "stopped" || serverManager.getState() === "idle") return;
+  // "running-external": the external server is not ours — quit without
+  // interfering (stop() would be a logged no-op, and the process must keep
+  // running).
+  const quitState = serverManager.getState();
+  if (quitState === "stopped" || quitState === "idle" || quitState === "running-external") return;
   event.preventDefault();
   await serverManager.stop();
   app.exit(0);

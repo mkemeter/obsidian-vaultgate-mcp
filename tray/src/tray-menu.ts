@@ -24,6 +24,7 @@ import * as serverManager from "./server-manager.js";
 import {
   appHeaderLabel,
   connectionUrl as buildConnectionUrl,
+  externalServerHeaderLabel,
   runningHeaderLabel,
   smartSearchLabel,
   smartSearchReadyNotificationBody,
@@ -63,6 +64,7 @@ function connectionUrl(): string {
 function buildMenu(): Menu {
   const state = serverManager.getState();
   const isRunning = state === "running";
+  const isExternal = state === "running-external";
   const items: MenuItemConstructorOptions[] = [];
 
   const copyUrlItem: MenuItemConstructorOptions = {
@@ -104,6 +106,19 @@ function buildMenu(): Menu {
         },
       ],
     });
+  } else if (isExternal) {
+    // Adopted external server (bug 5): read-only controls. Stop is disabled —
+    // we have no child process to stop, and killing the external process
+    // would be destructive — and the smart-search row is omitted because we
+    // have no index-progress channel to an unmanaged server.
+    items.push({
+      label: externalServerHeaderLabel(loadConfig().port),
+      submenu: [
+        copyUrlItem,
+        { label: "Stop", enabled: false },
+        { label: "External server — not managed by VaultGate", enabled: false },
+      ],
+    });
   } else {
     const canStart =
       state !== "starting" && state !== "obsidian-missing" && state !== "port-conflict";
@@ -140,7 +155,9 @@ function rebuildMenu(): void {
 function updateTooltip(): void {
   if (!tray) return;
   const state = serverManager.getState();
-  if (state === "running") {
+  // The connection URL is valid for an external server too — clients can
+  // still connect, so show it (just as we do for a managed running server).
+  if (state === "running" || state === "running-external") {
     tray.setToolTip(`VaultGate — ${connectionUrl()}`);
   } else {
     tray.setToolTip("VaultGate");

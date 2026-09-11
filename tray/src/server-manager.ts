@@ -19,11 +19,20 @@ import * as path from "node:path";
 import { app, type UtilityProcess, utilityProcess } from "electron";
 import { loadConfig } from "./config-store.js";
 
-/** High-level state of the server lifecycle (drives tray menu rendering). */
+/**
+ * High-level state of the server lifecycle (drives tray menu rendering).
+ *
+ * `running-external`: a VaultGate server is serving on the configured port,
+ * but it was NOT started by this tray instance (detected and adopted by
+ * `start()`). It is unmanaged: Stop/Restart/vault/injection/index commands
+ * cannot reach it (no child process), so the UI must say so instead of
+ * implying control.
+ */
 export type ServerState =
   | "idle"
   | "starting"
   | "running"
+  | "running-external"
   | "error"
   | "stopped"
   | "port-conflict"
@@ -62,6 +71,14 @@ let rapidCrashCount = 0;
 let lastStartedAt = 0;
 let restartTimer: NodeJS.Timeout | undefined;
 let logStream: fs.WriteStream | undefined;
+/**
+ * Start-epoch counter. Each start() attempt consumes a fresh epoch. The
+ * block after `await waitForHealthy()` in start() runs long after the await
+ * and can be superseded by a later stop()+start() (e.g. the user changes the
+ * port while the first /health poll is still in flight) — a superseded
+ * attempt must not flip the state of a lifecycle it no longer owns (bug 7).
+ */
+let startEpoch = 0;
 const emitter = new EventEmitter();
 
 /** Resolves the path to the bundled server entry — different in dev vs packaged. */
@@ -184,7 +201,14 @@ async function waitForHealthy(port: number): Promise<boolean> {
  *   5. Poll `/health` until the listener is up
  */
 export async function start(): Promise<void> {
-  if (state === "running" || state === "starting") return;
+  // "running-external" is idempotent too: we already adopted an external
+  // server — starting again would not give us any more control over it.
+  if (state === "running" || state === "starting" || state === "running-external") return;
+
+  // This attempt's epoch. The block after `await waitForHealthy()` below
+  // runs long after the await and may be superseded by a later stop()+start()
+  // — a stale attempt must not flip the newer lifecycle's state (bug 7).
+  const epoch = ++startEpoch;
 
   setState("starting");
   const config = loadConfig();
@@ -198,8 +222,13 @@ export async function start(): Promise<void> {
   // ---- pre-flight: check what's on this port --------------------------------
   const portProbe = await checkHealth(config.port);
   if (portProbe === "vaultgate") {
-    log(`reusing existing VaultGate server on port ${config.port}`);
-    setState("running");
+    // Another VaultGate instance is already serving this port. We adopt it
+    // for read-only use (status + copy URL) but do NOT manage it: with no
+    // child process, Stop/Restart/vault/injection/index commands cannot reach
+    // it. The honest state is "running-external" (bug 5) — the UI shows
+    // disabled controls and a Preferences warning instead of implying control.
+    log(`reusing existing VaultGate server on port ${config.port} (unmanaged — running-external)`);
+    setState("running-external");
     return;
   }
   if (portProbe === "other") {
@@ -290,6 +319,11 @@ export async function start(): Promise<void> {
 
   // ---- wait for HTTP listener to come up -----------------------------------
   const ready = await waitForHealthy(config.port);
+  // Superseded while polling: a later stop()+start() owns the lifecycle now.
+  // The old fork was already handled by that stop (killed + exit observed);
+  // its stale timeout must not flip the newer state to "error" or kill a
+  // process it does not own (bug 7).
+  if (epoch !== startEpoch) return;
   if (!ready) {
     log("server failed to become healthy within timeout");
     setState("error");
@@ -314,6 +348,13 @@ export async function stop(): Promise<void> {
     restartTimer = undefined;
   }
   if (!child) {
+    // External (unmanaged) server: there is no process of ours to stop, and
+    // the external process is still serving — flipping to "stopped" would
+    // lie, and the kill logic below must not run either (bug 5).
+    if (state === "running-external") {
+      log("stop ignored — external server on this port is not managed by VaultGate");
+      return;
+    }
     setState("stopped");
     return;
   }

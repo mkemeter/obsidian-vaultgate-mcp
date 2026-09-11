@@ -15,6 +15,7 @@
         --accent-dark: #7c3aed;
         --success: #10b981;
         --error: #ef4444;
+        --warning: #f59e0b;
       }
       @media (prefers-color-scheme: dark) {
         :root {
@@ -59,9 +60,18 @@
         transition: background 0.2s;
       }
       .status-dot[data-state="running"] { background: var(--success); }
+      .status-dot[data-state="running-external"] { background: var(--warning); }
       .status-dot[data-state="error"],
       .status-dot[data-state="port-conflict"],
       .status-dot[data-state="obsidian-missing"] { background: var(--error); }
+      .external-warning {
+        margin-bottom: 16px;
+        padding: 8px 10px;
+        border: 1px solid var(--warning);
+        border-radius: 6px;
+        font-size: 12px;
+        line-height: 1.45;
+      }
       label {
         display: block;
         margin: 10px 0 4px;
@@ -183,6 +193,13 @@
     <div class="status-bar">
       <span id="status-dot" class="status-dot" data-state="loading"></span>
       <h1>VaultGate</h1>
+    </div>
+
+    <div id="external-warning" class="external-warning" hidden>
+      <strong>External server detected.</strong> A VaultGate server that VaultGate
+      does not control is using this port. Stop, Restart, vault, injection, and
+      index changes will not reach it — stop that instance (or change the port)
+      to manage the server from here.
     </div>
 
     <label for="vault">Vault</label>

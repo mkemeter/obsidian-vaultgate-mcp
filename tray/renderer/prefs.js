@@ -61,6 +61,10 @@
   const dot = document.getElementById("status-dot");
   if (dot) dot.dataset.state = serverState ?? "loading";
 
+  // External (unmanaged) server — warn that controls won't reach it (bug 5).
+  const externalWarning = document.getElementById("external-warning");
+  if (externalWarning) externalWarning.hidden = serverState !== "running-external";
+
   // Port validation ------------------------------------------------------------
   let portCheckTimer = null;
 
