@@ -96,7 +96,18 @@ async function startHttp(): Promise<void> {
         return;
       }
 
-      const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
+      // A malformed Host header (or request target) makes new URL() throw.
+      // Inside an async request handler that becomes an unhandled rejection
+      // and takes down the whole process — any client or scanner that sends
+      // e.g. `Host: bad host` would crash the server. Reject instead.
+      let url: URL;
+      try {
+        url = new URL(req.url ?? "/", `http://${req.headers.host}`);
+      } catch {
+        res.writeHead(400, { "Content-Type": "text/plain" });
+        res.end("Bad Request: malformed request target or Host header");
+        return;
+      }
 
       // --- Liveness probe ------------------------------------------------------
       if (req.method === "GET" && url.pathname === "/health") {
