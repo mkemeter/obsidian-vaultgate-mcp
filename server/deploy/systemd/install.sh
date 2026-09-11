@@ -73,11 +73,17 @@ read -rp "Vault name (leave blank to use last focused vault): " VAULT_NAME
 # --- Write service file --------------------------------------------------------
 mkdir -p "$(dirname "$SERVICE_FILE")"
 
+# systemd splits UNQUOTED ExecStart values on whitespace, and Environment=
+# values containing spaces must be double-quoted — quote every path.
 if [[ -n "$VAULT_NAME" ]]; then
-  VAULT_ENV="Environment=OBSIDIAN_VAULT=${VAULT_NAME}"
+  VAULT_ENV="Environment=OBSIDIAN_VAULT=\"${VAULT_NAME}\""
 else
   VAULT_ENV="# OBSIDIAN_VAULT not set — uses last focused vault"
 fi
+# Known limitation: VAULT_NAME is interpolated verbatim into the unit file,
+# so a vault name containing a double quote or backslash would malform the
+# Environment= line. Rare; tracked as a follow-up (mirrors the sed
+# limitation documented in launchd/install.sh).
 
 cat > "$SERVICE_FILE" << EOF
 [Unit]
@@ -85,8 +91,8 @@ Description=VaultGate MCP server
 After=graphical-session.target
 
 [Service]
-ExecStart=${NODE_PATH} ${MCP_SCRIPT}
-Environment=OBSIDIAN_CLI_PATH=${OBSIDIAN_PATH}
+ExecStart="${NODE_PATH}" "${MCP_SCRIPT}"
+Environment=OBSIDIAN_CLI_PATH="${OBSIDIAN_PATH}"
 ${VAULT_ENV}
 Environment=OBSIDIAN_MCP_TRANSPORT=http
 Restart=on-failure

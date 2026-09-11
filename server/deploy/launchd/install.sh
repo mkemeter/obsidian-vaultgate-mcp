@@ -47,8 +47,11 @@ if [[ -z "$MCP_PATH" ]]; then
   echo "  Run: npm install -g obsidian-vaultgate-mcp"
   exit 1
 fi
-# Resolve the actual script path (the bin entry is a JS file, not a shell wrapper)
-MCP_SCRIPT=$(node -e "const fs=require('fs'); const p='$MCP_PATH'; try { const t=fs.readlinkSync(p); console.log(require('path').resolve(require('path').dirname(p),t)); } catch { console.log(p); }")
+# Resolve the actual script path (the bin entry is a JS file, not a shell wrapper).
+# The path is passed via the environment, NOT interpolated into the JS source —
+# a single quote in the path (e.g. /Users/O'Brien/...) would break a single-
+# quoted JS string literal and abort the installer under `set -e`.
+MCP_SCRIPT=$(MCP_PATH="$MCP_PATH" node -e "const fs=require('fs'); const p=process.env.MCP_PATH; try { const t=fs.readlinkSync(p); console.log(require('path').resolve(require('path').dirname(p),t)); } catch { console.log(p); }")
 echo "obsidian-vaultgate-mcp: $MCP_SCRIPT"
 
 # --- Detect obsidian CLI binary ------------------------------------------------
@@ -75,6 +78,9 @@ read -rp "Vault name (leave blank to use last focused vault): " VAULT_NAME
 # --- Fill template -------------------------------------------------------------
 mkdir -p "$LAUNCH_AGENTS_DIR"
 
+# Known limitation: sed replacement is not safe for paths containing the
+# replacement delimiter "|", "&", or "\". Install paths with those characters
+# are rare; tracked as a follow-up (env-var-based substitution would fix it).
 SED_ARGS=(
   -e "s|__NODE_PATH__|$NODE_PATH|g"
   -e "s|__OBSIDIAN_CLI_MCP_PATH__|$MCP_SCRIPT|g"
