@@ -25,12 +25,16 @@ vi.mock("../../src/cli.js", () => ({ runObsidian: vi.fn().mockResolvedValue("") 
 import { createServer } from "../../src/server.js";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 
+// zod >= 4.6 serialises z.union([z.boolean(), z.string()]) as
+// `type: ["boolean", "string"]` (previously `anyOf: [{...}, {...}]`).
+// The two forms are semantically identical for clients — what this
+// contract pins is that the union still accepts boolean or string.
 const DRY_RUN_SCHEMA = {
-  anyOf: [{ type: "boolean" }, { type: "string" }],
+  type: ["boolean", "string"],
 } as const;
 
 const OPTIONAL_BOOL_SCHEMA = {
-  anyOf: [{ type: "boolean" }, { type: "string" }],
+  type: ["boolean", "string"],
 } as const;
 
 describe("MCP tool schema contracts", () => {
