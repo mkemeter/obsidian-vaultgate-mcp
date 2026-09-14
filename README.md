@@ -270,7 +270,7 @@ $env:OBSIDIAN_VAULT = "My Vault"; obsidian-vaultgate-mcp
 ```
 
 ```
-✓ VaultGate running at http://127.0.0.1:3001
+✓ obsidian-vaultgate-mcp running at http://127.0.0.1:3001
   Streamable HTTP: POST http://127.0.0.1:3001/mcp
   SSE (legacy):    GET  http://127.0.0.1:3001/sse
   Health:          GET  http://127.0.0.1:3001/health
@@ -309,7 +309,7 @@ Add to `~/.claude/settings.json`:
 Claude Code manages the process lifecycle via stdio — no separate startup needed. Omit `env` if you only have one vault.
 
 > [!NOTE]
-> **Windows users:** You must also set `OBSIDIAN_CLI_PATH` to the absolute path of `Obsidian.exe`. Claude Code runs in an environment where `PATH` differs from your shell, so the bare `obsidian` default won't resolve.
+> **Windows users:** You must also set `OBSIDIAN_CLI_PATH` to the absolute path of `Obsidian.exe`. Claude Code runs in an environment where `PATH` differs from your shell, so the bare `obsidian` default may not resolve there.
 >
 > ```json
 > "env": {
@@ -451,7 +451,7 @@ The embedding model (`all-MiniLM-L6-v2`, ~23 MB) downloads once to `~/.cache/hug
 ### Troubleshooting
 
 **`command not found: obsidian-vaultgate-mcp`**
-The npm global bin directory is not on `PATH`. Run `npm bin -g` to find it, then add to your shell profile. Or invoke via `npx obsidian-vaultgate-mcp`.
+The npm global bin directory is not on `PATH`. Run `npm prefix -g` to find the install root (the executable lives in `<prefix>/bin`), then add that to your shell profile. Or invoke via `npx obsidian-vaultgate-mcp`.
 
 **`command not found: obsidian` (the CLI binary)**
 The CLI has not been registered. See [Register the Obsidian CLI](#1-register-the-obsidian-cli) above.
@@ -475,7 +475,7 @@ This is intentional — these tools are designed to hand work off to you in the 
 Install `xdg-utils` via your package manager (e.g. `sudo apt install xdg-utils`) to enable URI dispatch.
 
 **Windows: VaultGate exits immediately with "Obsidian binary not found" (Claude Code)**
-The health check uses a file-existence test, not a `PATH` search — so the bare default `obsidian` never resolves on Windows, even if Obsidian is on your `PATH`. You must set `OBSIDIAN_CLI_PATH` explicitly in your Claude Code settings. See the [Windows note in the Claude Code section](#claude-code) above for the exact JSON to add.
+The health check resolves the bare default `obsidian` via `PATH` (including `PATHEXT`), but Claude Code runs in an environment where `PATH` differs from your shell. If Obsidian is not on that `PATH`, set `OBSIDIAN_CLI_PATH` explicitly in your Claude Code settings. See the [Windows note in the Claude Code section](#claude-code) above for the exact JSON to add.
 
 **Windows: server works in the terminal but stops when running on battery power**
 The Task Scheduler task is configured to stop on battery by default. To fix: open **Task Scheduler** → find the `VaultGate` task → **Properties → Conditions** tab → uncheck **"Stop if the computer switches to battery power"**. Re-run the installer to get this fixed automatically.
@@ -571,7 +571,7 @@ On first launch VaultGate will:
 
 1. **Auto-detect Obsidian.** It probes the standard install path (`/Applications/Obsidian.app/Contents/MacOS/obsidian`).
 2. **Auto-detect your vault.** It reads Obsidian's `obsidian.json` to enumerate registered vaults. If exactly one vault is registered, that one is selected silently. If multiple vaults exist, the active one is used (you can pin a specific vault from Preferences).
-3. **Start the bundled MCP server.** The default URL is `http://127.0.0.1:3001/mcp`; VaultGate picks the next free port if 3001 is already in use.
+3. **Start the bundled MCP server.** The default URL is `http://127.0.0.1:3001/mcp`. If another VaultGate instance already serves that port, VaultGate **adopts it** and marks it as an external, unmanaged server (see [External servers](#external-servers)). If a *different* service owns the port, VaultGate reports **port in use** — pick a different port in **Preferences**.
 4. **Begin indexing** for Smart Search in the background. The tray menu shows "○ Building index (N/M)…" while this runs, then flips to "✓ Smart search ready — N notes". A native notification fires once when this completes.
 
 If anything goes wrong, the tray icon menu surfaces the failure mode:
@@ -580,7 +580,8 @@ If anything goes wrong, the tray icon menu surfaces the failure mode:
 |------------|------------|
 | `○ Obsidian not found` | Click **Preferences…** and use **Browse…** to locate Obsidian's binary. |
 | `○ Obsidian CLI not registered` | In Obsidian: **Settings → General → Command line interface → Register CLI**, then click **Start** in the tray menu. |
-| `○ Error — port in use` | Open **Preferences…** and change the port (default `3001`). Common conflicts: another VaultGate instance, a different MCP server. |
+| `○ Error — port in use` | Open **Preferences…** and change the port (default `3001`). Common conflicts: a different MCP server, or a VaultGate instance VaultGate doesn't manage (see [External servers](#external-servers)). |
+| `● External server on port N` | Another VaultGate is serving this port. Status and connection URL are shown, but Stop, Restart, and index actions are disabled — see [External servers](#external-servers). |
 | `○ Error — server crashed` | Click **Open Logs…** and inspect the bottom of the file. The server retries with exponential backoff (1s → 2s → 4s) for up to three rapid crashes, then gives up. |
 
 ### Connect an AI client
@@ -605,7 +606,17 @@ Opens via the tray menu → **Preferences…**.
 | **Obsidian binary** | Auto-detected; override with **Browse…** if your install lives in a non-standard location. |
 | **Open VaultGate at login** | Native macOS login-item registration (System Settings → General → Login Items). |
 
-Saving any change **restarts the server** so the new settings take effect immediately.
+Saving any change **restarts the server** so the new settings take effect immediately. Exception: if an external, unmanaged server is using the port, VaultGate cannot restart it — a warning is shown instead (see [External servers](#external-servers)).
+
+### External servers
+
+If the port VaultGate would use is already served by **another VaultGate instance** (for example one you started by hand with `npm run dev`, or a packaged server from an earlier launch), VaultGate **adopts it** instead of starting a second server:
+
+- The tray menu header reads `● External server on port N — not managed by VaultGate`. Status and the connection URL are still shown, but **Stop**, **Restart**, and the index actions are disabled.
+- **Preferences** shows an "External server detected" warning: changes saved there will not reach the external process.
+- **Quit** leaves the external server running — only a server VaultGate started itself receives `SIGTERM`.
+
+To take the port back, stop the external instance, or pick a different port in **Preferences**.
 
 ### Smart Search
 

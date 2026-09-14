@@ -292,7 +292,7 @@ Rules:
 ### 3. Update `BASE_TOOL_COUNT` in `src/server.ts`
 
 ```typescript
-export const BASE_TOOL_COUNT = 32; // was 31
+export const BASE_TOOL_COUNT = 35; // was 34
 ```
 
 The integration test `server.test.ts` asserts the actual registered tool count equals `BASE_TOOL_COUNT` (or `BASE_TOOL_COUNT + SEMANTIC_TOOL_COUNT` when `@xenova/transformers` is available) — it will fail if you forget to update it.
@@ -445,9 +445,9 @@ Enforced in `vitest.config.ts` for both `server/` and `tray/`:
 
 | Metric | Threshold |
 |--------|-----------|
-| Lines | 90% |
-| Functions | 90% |
-| Branches | 85% |
+| Lines | 95% |
+| Functions | 95% |
+| Branches | 90% |
 
 `npm run test:coverage` will exit non-zero if any threshold is not met.
 The most common cause of coverage gaps is an uncovered `catch` block — add an
@@ -544,7 +544,7 @@ The repository also hosts an Electron tray companion app under [`tray/`](../tray
 
 ### What the tray app is
 
-A small Electron 35 app that:
+A small Electron 44 app that:
 
 1. Forks the existing `obsidian-vaultgate-mcp` server as a child process via `utilityProcess.fork()`.
 2. Renders a system-tray icon and context menu reflecting server state and the semantic-index lifecycle.
@@ -595,7 +595,7 @@ companion and must stay releasable.
 
 - The tray app does **not** affect `npm publish` — the `server/package.json` `"files"` allowlist excludes `tray/`.
 - A separate CI workflow ([`.github/workflows/tray.yml`](../.github/workflows/tray.yml)) builds tray artifacts and is path-filtered to `tray/**` — it never blocks npm releases.
-- Both `server/package.json` and `tray/package.json` always share the same version number. A single `v*` tag (e.g. `v0.2.0`) triggers both the npm publish workflow and the tray DMG release. Bump both together using the root `VERSION` file and `node scripts/sync-version.js`.
+- Both `server/package.json` and `tray/package.json` always share the same version number. A single `v*` tag (e.g. `v0.2.0`) triggers both the npm publish workflow and the tray DMG release. Release notes are auto-generated from commit messages unless you replace them with meaningful prose after the tag push (the tray workflow uploads the DMG to whatever release exists for the tag). Bump both together using the root `VERSION` file and `node scripts/sync-version.js`.
 - `node scripts/sync-version.js` also propagates the version into the root [`server.json`](../server.json) — the MCP registry manifest (top-level `version` **and** `packages[0].version`). Never hand-edit those; edit `VERSION` and run the sync.
 
 ### Dev setup
@@ -620,7 +620,7 @@ npm install
 
 `@xenova/transformers` is a hard dependency for the tray app (the model is bundled, not fetched at runtime). Native addons (`onnxruntime-node`, `sharp`) are recompiled against Electron's Node ABI by `@electron/rebuild` automatically as a postinstall step.
 
-Pre-fetch the embedding model into `assets/models/` (one-time, ~34 MB):
+Pre-fetch the embedding model into `assets/models/` (one-time, ~23 MB):
 
 ```bash
 npm run download-models
@@ -765,7 +765,7 @@ esbuild was tried and removed — `zod`, `@xenova/transformers`, and `onnxruntim
 
 ### Testing patterns
 
-Coverage thresholds for `tray/` are the same as `server/`: **lines ≥ 90%, functions ≥ 90%, branches ≥ 85%**.
+Coverage thresholds for `tray/` are the same as `server/`: **lines ≥ 95%, functions ≥ 95%, branches ≥ 90%**.
 
 Five files are excluded from coverage gating — each with a concrete justification, not a slack budget:
 
@@ -775,11 +775,11 @@ Five files are excluded from coverage gating — each with a concrete justificat
 | `preload.ts` | `contextBridge.exposeInMainWorld` wiring. Each bridge property is `(args) => ipcRenderer.invoke('prefs:X', args)`. A test would only verify the channel name on each invoke — a tautology that locks the test to its implementation. |
 | `prefs-window.ts` | Registers `ipcMain.handle` for 7 channels, each wrapping a function already tested by `config-store.test.ts` / `autostart.test.ts`. The marginal value of testing thin wrappers around tested code does not justify the mock surface. |
 | `tray-menu.ts` | Pure label generators were extracted to `tray-labels.ts` and have full coverage. What remains is `new Tray(…)`, `Menu.buildFromTemplate`, and click handlers that delegate to other tested modules. Mocking Electron's `Menu`/`Tray` to assert on the items array would lock tests to the exact menu structure. |
-| `server-manager.ts` | `utilityProcess.fork()` lifecycle + `MessageChannelMain` IPC + crash-restart timer. Mocking Electron's IPC accurately enough to exercise crash recovery requires an extensive mock surface that itself becomes a maintenance burden. The 11 unit tests in `server-manager.test.ts` cover the public state-machine surface (pre-flight failures, idempotent start, on/off subscription). The fork internals are verified via `npm run dev`. |
+| `server-manager.ts` | `utilityProcess.fork()` lifecycle + `MessageChannelMain` IPC + crash-restart timer. Mocking Electron's IPC accurately enough to exercise crash recovery requires an extensive mock surface that itself becomes a maintenance burden. The 15 unit tests in `server-manager.test.ts` cover the public state-machine surface (pre-flight failures, idempotent start, on/off subscription). The fork internals are verified via `npm run dev`. |
 
 In every case, breakage is **immediately visible during dev mode**: tray icon doesn't appear, menu items missing, server doesn't start, prefs dialog won't open. The risk profile is "fails noisily in five seconds" rather than "silent regression in production".
 
-Where logic was extractable into pure functions, it **was** extracted: `auto-detect.ts` (5 tests) and `tray-labels.ts` (23 tests) carry the full coverage burden for what would otherwise be uncovered behaviour.
+Where logic was extractable into pure functions, it **was** extracted: `auto-detect.ts` (5 tests) and `tray-labels.ts` (32 tests) carry the full coverage burden for what would otherwise be uncovered behaviour.
 
 #### ESM module mocking
 

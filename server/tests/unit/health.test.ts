@@ -216,4 +216,235 @@ describe("runHealthCheck — PATH resolution for bare CLI names", () => {
       realFs.rmSync(emptyDir, { recursive: true, force: true });
     }
   });
+
+  // ---------------------------------------------------------------------------
+  // Platform/edge-branch coverage for resolveCliPath(). The global
+  // branch-coverage gate runs per-platform in CI (windows + ubuntu), so every
+  // branch outcome must be exercised on every platform — win32-specific
+  // branches are covered here by stubbing process.platform.
+  // ---------------------------------------------------------------------------
+
+  it("uses slash paths as-is without CWD or PATH search", async () => {
+    const realFs = await vi.importActual<typeof import("node:fs")>("node:fs");
+    const { config } = await import("../../src/config.js");
+    const dir = realFs.mkdtempSync(nodePath.join(nodeOs.tmpdir(), "vg-health-abs-"));
+    const bin = nodePath.join(dir, "obsidian");
+    realFs.writeFileSync(bin, "#!/bin/sh\nexit 0\n", "utf-8");
+    realFs.chmodSync(bin, 0o755);
+
+    config.cliBin = bin;
+    try {
+      mockExistsSync.mockImplementation((p: string) => realFs.existsSync(p));
+      mockStatSync.mockImplementation((p: string) =>
+        realFs.existsSync(p) ? realFs.statSync(p) : ({ isFile: () => false } as fs.Stats)
+      );
+      const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {}) as never);
+      await runHealthCheck();
+      expect(exitSpy).not.toHaveBeenCalled();
+      expect(mockExistsSync).toHaveBeenCalledWith(bin);
+      exitSpy.mockRestore();
+    } finally {
+      config.cliBin = "obsidian";
+      realFs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("treats backslash paths as paths and omits the bare-name PATH hint", async () => {
+    const { config } = await import("../../src/config.js");
+    config.cliBin = "C:\\Program Files\\Obsidian\\Obsidian.exe";
+    mockExistsSync.mockReturnValue(false);
+    mockStatSync.mockReturnValue({ isFile: () => true } as fs.Stats);
+
+    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {}) as never);
+    try {
+      await runHealthCheck();
+    } finally {
+      config.cliBin = "obsidian";
+    }
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    const all = stderrSpy.mock.calls.map((c) => String(c[0])).join("\n");
+    expect(all).toContain("not found at: C:\\Program Files\\Obsidian\\Obsidian.exe");
+    expect(all).not.toContain("searched CWD and PATH");
+
+    stderrSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it("falls back to the Path env var when PATH is unset", async () => {
+    const realFs = await vi.importActual<typeof import("node:fs")>("node:fs");
+    const dir = realFs.mkdtempSync(nodePath.join(nodeOs.tmpdir(), "vg-health-pathcase-"));
+    const bin = nodePath.join(dir, "obsidian");
+    realFs.writeFileSync(bin, "#!/bin/sh\nexit 0\n", "utf-8");
+    realFs.chmodSync(bin, 0o755);
+
+    const origPath = process.env.PATH;
+    const origPathCase = process.env.Path;
+    delete process.env.PATH;
+    process.env.Path = dir;
+
+    try {
+      mockExistsSync.mockImplementation((p: string) =>
+        p === "obsidian" ? false : realFs.existsSync(p)
+      );
+      mockStatSync.mockImplementation((p: string) =>
+        realFs.existsSync(p) ? realFs.statSync(p) : ({ isFile: () => false } as fs.Stats)
+      );
+      const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {}) as never);
+      await runHealthCheck();
+      expect(exitSpy).not.toHaveBeenCalled();
+      exitSpy.mockRestore();
+    } finally {
+      if (origPath === undefined) delete process.env.PATH;
+      else process.env.PATH = origPath;
+      if (origPathCase === undefined) delete process.env.Path;
+      else process.env.Path = origPathCase;
+      realFs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("treats a missing PATH and Path env as an empty search space", async () => {
+    const origPath = process.env.PATH;
+    const origPathCase = process.env.Path;
+    delete process.env.PATH;
+    delete process.env.Path;
+
+    mockExistsSync.mockReturnValue(false);
+    mockStatSync.mockReturnValue({ isFile: () => true } as fs.Stats);
+
+    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {}) as never);
+    try {
+      await runHealthCheck();
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      const all = stderrSpy.mock.calls.map((c) => String(c[0])).join("\n");
+      expect(all).toContain("(searched CWD and PATH)");
+    } finally {
+      if (origPath === undefined) delete process.env.PATH;
+      else process.env.PATH = origPath;
+      if (origPathCase === undefined) delete process.env.Path;
+      else process.env.Path = origPathCase;
+      stderrSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
+  });
+
+  it("resolves via PATHEXT candidates when the platform is win32", async () => {
+    const realFs = await vi.importActual<typeof import("node:fs")>("node:fs");
+    const dir = realFs.mkdtempSync(nodePath.join(nodeOs.tmpdir(), "vg-health-pathtxt-"));
+    // The bare name exists only with a PATHEXT extension — the candidate that
+    // must hit is dir/obsidian.EXE, not dir/obsidian.
+    realFs.writeFileSync(nodePath.join(dir, "obsidian.EXE"), "fake", "utf-8");
+
+    const origPlatform = process.platform;
+    const origPatheExt = process.env.PATHEXT;
+    const origPath = process.env.PATH;
+    const origPathCase = process.env.Path;
+    Object.defineProperty(process, "platform", { value: "win32", configurable: true });
+    // The empty segment between the two extensions exercises the filter's
+    // false branch (a PATHEXT with a stray semicolon).
+    process.env.PATHEXT = ".EXE;;.CMD";
+    process.env.PATH = dir;
+    process.env.Path = dir;
+
+    try {
+      mockExistsSync.mockImplementation((p: string) =>
+        p === "obsidian" ? false : realFs.existsSync(p)
+      );
+      mockStatSync.mockImplementation((p: string) =>
+        realFs.existsSync(p) ? realFs.statSync(p) : ({ isFile: () => false } as fs.Stats)
+      );
+      const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {}) as never);
+      await runHealthCheck();
+      expect(exitSpy).not.toHaveBeenCalled();
+      expect(mockExistsSync).toHaveBeenCalledWith(nodePath.join(dir, "obsidian.EXE"));
+      exitSpy.mockRestore();
+    } finally {
+      Object.defineProperty(process, "platform", { value: origPlatform, configurable: true });
+      if (origPatheExt === undefined) delete process.env.PATHEXT;
+      else process.env.PATHEXT = origPatheExt;
+      if (origPath === undefined) delete process.env.PATH;
+      else process.env.PATH = origPath;
+      if (origPathCase === undefined) delete process.env.Path;
+      else process.env.Path = origPathCase;
+      realFs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("defaults to .exe candidates when PATHEXT is unset (win32 platform)", async () => {
+    const realFs = await vi.importActual<typeof import("node:fs")>("node:fs");
+    const dir = realFs.mkdtempSync(nodePath.join(nodeOs.tmpdir(), "vg-health-pathtxt-dflt-"));
+    realFs.writeFileSync(nodePath.join(dir, "obsidian.exe"), "fake", "utf-8");
+
+    const origPlatform = process.platform;
+    const origPatheExt = process.env.PATHEXT;
+    const origPath = process.env.PATH;
+    const origPathCase = process.env.Path;
+    Object.defineProperty(process, "platform", { value: "win32", configurable: true });
+    delete process.env.PATHEXT;
+    process.env.PATH = dir;
+    process.env.Path = dir;
+
+    try {
+      mockExistsSync.mockImplementation((p: string) =>
+        p === "obsidian" ? false : realFs.existsSync(p)
+      );
+      mockStatSync.mockImplementation((p: string) =>
+        realFs.existsSync(p) ? realFs.statSync(p) : ({ isFile: () => false } as fs.Stats)
+      );
+      const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {}) as never);
+      await runHealthCheck();
+      expect(exitSpy).not.toHaveBeenCalled();
+      expect(mockExistsSync).toHaveBeenCalledWith(nodePath.join(dir, "obsidian.exe"));
+      exitSpy.mockRestore();
+    } finally {
+      Object.defineProperty(process, "platform", { value: origPlatform, configurable: true });
+      if (origPatheExt === undefined) delete process.env.PATHEXT;
+      else process.env.PATHEXT = origPatheExt;
+      if (origPath === undefined) delete process.env.PATH;
+      else process.env.PATH = origPath;
+      if (origPathCase === undefined) delete process.env.Path;
+      else process.env.Path = origPathCase;
+      realFs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("uses bare candidates (no extensions) when the platform is not win32", async () => {
+    // Runs on every CI platform: stubbing to "linux" covers the non-win32
+    // candidate branch on Windows CI, while the win32 stubs above cover the
+    // opposite side on Linux/macOS CI.
+    const realFs = await vi.importActual<typeof import("node:fs")>("node:fs");
+    const dir = realFs.mkdtempSync(nodePath.join(nodeOs.tmpdir(), "vg-health-posix-"));
+    const bin = nodePath.join(dir, "obsidian");
+    realFs.writeFileSync(bin, "fake", "utf-8");
+
+    const origPlatform = process.platform;
+    const origPath = process.env.PATH;
+    const origPathCase = process.env.Path;
+    Object.defineProperty(process, "platform", { value: "linux", configurable: true });
+    process.env.PATH = dir;
+    process.env.Path = dir;
+
+    try {
+      mockExistsSync.mockImplementation((p: string) =>
+        p === "obsidian" ? false : realFs.existsSync(p)
+      );
+      mockStatSync.mockImplementation((p: string) =>
+        realFs.existsSync(p) ? realFs.statSync(p) : ({ isFile: () => false } as fs.Stats)
+      );
+      const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {}) as never);
+      await runHealthCheck();
+      expect(exitSpy).not.toHaveBeenCalled();
+      expect(mockExistsSync).toHaveBeenCalledWith(bin);
+      exitSpy.mockRestore();
+    } finally {
+      Object.defineProperty(process, "platform", { value: origPlatform, configurable: true });
+      if (origPath === undefined) delete process.env.PATH;
+      else process.env.PATH = origPath;
+      if (origPathCase === undefined) delete process.env.Path;
+      else process.env.Path = origPathCase;
+      realFs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
