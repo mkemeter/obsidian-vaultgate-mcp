@@ -11,6 +11,30 @@ A section may be absent if that distribution had no changes in the release.
 
 ## [Unreleased]
 
+### Server
+
+#### Fixed
+
+- **Crash on malformed `Host` header** — a request with a syntactically invalid `Host` header (e.g. `?h=Host: bad header`) previously threw an uncaught `TypeError` and killed the process. It now returns `400` and the server keeps serving.
+- **Health check resolves bare CLI names via `PATH`** — the documented default `obsidian` now resolves from any working directory (`PATHEXT` on Windows). Explicit absolute `OBSIDIAN_CLI_PATH` values behave exactly as before.
+- **In-flight index builds can no longer write to the wrong vault** — switching vault or clearing the index mid-build invalidates the build/rehash, so stale data can no longer land in the freshly switched vault's cache file. The `clear_index` tool is a no-op while a build is in flight; the new build owns the cache.
+- **Installer quoting hardened** — the launchd installer no longer aborts on single quotes in paths (it emitted an unquoted `Environment` line); the systemd installer now quotes `ExecStart`/`Environment` values, so paths with spaces are safe on both launch targets.
+
+#### Changed
+
+- **`zod` is now a direct server dependency** rather than a transitive one — supply-chain hygiene, same approach as the 0.3.1 packaging fix.
+
+#### Internal
+
+- New regression tests pin the fixes above: malformed-Host handling, PATH resolution, index-build invalidation + `clear_index` guard, `npm pack` contents scan, and launchd/systemd quoting.
+
+### Tray
+
+#### Fixed
+
+- **Adopted external servers are tracked as `running-external`** — when a VaultGate server VaultGate does not own is already serving the configured port, the tray now uses a dedicated external-server state instead of treating it as stopped/starting: the menu shows "External server on port N — not managed by VaultGate", Stop/Restart/index actions are disabled, Preferences shows a warning, and quitting never terminates the external process.
+- **A superseded `start()` can no longer flip a healthy server to "error"** — a stale startup failure (e.g. a port in use during a rapid restart) could previously overwrite a running state.
+
 ---
 
 ## [0.3.1] — 2026-09-10
@@ -137,6 +161,12 @@ A section may be absent if that distribution had no changes in the release.
   > above is the VaultGate-side workaround. The correct long-term fix is for those clients to
   > implement `client.getInstructions()` per the MCP spec.
 
+#### Fixed
+
+- **Windows: HTTP transport compatibility** — resolved an HTTP client incompatibility that prevented connections on Windows. Installer robustness improvements for the Windows deploy script.
+- **Windows: battery-power fix and `OBSIDIAN_CLI_PATH` guidance** — the server no longer exits when the machine is on battery power; added clearer guidance for setting a custom CLI path on Windows.
+- **Version reporting** — `serverInfo.version` is now read from `package.json` at runtime instead of being hardcoded, so MCP clients that display server version always see the correct value.
+
 ### Tray
 
 #### Added
@@ -146,12 +176,6 @@ A section may be absent if that distribution had no changes in the release.
   - *Inject vault conventions into tool calls* checkbox — enable or disable automatic injection.
   - *Re-inject after (seconds)* field — configure the TTL. Both settings take effect immediately
     without restarting the server.
-
-#### Fixed
-
-- **Windows: HTTP transport compatibility** — resolved an HTTP client incompatibility that prevented connections on Windows. Installer robustness improvements for the Windows deploy script.
-- **Windows: battery-power fix and `OBSIDIAN_CLI_PATH` guidance** — the server no longer exits when the machine is on battery power; added clearer guidance for setting a custom CLI path on Windows.
-- **Version reporting** — `serverInfo.version` is now read from `package.json` at runtime instead of being hardcoded, so MCP clients that display server version always see the correct value.
 
 ## [0.2.6] — 2026-08-18
 

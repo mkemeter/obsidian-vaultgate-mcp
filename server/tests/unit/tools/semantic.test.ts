@@ -1240,6 +1240,108 @@ describe("vault switch heuristic", () => {
     // stale-vault-note.md retained (startup add-only) + fresh-vault-note.md added = 2.
     expect(text).toContain("Indexed notes: 2");
   });
+
+  // The heuristic lives in syncNewAndDeleted()'s prune block (pruneDeleted=true),
+  // which startup does not run (startup is add-only). In production the prune
+  // path is reached by search-triggered sync (semanticQuery → syncNewAndDeleted
+  // on every search), so these tests drive it via semantic_search. The seeded
+  // cache has lastReHash=0, so the search also fires the lazy fullReHash —
+  // harmless here: same file list, same content hashes, no re-embedding.
+
+  it("search after >50% deletion + new files → heuristic wipes and re-embeds", async () => {
+    const mk = (name: string, hash: string) => ({
+      hash,
+      chunks: [{ heading: name, text: name, embedding: FAKE_VEC_A }],
+    });
+    // Cache: 5 old-vault files. Startup list: old-1 + new-1 (add-only → 6 in
+    // memory). Then the list changes to old-1 + new-2: 4 of 6 indexed files
+    // are gone (>50%) and new-2 is a brand-new path → heuristic fires.
+    const oldFiles = {
+      "old-1.md": mk("Old 1", "a1"),
+      "old-2.md": mk("Old 2", "a2"),
+      "old-3.md": mk("Old 3", "a3"),
+      "old-4.md": mk("Old 4", "a4"),
+      "old-5.md": mk("Old 5", "a5"),
+    };
+    let currentList = "old-1.md\nnew-1.md\n";
+    const { server, getState } = await setupDefaultVaultWithCache(oldFiles, async (args) => {
+      if (args.includes("list")) return currentList;
+      return "# Note\nContent";
+    });
+    await waitForReady(getState);
+
+    // Vault switches between startup and the first search.
+    currentList = "old-1.md\nnew-2.md\n";
+
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const result = await callTool(server, "semantic_search", { query: "test", min_score: 0 });
+      expect(result.isError).toBeFalsy();
+      expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("Vault switch detected"));
+    } finally {
+      errSpy.mockRestore();
+    }
+
+    const info = await callTool(server, "vault_info");
+    // Wipe + re-embed of exactly the 2 current files.
+    expect(info.content[0].text).toContain("Indexed notes: 2");
+  });
+
+  it("search after >50% deletion but no new files → prunes without wiping", async () => {
+    const mk = (name: string, hash: string) => ({
+      hash,
+      chunks: [{ heading: name, text: name, embedding: FAKE_VEC_A }],
+    });
+    // Cache: 4 files, list only ever returns 1 of them: 3 of 4 deleted (>50%)
+    // but zero new paths → heuristic must NOT fire; plain prune applies.
+    const oldFiles = {
+      "old-1.md": mk("Old 1", "a1"),
+      "old-2.md": mk("Old 2", "a2"),
+      "old-3.md": mk("Old 3", "a3"),
+      "old-4.md": mk("Old 4", "a4"),
+    };
+    const { server, getState } = await setupDefaultVaultWithCache(oldFiles, async (args) => {
+      if (args.includes("list")) return "old-1.md\n";
+      return "# Note\nContent";
+    });
+    await waitForReady(getState);
+
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const result = await callTool(server, "semantic_search", { query: "test", min_score: 0 });
+      expect(result.isError).toBeFalsy();
+      expect(errSpy).not.toHaveBeenCalledWith(expect.stringContaining("Vault switch detected"));
+    } finally {
+      errSpy.mockRestore();
+    }
+
+    const info = await callTool(server, "vault_info");
+    expect(info.content[0].text).toContain("Indexed notes: 1");
+  });
+
+  // index_vault tool error path: a non-Error rejection from the CLI must
+  // surface via String(err) (not .message) in the tool result.
+  it("index_vault returns isError with the thrown value when the CLI rejects with a non-Error", async () => {
+    const { server, mockRun, getState } = await setupDefaultVaultWithCache(
+      {
+        "old-1.md": {
+          hash: "a1",
+          chunks: [{ heading: "Old 1", text: "old 1", embedding: FAKE_VEC_A }],
+        },
+      },
+      async (args) => {
+        if (args.includes("list")) return "old-1.md\n";
+        return "# Old 1\nContent";
+      }
+    );
+    await waitForReady(getState);
+
+    mockRun.mockRejectedValue("cli exploded");
+
+    const result = await callTool(server, "index_vault", { dryRun: false });
+    expect(result.isError).toBeTruthy();
+    expect(result.content[0].text).toContain("Re-index failed: cli exploded");
+  });
 });
 
 // ---------------------------------------------------------------------------
