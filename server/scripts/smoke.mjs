@@ -15,7 +15,7 @@
  *   - The server can respond to a real tools/list request
  */
 
-import { execSync, spawn } from 'node:child_process';
+import { execSync, execFileSync, spawn } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, basename } from 'node:path';
@@ -37,7 +37,11 @@ function cleanup() {
 
 try {
   console.log(`[smoke] Installing ${basename(absPath)} into ${dir}…`);
-  execSync(`npm install --prefix ${dir} --ignore-scripts --omit=optional ${absPath}`, { stdio: 'pipe' });
+  // execFileSync (no shell): the tarball path comes from argv and may contain
+  // shell metacharacters — interpolating it into a shell string would be a
+  // command-injection vector (CodeQL js/shell-command-uncontrolled-absolute-path).
+  const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  execFileSync(npmCmd, ['install', '--prefix', dir, '--ignore-scripts', '--omit=optional', absPath], { stdio: 'pipe' });
 
   // Health check requires a binary file at OBSIDIAN_CLI_PATH.
   // We don't need it to be executable — just to exist as a regular file.
