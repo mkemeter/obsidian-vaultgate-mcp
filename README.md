@@ -678,12 +678,14 @@ obsidian-vaultgate-mcp/
 │   ├── src/
 │   ├── renderer/   Preferences window HTML
 │   └── assets/     Icons + pre-bundled embedding model
+├── assets/         Images + Simpsons-themed sample vaults for documentation/demos
+│   ├── demo-vault/
+│   └── demo-vault-horror/
 ├── docs/           Shared cross-cutting documentation
 │   ├── CONTRIBUTING.md
 │   ├── CHANGELOG.md
 │   ├── SECURITY.md
-│   ├── THIRD_PARTY_NOTICES.md
-│   └── demo-vault/  Simpsons-themed sample vault for documentation/demos
+│   └── THIRD_PARTY_NOTICES.md
 └── .github/workflows/      CI (ci.yml = server, tray.yml = tray)
 ```
 

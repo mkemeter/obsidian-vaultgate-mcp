@@ -11,7 +11,8 @@ reports/
 CLAUDE.md
 .biome/
 internal/
-docs/demo-vault/.obsidian/
+# Obsidian workspace/plugin state in the sample vaults (created when the vault is opened)
+assets/**/.obsidian/
 # Stray compiled JS at repo root (accidental tsc output)
 /*.js
 /*.d.ts
