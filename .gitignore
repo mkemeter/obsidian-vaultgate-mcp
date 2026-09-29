@@ -18,3 +18,5 @@ assets/**/.obsidian/
 # Stray compiled JS at repo root (accidental tsc output)
 /*.js
 /*.d.ts
+# Tray: pre-bundled embedding model (downloaded at build time)
+tray/assets/models/
