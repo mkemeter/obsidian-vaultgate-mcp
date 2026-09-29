@@ -10,11 +10,11 @@ reports/
 .DS_Store
 CLAUDE.md
 .biome/
+# Personal editor config — kept local, not shared in the repo
+.editorconfig
 internal/
 # Obsidian workspace/plugin state in the sample vaults (created when the vault is opened)
 assets/**/.obsidian/
 # Stray compiled JS at repo root (accidental tsc output)
 /*.js
 /*.d.ts
-# Build artifact — copied from root README.md by npm run build
-server/README.md
