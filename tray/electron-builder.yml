@@ -9,9 +9,9 @@ directories:
   buildResources: build
 
 files:
-  # Tray compiled JS (main process, preload, labels, etc.)
+  # Tray compiled JS (main process, preload, labels, etc.) — source maps are
+  # deliberately excluded from the asar (L-9: no debug material in the DMG).
   - "dist/*.js"
-  - "dist/*.js.map"
   - "dist/renderer/**"
   - "assets/icon.png"
   - "assets/icon@2x.png"

@@ -27,20 +27,44 @@
           "isSecret": false
         },
         {
-          "name": "OBSIDIAN_CLI_PATH",
-          "description": "Absolute path (or bare name) of the Obsidian CLI binary. Defaults to \"obsidian\".",
-          "isRequired": false,
-          "isSecret": false
-        },
-        {
           "name": "OBSIDIAN_MCP_PORT",
           "description": "TCP port for the HTTP transport (1-65535). Defaults to 3001. Always bound to 127.0.0.1 only.",
           "isRequired": false,
           "isSecret": false
         },
         {
+          "name": "OBSIDIAN_MCP_TRANSPORT",
+          "description": "\"http\" to force HTTP mode, \"stdio\" to force stdio. Auto-detected from stdin.isTTY when unset.",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "OBSIDIAN_CLI_PATH",
+          "description": "Absolute path (or bare name) of the Obsidian CLI binary. Defaults to \"obsidian\".",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
           "name": "OBSIDIAN_CONTEXT_FILE",
           "description": "Bare .md filename (vault root) used as the vault conventions file. Defaults to \"VAULTGATE.md\".",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "VAULTGATE_INJECT_CONVENTIONS",
+          "description": "Set to \"false\" to disable automatic injection of vault conventions into tool results. When enabled (the default), conventions are merged into the first tool result of each new conversation. Configurable in the tray Preferences dialog.",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "VAULTGATE_INJECT_INTERVAL",
+          "description": "How often (seconds) to re-inject vault conventions — acts as a conversation-boundary detector. Defaults to 30; valid range 1-3600. Configurable in the tray Preferences dialog.",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "VAULTGATE_MODEL_CACHE_DIR",
+          "description": "Points the semantic-search embedding model at a pre-populated HuggingFace cache directory and disables remote downloads. For offline/air-gapped setups; normally set automatically by the tray.",
           "isRequired": false,
           "isSecret": false
         }
