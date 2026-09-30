@@ -243,7 +243,7 @@ async function startHttp(): Promise<void> {
         process.stderr.write(
           `\nERROR: Port ${config.port} is already in use.\n` +
             `  Another instance of obsidian-vaultgate-mcp may already be running.\n` +
-            `  Change the port: OBSIDIAN_MCP_PORT=3002 obsidian-vaultgate-mcp\n\n`
+            `  Change the port: OBSIDIAN_MCP_PORT=3003 obsidian-vaultgate-mcp\n\n`
         );
         process.exit(1);
       }

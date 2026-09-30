@@ -463,7 +463,7 @@ The client has a stale session. Disconnect and reconnect to trigger a fresh `ini
 The embedding index is built asynchronously at startup. For large vaults this can take a few minutes. `vault_info` shows the current index state.
 
 **Port already in use**
-Set `OBSIDIAN_MCP_PORT=3002` and update the URL in your AI client.
+Set `OBSIDIAN_MCP_PORT=3003` and update the URL in your AI client.
 
 **Obsidian launches at login**
 This no longer happens. The startup health check only verifies the CLI binary exists on disk — it does not execute Obsidian. If Obsidian is opening at login for you, check your startup entries: **Login Items** in System Settings (macOS), or the **Startup** tab in Task Manager (Windows).
@@ -571,24 +571,24 @@ On first launch VaultGate will:
 
 1. **Auto-detect Obsidian.** It probes the standard install path (`/Applications/Obsidian.app/Contents/MacOS/obsidian`).
 2. **Auto-detect your vault.** It reads Obsidian's `obsidian.json` to enumerate registered vaults. If exactly one vault is registered, that one is selected silently. If multiple vaults exist, the active one is used (you can pin a specific vault from Preferences).
-3. **Start the bundled MCP server.** The default URL is `http://127.0.0.1:3001/mcp`. If another VaultGate instance already serves that port, VaultGate **adopts it** and marks it as an external, unmanaged server (see [External servers](#external-servers)). If a *different* service owns the port, VaultGate reports **port in use** — pick a different port in **Preferences**.
+3. **Start the bundled MCP server.** The default URL is `http://127.0.0.1:3002/mcp`. If another VaultGate instance already serves that port, VaultGate **adopts it** and marks it as an external, unmanaged server (see [External servers](#external-servers)). If a *different* service owns the port, VaultGate reports **port in use** — pick a different port in **Preferences**.
 4. **Begin indexing** for Smart Search in the background. The tray menu shows "○ Building index (N/M)…" while this runs, then flips to "✓ Smart search ready — N notes". A native notification fires once when this completes.
 
 If anything goes wrong, the tray icon menu surfaces the failure mode:
 
 | Menu shows | What to do |
 |------------|------------|
-| `○ Obsidian not found` | Click **Preferences…** and use **Browse…** to locate Obsidian's binary. |
+| `○ Obsidian not found` | Click **Preferences** and use **Browse…** to locate Obsidian's binary. |
 | `○ Obsidian CLI not registered` | In Obsidian: **Settings → General → Command line interface → Register CLI**, then click **Start** in the tray menu. |
-| `○ Error — port in use` | Open **Preferences…** and change the port (default `3001`). Common conflicts: a different MCP server, or a VaultGate instance VaultGate doesn't manage (see [External servers](#external-servers)). |
+| `○ Error — port in use` | Open **Preferences** and change the port (default `3002`). Common conflicts: a different MCP server, or a VaultGate instance VaultGate doesn't manage (see [External servers](#external-servers)). |
 | `● External server on port N` | Another VaultGate is serving this port. Status and connection URL are shown, but Stop, Restart, and index actions are disabled — see [External servers](#external-servers). |
-| `○ Error — server crashed` | Click **Open Logs…** and inspect the bottom of the file. The server retries with exponential backoff (1s → 2s → 4s) for up to three rapid crashes, then gives up. |
+| `○ Error — server crashed` | Click **Logs** and inspect the bottom of the file. The server restarts after 1 s; rapid crashes back off 2 s, then 4 s, giving up after the 3rd within 10 s. |
 
 ### Connect an AI client
 
 After the tray icon shows `● Running — <Vault Name>`:
 
-1. Click the tray icon → **Copy Connection URL**. This copies the exact URL VaultGate is listening on — use this rather than typing the address manually, since the port may differ from the default if 3001 is already taken.
+1. Click the tray icon → **Copy URL**. This copies the exact URL VaultGate is listening on — use this rather than typing the address manually, since the port may differ from the default if 3002 is already taken.
 2. Paste the copied URL into your client's MCP configuration:
    - **Joule Work Desktop / Cursor / Windsurf / Zed**: add it as a Streamable HTTP MCP server.
    - **Claude Code**: prefer the npm-package + stdio transport (see [Claude Code](#claude-code) above).
@@ -597,12 +597,12 @@ The URL never leaves `127.0.0.1` — it is bound to localhost and refuses other 
 
 ### Preferences
 
-Opens via the tray menu → **Preferences…**.
+Opens via the tray menu → **Preferences**.
 
 | Field | What it does |
 |-------|--------------|
 | **Vault** | Drop-down of vaults registered with Obsidian. Pick a specific vault, or leave on **Active vault (default)** to use whichever vault is currently focused in Obsidian. |
-| **Local server port** | The HTTP port VaultGate binds to. Default `3001`. Change this if another process owns the port. |
+| **Local server port** | The HTTP port VaultGate binds to. Default `3002`. Change this if another process owns the port. |
 | **Obsidian binary** | Auto-detected; override with **Browse…** if your install lives in a non-standard location. |
 | **Open VaultGate at login** | Native macOS login-item registration (System Settings → General → Login Items). |
 
@@ -632,7 +632,7 @@ If the index gets stuck or you switch vaults aggressively, run `clear_index` fro
 
 ### Logs
 
-The tray menu's **Open Logs…** opens `vaultgate.log` from the user-data directory:
+The tray menu's **Logs** opens `vaultgate.log` from the user-data directory:
 
 | Platform | Log file |
 |----------|----------|
@@ -686,7 +686,8 @@ obsidian-vaultgate-mcp/
 │   ├── CHANGELOG.md
 │   ├── SECURITY.md
 │   └── THIRD_PARTY_NOTICES.md
-└── .github/workflows/      CI (ci.yml = server, tray.yml = tray)
+├── server.json         MCP registry manifest (version-synced)
+└── .github/workflows/  CI (ci.yml = server, tray.yml = tray, publish.yml = npm publish, codeql.yml + mutation.yml = scans)
 ```
 
 ---

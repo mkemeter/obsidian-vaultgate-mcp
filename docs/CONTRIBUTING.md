@@ -843,7 +843,7 @@ If your item triggers a server change, call `void serverManager.restart()` from 
 |---------|---------------------|
 | Tray icon never appears | macOS Console.app → filter "VaultGate" |
 | Server says "stdio mode" in logs | `OBSIDIAN_MCP_TRANSPORT=http` env var missing on the fork — check `server-manager.ts` `start()` |
-| Smart Search stays "warming up" forever | **Open Logs…** → look for `[server:err]` entries from `@xenova/transformers`; confirm `assets/models/` is populated |
+| Smart Search stays "warming up" forever | **Logs** → look for `[server:err]` entries from `@xenova/transformers`; confirm `assets/models/` is populated |
 | Build fails with "node_modules/.cache" mismatch | `cd tray && npx @electron/rebuild` to recompile native addons against the current Electron ABI |
 | `utilityProcess.fork()` exits immediately with code 1 | Build is broken — check `dist/server/build/index.js` exists and `OBSIDIAN_CLI_PATH` resolves |
 | Server health check fails on Windows | On Windows, `OBSIDIAN_CLI_PATH` must be the full path to the `.exe` file — not the install folder (e.g. `%LOCALAPPDATA%\Programs\Obsidian\Obsidian.exe`, not `...\Obsidian`). The default `"obsidian"` requires the binary to be on `PATH`. The installer (`server/deploy/install.ps1`) sets this automatically, and the startup health check now rejects a directory path with an actionable message. |

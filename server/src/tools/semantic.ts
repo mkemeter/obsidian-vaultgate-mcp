@@ -828,7 +828,7 @@ export function registerSemanticTools(server: McpServer): void {
       min_score: z
         .preprocess((v) => (typeof v === "string" ? Number(v) : v), z.number().min(0).max(1))
         .default(DEFAULT_MIN_SCORE)
-        .describe("Minimum similarity score 0–1 to include a result (default 0.25)"),
+        .describe("Minimum similarity score 0–1 to include a result (default 0.2)"),
     },
     async ({ query, top_n, min_score }) => {
       if (indexState !== "ready") {
@@ -894,7 +894,7 @@ export function registerSemanticTools(server: McpServer): void {
       min_score: z
         .preprocess((v) => (typeof v === "string" ? Number(v) : v), z.number().min(0).max(1))
         .default(DEFAULT_MIN_SCORE)
-        .describe("Minimum similarity score 0–1 (default 0.25)"),
+        .describe("Minimum similarity score 0–1 (default 0.2)"),
     },
     async ({ note_path, top_n, min_score }) => {
       if (indexState !== "ready") {

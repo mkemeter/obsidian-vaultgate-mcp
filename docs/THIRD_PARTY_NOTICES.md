@@ -15,7 +15,7 @@ VaultGate tray app DMG and are subject to their own licenses.
 | **all-MiniLM-L6-v2** — Sentence Transformers MiniLM model, L6 variant | [Apache-2.0](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/main/LICENSE) | Microsoft Research / SBERT / [Hugging Face](https://huggingface.co/Xenova/all-MiniLM-L6-v2) |
 
 The model files (ONNX format) are pre-bundled in the tray DMG at
-`Contents/Resources/assets/models/Xenova/all-MiniLM-L6-v2/`.
+`Contents/Resources/models/Xenova/all-MiniLM-L6-v2/`.
 They are used entirely on-device — no vault content or queries leave the
 local machine.
 
