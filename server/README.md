@@ -355,7 +355,7 @@ Stops the background service (if installed), removes the npm package, and delete
 | Task Scheduler task + wrapper (Windows) | ✓ if installed |
 | npm package + binary | ✓ always |
 | Embedding cache (`~/.cache/obsidian-vaultgate-mcp/`) | ✓ always |
-| ONNX model cache (`~/.cache/huggingface/`) | No — may be shared with other tools |
+| ONNX model cache (`~/.cache/obsidian-vaultgate-mcp/models/`) | ✓ always (with the embedding cache) |
 | `VAULTGATE.md` in your vault | No — your file, delete manually if wanted |
 
 ### Configuration
@@ -443,7 +443,7 @@ When `@xenova/transformers` is available (installed as an optional dependency), 
 - `index_vault` — re-embed changed notes without discarding the existing cache (routine re-index)
 - `clear_index` — delete the cache file entirely and rebuild from scratch; use only when the cache is corrupted or after a version change. **Do not use before `index_vault`** — `index_vault` already handles incremental updates without data loss.
 
-The embedding model (`all-MiniLM-L6-v2`, ~23 MB) downloads once to `~/.cache/huggingface/`. All subsequent operations are fully offline. If `@xenova/transformers` fails to load on the current platform, VaultGate starts normally with the base tool set — no configuration change required.
+The embedding model (`all-MiniLM-L6-v2`, ~23 MB) downloads once to `~/.cache/obsidian-vaultgate-mcp/models/`. All subsequent operations are fully offline. If `@xenova/transformers` fails to load on the current platform, VaultGate starts normally with the base tool set — no configuration change required.
 
 > [!WARNING]
 > The `@xenova/transformers` package depends on `onnxruntime-web`, which in turn depends on `protobufjs` v6.x. The v6.x branch of protobufjs has [known vulnerabilities](https://github.com/protobufjs/protobuf.js/security/advisories). Your vault content is never sent to the network — the only external traffic is the one-time model download from HuggingFace. The risk is limited to the model download path and is inherited from the supply chain; it cannot be patched from this package until upstream updates.
