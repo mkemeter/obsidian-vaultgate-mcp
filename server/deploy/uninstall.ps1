@@ -1,12 +1,16 @@
 Write-Host "Uninstalling VaultGate..." -ForegroundColor Cyan
 
 # --- Remove scheduled task ------------------------------------------------
-$task = Get-ScheduledTask -TaskName "VaultGate MCP Server" -ErrorAction SilentlyContinue
-if ($task) {
-    Stop-ScheduledTask -TaskName "VaultGate MCP Server" -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 2
-    Unregister-ScheduledTask -TaskName "VaultGate MCP Server" -Confirm:$false
-    Write-Host "  [OK] Scheduled task stopped and removed." -ForegroundColor Green
+# Namespaced name (current); the legacy pre-namespacing name is cleaned up
+# too so upgraders from earlier versions don't keep a stale autostart task.
+foreach ($taskName in @('VaultGate MCP Server', 'VaultGate')) {
+    $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+    if ($task) {
+        Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 2
+        Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
+        Write-Host "  [OK] Scheduled task '$taskName' stopped and removed." -ForegroundColor Green
+    }
 }
 
 # --- Remove wrapper .cmd --------------------------------------------------
