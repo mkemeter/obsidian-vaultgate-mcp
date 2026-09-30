@@ -35,7 +35,8 @@ export function isPortFree(port: number): Promise<boolean> {
 
 /**
  * Starting from `preferred`, finds the first free port within PORT_SEARCH_LIMIT
- * candidates. Falls back to `preferred` if no free port is found.
+ * candidates. Returns `0` (sentinel) if no free port is found — never a busy
+ * port, so callers can detect the failure unambiguously.
  */
 export async function findFreePort(preferred: number): Promise<number> {
   // Try the preferred port first (it may already be free).
@@ -51,5 +52,7 @@ export async function findFreePort(preferred: number): Promise<number> {
     if (port < 1024 || port > 65535) continue;
     if (await isPortFree(port)) return port;
   }
-  return preferred;
+  // Sentinel: 0 is never a valid port — returning `preferred` here would
+  // suggest a port we just probed as busy.
+  return 0;
 }

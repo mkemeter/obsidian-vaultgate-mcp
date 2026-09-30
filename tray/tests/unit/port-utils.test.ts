@@ -84,10 +84,12 @@ describe("findFreePort", () => {
     expect(await findFreePort(3002)).toBe(3002);
   });
 
-  it("falls back to the preferred port when all candidates are taken", async () => {
-    // All ports appear taken — findFreePort exhausts the search list and falls back.
+  it("returns 0 (sentinel) when all candidates are taken", async () => {
+    // All ports appear taken — findFreePort exhausts the search list and
+    // reports failure via the 0 sentinel. It must never return a port it
+    // just probed as busy (the old `preferred` fallback did).
     mockSocketResult.value = "taken";
-    expect(await findFreePort(4000)).toBe(4000);
+    expect(await findFreePort(4000)).toBe(0);
   });
 
   it("returns a port from the DEFAULT_PORT range when the preferred port is the same and free", async () => {

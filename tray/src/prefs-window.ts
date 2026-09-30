@@ -17,6 +17,7 @@ import {
   type VaultGateConfig,
 } from "./config-store.js";
 import { findFreePort } from "./port-utils.js";
+import { validateConfigPatch } from "./prefs-validation.js";
 import * as serverManager from "./server-manager.js";
 
 let prefsWindow: BrowserWindow | undefined;
@@ -32,7 +33,10 @@ function rendererDir(): string {
 /** Registers all `prefs:*` IPC handlers exactly once. */
 export function registerPrefsIpc(): void {
   ipcMain.handle("prefs:loadConfig", () => loadConfig());
-  ipcMain.handle("prefs:saveConfig", async (_event, patch: Partial<VaultGateConfig>) => {
+  ipcMain.handle("prefs:saveConfig", async (_event, rawPatch: Partial<VaultGateConfig>) => {
+    // IPC payloads are untyped at runtime — validate before persisting so a
+    // hand-edited/corrupted config can't wedge the tray (see prefs-validation.ts).
+    const patch = validateConfigPatch(rawPatch);
     const current = loadConfig();
     saveConfig(patch);
 

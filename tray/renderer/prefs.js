@@ -1,6 +1,3 @@
-/* eslint-env browser */
-/* global window */
-
 /**
  * Preferences window renderer logic.
  *
