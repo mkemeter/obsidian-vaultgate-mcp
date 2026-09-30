@@ -13,6 +13,85 @@ A section may be absent if that distribution had no changes in the release.
 
 ---
 
+## [0.3.3] — 2026-09-30
+
+Full cross-check remediation release (22 findings: 2 High, 9 Medium, 11 Low).
+
+### Release pipeline
+
+#### Fixed
+
+- **Tagged releases no longer double-trigger the npm publish.** The tray workflow both created the GitHub Release (which fires `publish.yml` via the release event) *and* explicitly dispatched `publish.yml` — the second run always failed on the already-published version. The release event is now the single trigger (`workflow_dispatch` remains for manual runs), so every tag produces exactly one publish run.
+
+### Documentation
+
+#### Fixed
+
+- **README tray section documented the wrong default port (3001 instead of 3002)** — the tray default is 3002 (deliberate v0.2.0 change); the headless npm default stays 3001.
+- **The "port in use" workaround now suggests 3003** (README + server error message) — 3001 is the headless default and 3002 is held by a running tray/launchd instance, so the old advice (use 3002) often collided again.
+- **Tray menu labels in the docs match the app** — `Preferences`, `Logs`, `Copy URL`.
+- **Crash-retry wording matches the code** — a non-rapid crash restarts after 1 s; rapid crashes back off 2 s then 4 s, giving up after the 3rd within 10 s.
+- **ONNX model cache location corrected** — `~/.cache/obsidian-vaultgate-mcp/models/` (not `~/.cache/huggingface/`); the uninstall table reflects that it is removed with the embedding cache.
+- **`THIRD_PARTY_NOTICES.md` model path corrected** to the actual `Contents/Resources/models/…` layout in the DMG.
+- **README Repository Layout** now lists `server.json` and the `publish.yml` / `codeql.yml` / `mutation.yml` workflows.
+
+### Server
+
+#### Added
+
+- **Spec-defined Streamable HTTP session teardown** — `DELETE /mcp` terminates a session (200, or 404 for an unknown session id); `GET /mcp` answers 405 with `Allow: POST, DELETE` instead of falling into the 404 catch-all.
+- **Stable embedding-model cache default** — the model now downloads to `~/.cache/obsidian-vaultgate-mcp/models/` instead of the package-local `node_modules` default, which an `npm update`/reinstall silently wipes (forcing a ~23 MB re-download). `VAULTGATE_MODEL_CACHE_DIR` still overrides.
+
+#### Fixed
+
+- **`note_create` with no target now returns a tool-level error** instead of an opaque Obsidian CLI error — `name` and `path` are optional but at least one must be given (applies to dry-run previews too).
+- **`semantic_search` / `find_similar` descriptions no longer claim a 0.25 default `min_score`** — the default is 0.2.
+
+#### Internal
+
+- Named `randomUUID` import (was the unimported global).
+- New regression tests: session teardown + 405, `note_create` validation, stable model-cache default.
+
+### Tray
+
+#### Fixed
+
+- **Preferences save is validated at the IPC boundary** — a corrupt or hand-edited config patch (e.g. `port: "abc"`) could previously be persisted and wedge the tray (the server's `loadConfig()` throws at startup → 3 rapid crashes → stuck in `error`). The handler now validates port (1024–65535, matching the UI), conventions filename, injection interval (1–3600), and Obsidian path before persisting.
+- **Model-download idempotency check fixed** — it looked for the pre-2.17 HuggingFace snapshot directory that `@xenova/transformers` 2.17 no longer produces, so every build re-invoked the model load instead of early-exiting. It now checks the flat layout's ONNX weights file.
+- **`findFreePort` returns a 0 sentinel when no port is free** instead of re-suggesting a port it just proved busy.
+- **Vite ESM/CJS config warning gone from `npm test`** (vitest config renamed to `.mts`).
+
+#### Internal
+
+- Removed stale ESLint comments from `prefs.js` (project uses Biome).
+
+### Installers
+
+#### Fixed
+
+- **The documented unattended install now actually works** — `obsidian-vaultgate-mcp-install` forwards its arguments to the platform deploy script (previously they were silently dropped, and the TTY gate separately rejected non-interactive runs). The gate now relaxes only for PowerShell targets or when `-NonInteractive` is forwarded; the shell installers keep the strict TTY requirement because they have no non-interactive mode.
+- **Windows autostart no longer clashes with a manual instance** — the generated `start.cmd` pins `OBSIDIAN_MCP_PORT=3002` (mirroring the launchd design: autostart on 3002, manual on 3001) and the installer prints the 3002 URL.
+- **Windows `start.cmd` values are quoted batch-safely** — an `OBSIDIAN_CLI_PATH` (or `OBSIDIAN_VAULT`) containing `&`, `^`, or `%` can no longer break the batch file.
+- **Scheduled task is namespaced** — `VaultGate MCP Server` instead of `VaultGate`, so re-running the installer no longer clobbers an unrelated task with that name.
+- **launchd installer works on npm v9+** — the `npm bin -g` fallback (removed in npm v9) is replaced with `npm prefix -g`.
+
+#### Internal
+
+- New unit tests for argument forwarding + TTY-gate scoping and the npm-prefix fallback; duplicate comment in `install.ps1` removed.
+
+### Packaging
+
+#### Changed
+
+- **The release DMG no longer ships source maps** — `dist/*.js.map` is excluded from the asar (verified: 0 `.map` entries in the packed asar).
+- **Registry manifest (`server.json`) is complete** — all 8 documented environment variables are listed (previously 4 of 8), mirroring the README Configuration table.
+
+#### Internal
+
+- Removed the leftover untracked root `node_modules/`.
+
+---
+
 ## [0.3.2] — 2026-09-14
 
 ### Server
