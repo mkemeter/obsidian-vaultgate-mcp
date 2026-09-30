@@ -102,11 +102,10 @@ const DEFAULT_MIN_SCORE = 0.2;
 // ---------------------------------------------------------------------------
 // When `VAULTGATE_MODEL_CACHE_DIR` is set the server points @xenova/transformers
 // at a pre-populated HuggingFace snapshot directory shipped inside the Electron
-// app bundle, and disables remote downloads. The headless npm path leaves these
-// unset and `@xenova/transformers` uses its default download behaviour.
-//
-// The `env` namespace is resolved lazily — eager access at module top-level
-// would trip vitest's mock proxy in the unit tests (which only mocks `pipeline`).
+// app bundle, and disables remote downloads. On the headless npm path the stable
+// default is applied lazily in getEmbedder() (see resolveModelCacheDir) —
+// touching `env` at module top-level would trip vitest's mock proxy in the unit
+// tests (which only mock `pipeline`).
 if (process.env.VAULTGATE_MODEL_CACHE_DIR) {
   const transformersEnv = (
     transformers as unknown as {
@@ -174,6 +173,20 @@ export function resolveIndexCacheDir(): string {
   );
 }
 
+/**
+ * Resolves the directory that holds the downloaded embedding model.
+ *
+ * Honors the `VAULTGATE_MODEL_CACHE_DIR` env override (set by the tray app to the
+ * pre-populated model directory inside the app bundle); otherwise defaults to
+ * `<index-cache base>/models` — a stable location that survives npm reinstalls,
+ * unlike @xenova/transformers' package-local node_modules default, which a
+ * reinstall silently wipes (forcing a ~23 MB re-download). Read at call time so
+ * tests can redirect it per-run. Mirrors the sibling `resolveIndexCacheDir()`.
+ */
+export function resolveModelCacheDir(): string {
+  return process.env.VAULTGATE_MODEL_CACHE_DIR ?? path.join(resolveIndexCacheDir(), "models");
+}
+
 function getIndexPath(): string {
   const vaultKey = config.vault ?? "default";
   const safe = vaultKey.replace(/[^a-zA-Z0-9_-]/g, "_");
@@ -210,6 +223,19 @@ function saveIndex(idx: VaultIndex): void {
 
 async function getEmbedder(): Promise<Awaited<ReturnType<typeof pipeline>>> {
   if (!embedderInstance) {
+    // Stable default model cache (headless path): point @xenova/transformers at
+    // `<index-cache base>/models` unless the env override already wired a
+    // directory at module load. Deferred to first use so module import stays
+    // side-effect-free for the unit-test mocks (which export only `pipeline`,
+    // and whose proxy throws on `.env` access).
+    try {
+      if (!process.env.VAULTGATE_MODEL_CACHE_DIR) {
+        const env = (transformers as unknown as { env?: { cacheDir?: string } }).env;
+        if (env) env.cacheDir = resolveModelCacheDir();
+      }
+    } catch {
+      /* unit-test mocks: the mocked pipeline never reads env.cacheDir */
+    }
     console.error(
       `[VaultGate] Loading semantic model ${MODEL_ID} — first run may take several minutes while the model is compiled for your CPU...`
     );

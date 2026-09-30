@@ -157,6 +157,32 @@ describe("note_create (destructive)", () => {
     const result = await invoke(makeServer(), "note_create", { name: "Note", dryRun: false });
     expect(result.isError).toBe(true);
   });
+
+  it("returns isError when neither name nor path is given (no target)", async () => {
+    const result = await invoke(makeServer(), "note_create", { content: "# X" });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/provide `name` .* or `path`/i);
+    expect(mockRun).not.toHaveBeenCalled();
+  });
+
+  it("returns isError when name is an empty string", async () => {
+    const result = await invoke(makeServer(), "note_create", { name: "", dryRun: false });
+    expect(result.isError).toBe(true);
+    expect(mockRun).not.toHaveBeenCalled();
+  });
+
+  it("returns isError when path is an empty string", async () => {
+    const result = await invoke(makeServer(), "note_create", { path: "", dryRun: false });
+    expect(result.isError).toBe(true);
+    expect(mockRun).not.toHaveBeenCalled();
+  });
+
+  it("returns isError in dry-run mode when no target is given (guard before preview)", async () => {
+    const result = await invoke(makeServer(), "note_create", { name: "   " });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).not.toContain("[DRY RUN]");
+    expect(mockRun).not.toHaveBeenCalled();
+  });
 });
 
 describe("note_append (destructive)", () => {

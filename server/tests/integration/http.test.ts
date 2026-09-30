@@ -52,7 +52,7 @@ function startTestServer(): Promise<{ server: http.Server; baseUrl: string; port
 
     if (origin) {
       res.setHeader("Access-Control-Allow-Origin", origin);
-      res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
       res.setHeader("Access-Control-Allow-Headers", "Content-Type, Accept, mcp-session-id");
       res.setHeader("Access-Control-Expose-Headers", "mcp-session-id");
     }
@@ -91,6 +91,28 @@ function startTestServer(): Promise<{ server: http.Server; baseUrl: string; port
       } else {
         await transport.handleRequest(req, res);
       }
+      return;
+    }
+
+    if (req.method === "DELETE" && url.pathname === "/mcp") {
+      const sessionId = req.headers["mcp-session-id"] as string | undefined;
+      const mcpSessions = (server as any).__mcpSessions as Map<string, StreamableHTTPServerTransport>;
+      const transport = sessionId ? mcpSessions.get(sessionId) : undefined;
+      if (!transport) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ jsonrpc: "2.0", error: { code: -32001, message: "Session not found." }, id: null }));
+        return;
+      }
+      mcpSessions.delete(sessionId);
+      await transport.close();
+      res.writeHead(200);
+      res.end();
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/mcp") {
+      res.writeHead(405, { Allow: "POST, DELETE", "Content-Type": "text/plain" });
+      res.end("Method not allowed — use POST /mcp");
       return;
     }
 
@@ -231,6 +253,66 @@ describe("HTTP server", () => {
     expect(res.status).toBe(200);
     const exposeHeaders = res.headers.get("Access-Control-Expose-Headers") ?? "";
     expect(exposeHeaders).toContain("mcp-session-id");
+  });
+
+  // --- Streamable HTTP session termination (DELETE /mcp, spec) ----------------
+
+  async function createSession(): Promise<string> {
+    const res = await fetch(`${baseUrl}/mcp`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {
+          protocolVersion: "2024-11-05",
+          capabilities: {},
+          clientInfo: { name: "test-client", version: "0" },
+        },
+      }),
+    });
+    const sessionId = res.headers.get("mcp-session-id");
+    expect(sessionId).toBeTruthy();
+    return sessionId as string;
+  }
+
+  it("DELETE /mcp terminates a live session (200) and the session id is no longer valid", async () => {
+    const sessionId = await createSession();
+
+    const del = await fetch(`${baseUrl}/mcp`, {
+      method: "DELETE",
+      headers: { "mcp-session-id": sessionId },
+    });
+    expect(del.status).toBe(200);
+
+    const post = await fetch(`${baseUrl}/mcp`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+        "mcp-session-id": sessionId,
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "ping" }),
+    });
+    expect(post.status).toBe(404);
+  });
+
+  it("DELETE /mcp with an unknown session id returns 404", async () => {
+    const del = await fetch(`${baseUrl}/mcp`, {
+      method: "DELETE",
+      headers: { "mcp-session-id": "does-not-exist" },
+    });
+    expect(del.status).toBe(404);
+  });
+
+  it("GET /mcp returns 405 with Allow: POST, DELETE", async () => {
+    const res = await fetch(`${baseUrl}/mcp`);
+    expect(res.status).toBe(405);
+    expect(res.headers.get("allow")).toBe("POST, DELETE");
   });
 
   // --- Streamable HTTP (POST /mcp) -----------------------------------------

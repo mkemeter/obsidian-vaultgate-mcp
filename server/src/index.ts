@@ -13,6 +13,7 @@
  *
  * HTTP mode supports both transports for maximum client compatibility:
  *   POST /mcp       → Streamable HTTP (MCP spec 2025-03-26, modern)
+ *   DELETE /mcp     → Streamable HTTP session termination (spec-defined)
  *   GET  /sse       → SSE (legacy, backward-compatible fallback)
  *   POST /messages  → SSE message handler
  *   GET  /health    → Liveness probe (returns 200 OK)
@@ -20,6 +21,7 @@
  *   GET  /favicon.ico → Server icon (ICO)
  */
 
+import { randomUUID } from "node:crypto";
 import * as http from "node:http";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
@@ -85,7 +87,7 @@ async function startHttp(): Promise<void> {
       // CORS headers for browser-based clients
       if (origin) {
         res.setHeader("Access-Control-Allow-Origin", origin);
-        res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
         res.setHeader("Access-Control-Allow-Headers", "Content-Type, Accept, mcp-session-id");
         res.setHeader("Access-Control-Expose-Headers", "mcp-session-id");
       }
@@ -175,7 +177,7 @@ async function startHttp(): Promise<void> {
           const server = defaultServer ?? (await createServer(iconUrl));
           defaultServer = null; // consumed — future sessions each get a fresh instance
           transport = new StreamableHTTPServerTransport({
-            sessionIdGenerator: () => crypto.randomUUID(),
+            sessionIdGenerator: () => randomUUID(),
             enableDnsRebindingProtection: true,
             allowedHosts: [`127.0.0.1:${config.port}`, `localhost:${config.port}`],
             allowedOrigins: [
@@ -198,6 +200,38 @@ async function startHttp(): Promise<void> {
           // Existing session — reuse the transport.
           await transport.handleRequest(req, res);
         }
+        return;
+      }
+
+      // --- Streamable HTTP session termination (spec-defined DELETE /mcp) ------
+      if (req.method === "DELETE" && url.pathname === "/mcp") {
+        const sessionId = req.headers["mcp-session-id"] as string | undefined;
+        const transport = sessionId ? mcpSessions.get(sessionId) : undefined;
+
+        if (!transport || !sessionId) {
+          res.writeHead(404, { "Content-Type": "application/json" });
+          res.end(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              error: { code: -32001, message: "Session not found." },
+              id: null,
+            })
+          );
+          return;
+        }
+
+        mcpSessions.delete(sessionId);
+        await transport.close();
+        res.writeHead(200);
+        res.end();
+        return;
+      }
+
+      // GET /mcp has no defined behaviour (no server-initiated communication) —
+      // answer 405 so clients don't mistake it for the SSE fallback.
+      if (req.method === "GET" && url.pathname === "/mcp") {
+        res.writeHead(405, { Allow: "POST, DELETE", "Content-Type": "text/plain" });
+        res.end("Method not allowed — use POST /mcp");
         return;
       }
 

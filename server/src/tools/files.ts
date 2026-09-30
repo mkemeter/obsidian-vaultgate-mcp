@@ -151,6 +151,20 @@ export function registerFileTools(server: McpServer): void {
       dryRun: dryRunSchema,
     },
     async ({ name, path, content, template, overwrite, silent, dryRun }) => {
+      if (
+        (name === undefined || name.trim() === "") &&
+        (path === undefined || path.trim() === "")
+      ) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "Provide `name` (vault root) or `path` (subfolder) to create a note.",
+            },
+          ],
+          isError: true,
+        };
+      }
       const args = ["create"];
       if (path !== undefined) {
         args.push(`path=${path}`);

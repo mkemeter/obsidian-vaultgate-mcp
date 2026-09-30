@@ -1540,18 +1540,42 @@ describe("VAULTGATE_MODEL_CACHE_DIR — pre-bundled model cache wiring", () => {
     else process.env.VAULTGATE_ALLOW_REMOTE_MODELS = ORIGINAL_REMOTE_FLAG_ENV;
   });
 
-  it("does not touch transformers.env when VAULTGATE_MODEL_CACHE_DIR is unset (headless npm path)", async () => {
+  it("defaults env.cacheDir to <index-cache base>/models on first embedder creation (stable default)", async () => {
     const env = { cacheDir: "INITIAL", allowRemoteModels: true };
     vi.resetModules();
     vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
     vi.doMock("../../../src/config.js", () => ({
       config: { vault: "v", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
     }));
-    vi.doMock("@xenova/transformers", () => ({ pipeline: vi.fn(), env }));
+    vi.doMock("@xenova/transformers", () => ({
+      pipeline: vi
+        .fn()
+        .mockResolvedValue(
+          vi.fn().mockImplementation(() => Promise.resolve({ tolist: () => [FAKE_VEC_A] }))
+        ),
+      env,
+    }));
 
-    await import("../../../src/tools/semantic.js");
+    const { runObsidian } = await import("../../../src/cli.js");
+    vi.mocked(runObsidian).mockImplementation(async (args: string[]) => {
+      if (args[0] === "files" && args[1] === "list") return "note-a.md\n";
+      if (args[0] === "read") return NOTE_A_CONTENT;
+      return "";
+    });
 
-    expect(env.cacheDir).toBe("INITIAL");
+    const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
+    const semantic = await import("../../../src/tools/semantic.js");
+    const server = new McpServer({ name: "t", version: "0" });
+    semantic.registerSemanticTools(server);
+
+    // Force the index build — first embedder creation is where the default is applied.
+    await callTool(server, "semantic_search", { query: "test" });
+    await waitForReady(semantic.getIndexStateForTesting);
+
+    // The index-cache base is redirected per-worker by tests/setup.ts, so the
+    // default model cache is pinned to a disposable location here.
+    expect(env.cacheDir).toBe(path.join(process.env.VAULTGATE_INDEX_CACHE_DIR as string, "models"));
+    // allowRemoteModels is untouched — the headless path keeps default download behaviour.
     expect(env.allowRemoteModels).toBe(true);
   });
 
