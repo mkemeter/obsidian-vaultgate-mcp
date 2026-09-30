@@ -286,7 +286,7 @@ jobs:
           $dummy = Join-Path $env:RUNNER_TEMP 'Obsidian.exe'
           & "$PWD\deploy\install.ps1" -NonInteractive -ObsidianPath $dummy -VaultName test
       - name: Assert scheduled task registered
-        run: Get-ScheduledTask -TaskName 'VaultGate' -ErrorAction Stop | Out-Null
+        run: Get-ScheduledTask -TaskName 'VaultGate MCP Server' -ErrorAction Stop | Out-Null
       - name: Start server via wrapper
         run: |
           $wrapper = "$env:APPDATA\VaultGate\start.cmd"
@@ -318,12 +318,12 @@ jobs:
           & "$PWD\deploy\uninstall.ps1"
       - name: Assert scheduled task removed
         run: |
-          $task = Get-ScheduledTask -TaskName 'VaultGate' -ErrorAction SilentlyContinue
+          $task = Get-ScheduledTask -TaskName 'VaultGate MCP Server' -ErrorAction SilentlyContinue
           if ($task) { throw 'Scheduled task still present after uninstall' }
       - name: Teardown
         if: always()
         run: |
-          Unregister-ScheduledTask -TaskName 'VaultGate' -Confirm:$false -ErrorAction SilentlyContinue
+          Unregister-ScheduledTask -TaskName 'VaultGate MCP Server' -Confirm:$false -ErrorAction SilentlyContinue
           Get-Process -Name node -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
   mutation:

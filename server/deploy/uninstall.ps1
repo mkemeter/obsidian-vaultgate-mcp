@@ -1,11 +1,11 @@
 Write-Host "Uninstalling VaultGate..." -ForegroundColor Cyan
 
 # --- Remove scheduled task ------------------------------------------------
-$task = Get-ScheduledTask -TaskName "VaultGate" -ErrorAction SilentlyContinue
+$task = Get-ScheduledTask -TaskName "VaultGate MCP Server" -ErrorAction SilentlyContinue
 if ($task) {
-    Stop-ScheduledTask -TaskName "VaultGate" -ErrorAction SilentlyContinue
+    Stop-ScheduledTask -TaskName "VaultGate MCP Server" -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 2
-    Unregister-ScheduledTask -TaskName "VaultGate" -Confirm:$false
+    Unregister-ScheduledTask -TaskName "VaultGate MCP Server" -Confirm:$false
     Write-Host "  [OK] Scheduled task stopped and removed." -ForegroundColor Green
 }
 
