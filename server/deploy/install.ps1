@@ -79,21 +79,23 @@ if ($PSBoundParameters.ContainsKey('VaultName')) {
     $vaultName = (Read-Host "Vault name (leave blank to use last focused vault)").Trim()
 }
 
-# --- Write wrapper .cmd (env vars + quoted paths, safe for spaces) --------
+# --- Write wrapper .cmd (env vars + quoted values, safe for spaces and &^%) ---
+# The autostart instance is pinned to port 3002 (mirrors the launchd installer)
+# so a manual instance on the default 3001 never clashes with the login task.
 $wrapperDir  = "$env:APPDATA\VaultGate"
 $wrapperPath = "$wrapperDir\start.cmd"
 New-Item -ItemType Directory -Force -Path $wrapperDir | Out-Null
 
 $cmd  = "@echo off`r`n"
 $cmd += "set OBSIDIAN_MCP_TRANSPORT=http`r`n"
-$cmd += "set OBSIDIAN_CLI_PATH=$obsidianPath`r`n"
-if ($vaultName) { $cmd += "set OBSIDIAN_VAULT=$vaultName`r`n" }
+$cmd += "set OBSIDIAN_MCP_PORT=3002`r`n"
+$cmd += "set ""OBSIDIAN_CLI_PATH=$obsidianPath""`r`n"
+if ($vaultName) { $cmd += "set ""OBSIDIAN_VAULT=$vaultName""`r`n" }
 $cmd += '"' + $nodePath + '" "' + $mcpScript + '"' + "`r`n"
 Set-Content -Path $wrapperPath -Value $cmd -Encoding ASCII
 
 Write-Host "Wrapper written: $wrapperPath"
 
-# --- Register scheduled task (at login, current user, no elevation) -------
 # --- Register scheduled task (at login, current user, no elevation) -------
 $action = New-ScheduledTaskAction -Execute $wrapperPath
 $trigger = New-ScheduledTaskTrigger -AtLogOn
@@ -110,11 +112,11 @@ if ((Get-Command New-ScheduledTaskSettingsSet).Parameters.ContainsKey('StopIfGoi
 }
 $settings = New-ScheduledTaskSettingsSet @settingsArgs
 
-Register-ScheduledTask -TaskName "VaultGate" -Action $action `
+Register-ScheduledTask -TaskName "VaultGate MCP Server" -Action $action `
   -Trigger $trigger -Settings $settings -RunLevel Limited -Force | Out-Null
 
 Write-Host ""
 Write-Host "[OK] VaultGate will start automatically at login." -ForegroundColor Green
-Write-Host "  MCP URL:      http://127.0.0.1:3001/mcp"
-Write-Host "  Start now:    Start-ScheduledTask -TaskName VaultGate"
-Write-Host "  Check status: Get-ScheduledTask -TaskName VaultGate"
+Write-Host "  MCP URL:      http://127.0.0.1:3002/mcp"
+Write-Host "  Start now:    Start-ScheduledTask -TaskName 'VaultGate MCP Server'"
+Write-Host "  Check status: Get-ScheduledTask -TaskName 'VaultGate MCP Server'"

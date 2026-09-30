@@ -81,6 +81,35 @@ describe("resolveInstallerCommand", () => {
     expect(command).toBe("bash");
     expect(args[0].endsWith("uninstall.sh")).toBe(true);
   });
+
+  it("Windows: appends extra args after the ps1 path (order preserved)", () => {
+    const { args } = resolveInstallerCommand(
+      "install",
+      "win32",
+      "/pkg/deploy",
+      ["-ObsidianPath", "C:\\Obsidian\\Obsidian.exe", "-VaultName", "My Vault", "-NonInteractive"]
+    );
+    expect(args).toEqual([
+      "-ExecutionPolicy",
+      "Bypass",
+      "-NoProfile",
+      "-File",
+      expect.stringMatching(/install\.ps1$/),
+      "-ObsidianPath",
+      "C:\\Obsidian\\Obsidian.exe",
+      "-VaultName",
+      "My Vault",
+      "-NonInteractive",
+    ]);
+  });
+
+  it("POSIX: appends extra args after the .sh path (forwarded, not interpreted)", () => {
+    const { command, args } = resolveInstallerCommand("install", "darwin", "/pkg/deploy", [
+      "-NonInteractive",
+    ]);
+    expect(command).toBe("bash");
+    expect(args).toEqual([expect.stringMatching(/install\.sh$/), "-NonInteractive"]);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -125,11 +154,65 @@ describe("runInstaller", () => {
     await expect(p).rejects.toThrow("uninstall failed to start: EACCES");
   });
 
-  it("rejects without spawning when stdin is not a TTY", async () => {
+  it("rejects without spawning when stdin is not a TTY (POSIX)", async () => {
+    Object.defineProperty(process, "platform", { value: "linux", configurable: true });
     Object.defineProperty(process.stdin, "isTTY", { value: false, configurable: true });
     mockState.capturedCommand = "";
     await expect(runInstaller("install")).rejects.toThrow("must be run from a terminal");
     // Guard fired before spawn — command was never captured.
+    expect(mockState.capturedCommand).toBe("");
+  });
+
+  it("forwards extra args to the spawned child (win32)", async () => {
+    Object.defineProperty(process, "platform", { value: "win32", configurable: true });
+    const p = runInstaller("install", ["-VaultName", "My Vault", "-NonInteractive"]);
+    mockState.child.emit("exit", 0);
+    await expect(p).resolves.toBeUndefined();
+    expect(mockState.capturedCommand).toBe("powershell.exe");
+    expect(mockState.capturedArgs.slice(-3)).toEqual([
+      "-VaultName",
+      "My Vault",
+      "-NonInteractive",
+    ]);
+  });
+
+  it("forwards extra args to the spawned child (posix)", async () => {
+    Object.defineProperty(process, "platform", { value: "darwin", configurable: true });
+    const p = runInstaller("install", ["-NonInteractive"]);
+    mockState.child.emit("exit", 0);
+    await expect(p).resolves.toBeUndefined();
+    expect(mockState.capturedCommand).toBe("bash");
+    expect(mockState.capturedArgs).toEqual([
+      expect.stringMatching(/install\.sh$/),
+      "-NonInteractive",
+    ]);
+  });
+
+  it("allows a non-TTY win32 run (PowerShell targets have a -NonInteractive path)", async () => {
+    Object.defineProperty(process, "platform", { value: "win32", configurable: true });
+    Object.defineProperty(process.stdin, "isTTY", { value: false, configurable: true });
+    const p = runInstaller("install", ["-NonInteractive"]);
+    mockState.child.emit("exit", 0);
+    await expect(p).resolves.toBeUndefined();
+    expect(mockState.capturedCommand).toBe("powershell.exe");
+  });
+
+  it("allows a non-TTY posix run when -NonInteractive is forwarded", async () => {
+    Object.defineProperty(process, "platform", { value: "darwin", configurable: true });
+    Object.defineProperty(process.stdin, "isTTY", { value: false, configurable: true });
+    const p = runInstaller("install", ["-NonInteractive"]);
+    mockState.child.emit("exit", 0);
+    await expect(p).resolves.toBeUndefined();
+    expect(mockState.capturedCommand).toBe("bash");
+  });
+
+  it("still rejects a non-TTY posix run WITHOUT -NonInteractive (bare `read` would hang)", async () => {
+    Object.defineProperty(process, "platform", { value: "darwin", configurable: true });
+    Object.defineProperty(process.stdin, "isTTY", { value: false, configurable: true });
+    mockState.capturedCommand = "";
+    await expect(runInstaller("install", ["-VaultName", "X"])).rejects.toThrow(
+      "must be run from a terminal"
+    );
     expect(mockState.capturedCommand).toBe("");
   });
 });

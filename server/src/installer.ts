@@ -29,11 +29,14 @@ export interface InstallerCommand {
  * @param action  Which deploy script to run.
  * @param platform  A `process.platform` value.
  * @param deployDir  Absolute path to the package's `deploy/` directory.
+ * @param extraArgs  Forwarded verbatim after the script path — e.g. the
+ *                   `-ObsidianPath … -VaultName … -NonInteractive` parameters of install.ps1.
  */
 export function resolveInstallerCommand(
   action: InstallerAction,
   platform: NodeJS.Platform,
-  deployDir: string
+  deployDir: string,
+  extraArgs: string[] = []
 ): InstallerCommand {
   if (platform === "win32") {
     return {
@@ -44,12 +47,13 @@ export function resolveInstallerCommand(
         "-NoProfile",
         "-File",
         path.join(deployDir, `${action}.ps1`),
+        ...extraArgs,
       ],
     };
   }
   return {
     command: "bash",
-    args: [path.join(deployDir, `${action}.sh`)],
+    args: [path.join(deployDir, `${action}.sh`), ...extraArgs],
   };
 }
 
@@ -58,9 +62,12 @@ export function resolveInstallerCommand(
  * straight to this process's terminal so the script's interactive prompts (vault name,
  * Obsidian path) render and accept input.
  *
- * Requires a real TTY: the deploy scripts prompt via `read`/`Read-Host`, and inherited
- * stdio is interactive only when the parent runs in a console. If stdin is not a TTY we
- * exit early with a clear message rather than hang on an invisible prompt.
+ * Requires a real TTY — or a run that cannot prompt: the deploy scripts prompt via
+ * `read`/`Read-Host`, and inherited stdio is interactive only when the parent runs in a
+ * console. A non-TTY run proceeds only for PowerShell targets (whose unattended path is
+ * `-NonInteractive`, which skips every prompt) or when `-NonInteractive` is among
+ * `extraArgs`. The `.sh` installers have no non-interactive mode, so a non-TTY POSIX run
+ * is still rejected rather than allowed to hang on an invisible prompt.
  *
  * Invariant: once the child is spawned this function does nothing that reads package
  * files. The uninstall child runs `npm uninstall -g`, which deletes the package directory
@@ -69,10 +76,15 @@ export function resolveInstallerCommand(
  * afterwards.
  *
  * @param action  Which deploy script to run.
+ * @param extraArgs  Forwarded verbatim after the deploy script's path (spawned with
+ *                   shell:false — no shell interpolation). On Windows these become
+ *                   install.ps1 parameters; the .sh installers ignore them.
  * @returns Resolves when the child exits 0; rejects on non-zero exit or spawn failure.
  */
-export function runInstaller(action: InstallerAction): Promise<void> {
-  if (!process.stdin.isTTY) {
+export function runInstaller(action: InstallerAction, extraArgs: string[] = []): Promise<void> {
+  const canRunNonInteractive =
+    process.platform === "win32" || extraArgs.includes("-NonInteractive");
+  if (!process.stdin.isTTY && !canRunNonInteractive) {
     return Promise.reject(
       new Error(
         `${action} must be run from a terminal — it prompts you for your vault name.\n  Open a terminal and run: obsidian-vaultgate-mcp-${action}`
@@ -81,7 +93,7 @@ export function runInstaller(action: InstallerAction): Promise<void> {
   }
 
   const deployDir = path.join(path.dirname(url.fileURLToPath(import.meta.url)), "..", "deploy");
-  const { command, args } = resolveInstallerCommand(action, process.platform, deployDir);
+  const { command, args } = resolveInstallerCommand(action, process.platform, deployDir, extraArgs);
 
   return new Promise<void>((resolve, reject) => {
     const child = spawn(command, args, { stdio: "inherit" });

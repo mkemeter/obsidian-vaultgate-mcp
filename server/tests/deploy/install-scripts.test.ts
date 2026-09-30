@@ -120,6 +120,50 @@ describe.skipIf(isWin32)("deploy — launchd/install.sh", () => {
       fs.rmSync(base, { recursive: true, force: true });
     }
   }, 30_000);
+
+  it("resolves the binary via `npm prefix -g`/bin when it is not on PATH (regression: `npm bin -g` removed in npm v9+)", async () => {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), "vg-launchd-prefix-"));
+    try {
+      const home = path.join(base, "home");
+      fs.mkdirSync(home, { recursive: true });
+      const stubDir = path.join(base, "bin");
+      fs.mkdirSync(stubDir, { recursive: true });
+      const stubLog = path.join(base, "launchctl.log");
+      writeStub(stubDir, "launchctl", `echo "launchctl $*" >> "\${VG_STUB_LOG:-/dev/null}"`);
+      writeStub(stubDir, "obsidian", "exit 0");
+      // Fake npm global prefix: the installer must look in <prefix>/bin.
+      const prefix = path.join(base, "npm-prefix");
+      const prefixBin = path.join(prefix, "bin");
+      fs.mkdirSync(prefixBin, { recursive: true });
+      writeStub(prefixBin, "obsidian-vaultgate-mcp", "exit 0");
+      // The stub answers any `npm …` call with the prefix path — this code
+      // path only invokes `npm prefix -g`.
+      writeStub(stubDir, "npm", `echo "${prefix}"`);
+      // Deliberately no obsidian-vaultgate-mcp on PATH → forces the fallback.
+
+      const { code, out, err } = await runInstaller(LAUNCHD_INSTALL, {
+        home,
+        stubDir,
+        stdin: "TestVault\n",
+        extraEnv: { VG_STUB_LOG: stubLog },
+      });
+
+      expect(
+        code,
+        `installer exited ${code}\n--- stdout ---\n${out}\n--- stderr ---\n${err}`
+      ).toBe(0);
+
+      const plist = path.join(home, "Library", "LaunchAgents", "com.obsidian-vaultgate-mcp.plist");
+      expect(fs.existsSync(plist), "plist was not written").toBe(true);
+      const content = fs.readFileSync(plist, "utf-8");
+      // The fallback must yield <prefix>/bin/obsidian-vaultgate-mcp — not
+      // <prefix>/obsidian-vaultgate-mcp, which the removed `npm bin -g`
+      // contract would have implied.
+      expect(content).toContain(`<string>${prefixBin}/obsidian-vaultgate-mcp</string>`);
+    } finally {
+      fs.rmSync(base, { recursive: true, force: true });
+    }
+  }, 30_000);
 });
 
 describe.skipIf(isWin32)("deploy — systemd/install.sh", () => {

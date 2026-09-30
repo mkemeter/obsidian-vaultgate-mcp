@@ -36,8 +36,10 @@ echo "Node.js:         $NODE_PATH"
 # --- Detect obsidian-vaultgate-mcp binary -------------------------------------------
 MCP_PATH=$(which obsidian-vaultgate-mcp 2>/dev/null || true)
 if [[ -z "$MCP_PATH" ]]; then
-  # Try npm global bin
-  NPM_BIN=$(npm bin -g 2>/dev/null || true)
+  # Try the npm global bin. `npm bin -g` was removed in npm v9+; `npm prefix -g`
+  # (still supported) returns the install prefix, whose bin dir holds the shim.
+  NPM_PREFIX=$(npm prefix -g 2>/dev/null || true)
+  NPM_BIN="${NPM_PREFIX}/bin"
   if [[ -n "$NPM_BIN" && -x "$NPM_BIN/obsidian-vaultgate-mcp" ]]; then
     MCP_PATH="$NPM_BIN/obsidian-vaultgate-mcp"
   fi
