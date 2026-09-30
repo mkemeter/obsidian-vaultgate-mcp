@@ -300,7 +300,7 @@ jobs:
           $ok = $false
           for ($i = 0; $i -lt 60; $i++) {
             try {
-              $r = Invoke-WebRequest -Uri 'http://127.0.0.1:3001/health' -UseBasicParsing -TimeoutSec 2
+              $r = Invoke-WebRequest -Uri 'http://127.0.0.1:3002/health' -UseBasicParsing -TimeoutSec 2
               if ($r.StatusCode -eq 200) { $ok = $true; break }
             } catch {}
             Start-Sleep -Seconds 1
