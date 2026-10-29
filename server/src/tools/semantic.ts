@@ -59,6 +59,8 @@ interface VaultIndex {
   model: string;
   version: number;
   lastReHash: number;
+  /** Written only after a successful full index. Absent or false → trigger re-index on startup. */
+  complete?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -605,6 +607,7 @@ async function fullReHash(idx: VaultIndex, gen: number = buildGeneration): Promi
     // the current vault's cache file (getIndexPath() resolves at save time).
     if (gen !== buildGeneration) return;
     idx.lastReHash = Date.now();
+    idx.complete = true;
     saveIndex(idx);
   } finally {
     isReHashing = false;
@@ -698,7 +701,7 @@ function startBackgroundIndex(): void {
     try {
       const idx = loadIndex();
 
-      if (Object.keys(idx.files).length > 0) {
+      if (Object.keys(idx.files).length > 0 && idx.complete === true) {
         // Cache hit: run syncNewAndDeleted() in add-only mode (pruneDeleted=false) so
         // a partial or truncated response from Obsidian cannot shrink the index.
         // Pruning of genuinely deleted notes happens in fullReHash (24 h cycle or
@@ -743,6 +746,7 @@ function startBackgroundIndex(): void {
         // index must not be persisted into the new vault's cache file.
         if (gen !== buildGeneration) return;
         idx.lastReHash = Date.now();
+        idx.complete = true;
         saveIndex(idx);
         liveIndex = idx;
         indexState = "ready";

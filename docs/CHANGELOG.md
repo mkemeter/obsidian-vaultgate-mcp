@@ -11,6 +11,13 @@ A section may be absent if that distribution had no changes in the release.
 
 ## [Unreleased]
 
+### Server
+
+#### Fixed
+
+- **`note_open` no longer auto-fires after writes** — the tool description previously instructed LLMs to call `note_open` automatically after creating or writing a note, causing Obsidian to steal focus on every write operation (severe with instruction-following clients like Joule Work Desktop). The tool now requires explicit user intent ("open", "show", "view", "go to") and includes a `Do NOT call automatically` directive.
+- **Interrupted semantic re-index no longer causes silent RAG degradation** — a cache file written during an interrupted build (e.g. server killed mid-index) was previously treated as complete on restart, leaving the un-indexed portion of the vault permanently excluded from semantic search. A `complete` flag is now written to the cache only after a successful full index; a cache without this flag (including all caches from prior versions) triggers a fresh re-index on the next startup.
+
 ---
 
 ## [0.3.2] — 2026-09-14

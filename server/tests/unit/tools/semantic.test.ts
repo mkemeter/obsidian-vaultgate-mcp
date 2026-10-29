@@ -228,6 +228,7 @@ async function freshModuleWithCache(runMock: (args: string[]) => Promise<string>
     version: 3,
     model: "Xenova/all-MiniLM-L6-v2",
     lastReHash: 0,
+    complete: true,
     files: {
       "note-a.md": { hash: "abc123", chunks: [{ heading: "Note A", embedding: FAKE_VEC_A }] },
       "note-empty-chunks.md": { hash: "def456", chunks: [] },
@@ -330,6 +331,7 @@ describe("cache-hit startup path — configured vault syncs immediately", () => 
       version: 3,
       model: "Xenova/all-MiniLM-L6-v2",
       lastReHash: Date.now(),
+      complete: true,
       files: {
         "note-a.md": { hash: "abc", chunks: [{ heading: "Note A", embedding: FAKE_VEC_A }] },
       },
@@ -1156,7 +1158,7 @@ describe("vault switch heuristic", () => {
     const cacheFile = path.join(cacheDir, "embeddings-default.json");
     fs.writeFileSync(
       cacheFile,
-      JSON.stringify({ files: cachedFiles, model: "Xenova/all-MiniLM-L6-v2", version: 3, lastReHash: 0 }),
+      JSON.stringify({ files: cachedFiles, model: "Xenova/all-MiniLM-L6-v2", version: 3, lastReHash: 0, complete: true }),
       "utf-8"
     );
 
@@ -1482,6 +1484,72 @@ describe("loadIndex BGE→MiniLM migration", () => {
     // "bge-note.md" from the BGE cache must not appear — index was rebuilt from scratch.
     const result = await callTool(server, "vault_info");
     expect(result.content[0].text).not.toContain("bge-note.md");
+
+    if (fs.existsSync(cacheFile)) fs.unlinkSync(cacheFile);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// regression: partial embeddings cache (interrupted re-index) was treated
+//   as complete, silently leaving unindexed notes out of semantic search.
+//   A cache written during an interrupted build has valid version/model and
+//   some file entries, but no `complete: true` flag — it must be treated as
+//   stale and trigger a full re-index, not the fast cache-hit path.
+// ---------------------------------------------------------------------------
+
+describe("incomplete cache triggers full re-index", () => {
+  it("re-indexes from scratch when cache has entries but no complete flag", async () => {
+    const uniqueVault = `__test_partial_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const safe = uniqueVault.replace(/[^a-zA-Z0-9_-]/g, "_");
+
+    vi.resetModules();
+    vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+    vi.doMock("../../../src/config.js", () => ({
+      config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+    }));
+    vi.doMock("@xenova/transformers", () => ({
+      pipeline: vi.fn().mockResolvedValue(
+        vi.fn().mockImplementation(() =>
+          Promise.resolve({ tolist: () => [FAKE_VEC_A] })
+        )
+      ),
+    }));
+
+    const { runObsidian } = await import("../../../src/cli.js");
+    vi.mocked(runObsidian).mockImplementation(async (args: string[]) => {
+      if (args.includes("list")) return "partial-note.md\n";
+      return "";
+    });
+
+    const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
+    const server = new McpServer({ name: "test", version: "0.0.0" });
+    const semantic = await import("../../../src/tools/semantic.js");
+
+    // Seed a partial cache: valid version/model and one file entry,
+    // but deliberately no `complete` flag — mirrors a build killed mid-checkpoint.
+    const cacheDir = semantic.resolveIndexCacheDir();
+    fs.mkdirSync(cacheDir, { recursive: true });
+    const cacheFile = path.join(cacheDir, `embeddings-${safe}.json`);
+    fs.writeFileSync(
+      cacheFile,
+      JSON.stringify({
+        version: 3,
+        model: "Xenova/all-MiniLM-L6-v2",
+        lastReHash: 0,
+        files: { "partial-note.md": { hash: "abc", chunks: [] } },
+        // deliberately no `complete: true`
+      }),
+      "utf-8"
+    );
+
+    semantic.registerSemanticTools(server);
+    await waitForReady(semantic.getIndexStateForTesting);
+
+    // After a successful full re-index the on-disk cache must have complete: true.
+    // Currently FAILS — the code never writes this field.
+    // After the fix PASSES — the no-cache path writes complete: true before saveIndex.
+    const saved = JSON.parse(fs.readFileSync(cacheFile, "utf-8"));
+    expect(saved.complete).toBe(true);
 
     if (fs.existsSync(cacheFile)) fs.unlinkSync(cacheFile);
   });
@@ -2105,7 +2173,7 @@ describe("regression: partial listVaultPaths does not prune index at startup", (
     const indexPath = path.join(cacheDir, `embeddings-${safeKey}.json`);
     fs.writeFileSync(
       indexPath,
-      JSON.stringify({ version: 3, model: "Xenova/all-MiniLM-L6-v2", lastReHash: 0, files: cachedFiles }),
+      JSON.stringify({ version: 3, model: "Xenova/all-MiniLM-L6-v2", lastReHash: 0, complete: true, files: cachedFiles }),
       "utf-8",
     );
     semantic.registerSemanticTools(server);
