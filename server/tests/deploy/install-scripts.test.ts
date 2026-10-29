@@ -140,6 +140,13 @@ describe.skipIf(isWin32)("deploy — launchd/install.sh", () => {
       // path only invokes `npm prefix -g`.
       writeStub(stubDir, "npm", `echo "${prefix}"`);
       // Deliberately no obsidian-vaultgate-mcp on PATH → forces the fallback.
+      // A `which` stub shadows the real one so that `which obsidian-vaultgate-mcp`
+      // returns nothing even on developer machines where the binary is installed globally.
+      writeStub(
+        stubDir,
+        "which",
+        'if [ "$1" = "obsidian-vaultgate-mcp" ]; then exit 1; fi\nexec /usr/bin/which "$@"'
+      );
 
       const { code, out, err } = await runInstaller(LAUNCHD_INSTALL, {
         home,
