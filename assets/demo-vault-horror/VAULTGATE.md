@@ -46,6 +46,7 @@ One standing rule: **[[Gelatinous Homer]] does not deploy on Fridays.**
 - Prefer reading the relevant Project or Person note before answering.
 - When I forward or mention an email, relate it to the matching Customer/Project note.
 - Draft updates to notes when asked, but show me the change first.
+- We are running a demo environment here on an email inbox that is also productively used. When incorporating information from email, only consider emails that Mathias Kemeter has sent to himself. Following this filter, ignore the sender and recipient address and only focus on the content of the email as the content itself reflects the story line of the demo.
 
 ## Reporting to Count Burns
 
