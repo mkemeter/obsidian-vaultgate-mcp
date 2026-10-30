@@ -50,7 +50,8 @@ export function registerPrefsIpc(): void {
       (patch.homeScope !== undefined && patch.homeScope !== current.homeScope) ||
       (patch.scopeSwitchingEnabled !== undefined &&
         patch.scopeSwitchingEnabled !== current.scopeSwitchingEnabled) ||
-      (patch.dailyNotesPath !== undefined && patch.dailyNotesPath !== current.dailyNotesPath);
+      (patch.dailyNotesPath !== undefined && patch.dailyNotesPath !== current.dailyNotesPath) ||
+      (patch.noUri !== undefined && patch.noUri !== current.noUri);
 
     const injectionChanged =
       (patch.injectConventions !== undefined &&

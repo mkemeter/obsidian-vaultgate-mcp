@@ -79,6 +79,11 @@ export function validateConfigPatch(patch: Partial<VaultGateConfig>): Partial<Va
       throw new Error("Invalid daily notes path — must be a string.");
     }
   }
+  if (patch.noUri !== undefined) {
+    if (typeof patch.noUri !== "boolean") {
+      throw new Error("Invalid noUri value — must be a boolean.");
+    }
+  }
 
   const normalized: Partial<VaultGateConfig> = { ...patch };
   if (patch.contextFileName !== undefined) {

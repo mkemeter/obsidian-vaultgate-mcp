@@ -274,6 +274,7 @@ export async function start(): Promise<void> {
         : {}),
       ...(config.scopeSwitchingEnabled ? { VAULTGATE_SCOPE_SWITCHING: "true" } : {}),
       ...(config.dailyNotesPath ? { OBSIDIAN_DAILY_NOTES_PATH: config.dailyNotesPath } : {}),
+      ...(config.noUri ? { VAULTGATE_NO_URI: "true" } : {}),
     },
     stdio: "pipe",
   });

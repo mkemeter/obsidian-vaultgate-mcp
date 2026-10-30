@@ -20,6 +20,7 @@ A section may be absent if that distribution had no changes in the release.
 - **`vault_scope_set` tool** — switches the active scope for the current session. Registered only when `VAULTGATE_SCOPE_SWITCHING=true` (opt-in).
 - **Scope-local conventions** — a `.vaultgate` file can declare a `conventions = "SCOPE.md"` key; VaultGate appends that file after the global `VAULTGATE.md` at session start.
 - **Four new env vars**: `OBSIDIAN_VAULT_PATH`, `OBSIDIAN_SCOPE`, `VAULTGATE_SCOPE_SWITCHING`, `OBSIDIAN_DAILY_NOTES_PATH`.
+- **`VAULTGATE_NO_URI`** — set to `true` to skip registering `note_open`, `search_open`, and `daily_open`. Useful in server or background deployments (pm2, launchd, shared machines) where launching `obsidian://` URIs would steal focus or disrupt other users. URI tools are enabled by default; this is an expert opt-out only.
 
 ### Tray
 
@@ -27,6 +28,7 @@ A section may be absent if that distribution had no changes in the release.
 
 - **Vault scoping config fields** — four new fields in the Preferences store (`vaultPath`, `homeScope`, `scopeSwitchingEnabled`, `dailyNotesPath`) are passed to the server process as environment variables. Changing any of these restarts the server.
 - **`prefs:refreshScopeMap` IPC handler** — sends a `refresh_scope_map` control command to the running server without a restart, useful after editing `.vaultgate` files.
+- **`noUri` config field** — when `true`, the server is started with `VAULTGATE_NO_URI=true`. Not exposed in the Preferences UI; advanced users can set it by editing the config file directly.
 
 ---
 

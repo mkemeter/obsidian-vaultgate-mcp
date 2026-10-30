@@ -68,6 +68,7 @@ describe("scope tool registration", () => {
     const {
       createServer,
       BASE_TOOL_COUNT,
+      URI_TOOL_COUNT,
       SCOPE_TOOL_COUNT,
       SEMANTIC_TOOL_COUNT,
     } = await import("../../src/server.js");
@@ -79,8 +80,8 @@ describe("scope tool registration", () => {
     );
     const count: number = result.tools.length;
     expect([
-      BASE_TOOL_COUNT + SCOPE_TOOL_COUNT,
-      BASE_TOOL_COUNT + SCOPE_TOOL_COUNT + SEMANTIC_TOOL_COUNT,
+      BASE_TOOL_COUNT + URI_TOOL_COUNT + SCOPE_TOOL_COUNT,
+      BASE_TOOL_COUNT + URI_TOOL_COUNT + SCOPE_TOOL_COUNT + SEMANTIC_TOOL_COUNT,
     ]).toContain(count);
   });
 });

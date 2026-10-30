@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { createServer, BASE_TOOL_COUNT, SEMANTIC_TOOL_COUNT, getFaviconIco } from "../../src/server.js";
+import { createServer, BASE_TOOL_COUNT, URI_TOOL_COUNT, SEMANTIC_TOOL_COUNT, getFaviconIco } from "../../src/server.js";
 
 vi.mock("../../src/cli.js", () => ({ runObsidian: vi.fn().mockResolvedValue("") }));
 
@@ -16,7 +16,7 @@ describe("server tool registration", () => {
     expect(Array.isArray(result.tools)).toBe(true);
     // Accept either base count or base + semantic tools (depending on whether
     // @xenova/transformers is installed in the test environment).
-    expect([BASE_TOOL_COUNT, BASE_TOOL_COUNT + SEMANTIC_TOOL_COUNT]).toContain(
+    expect([BASE_TOOL_COUNT + URI_TOOL_COUNT, BASE_TOOL_COUNT + URI_TOOL_COUNT + SEMANTIC_TOOL_COUNT]).toContain(
       result.tools.length
     );
   });
@@ -90,8 +90,8 @@ describe("server tool registration", () => {
       { method: "tools/list", params: {} },
       {}
     );
-    // If this fails, update BASE_TOOL_COUNT in server.ts
-    expect(result.tools.length).toBeGreaterThanOrEqual(BASE_TOOL_COUNT);
+    // If this fails, update BASE_TOOL_COUNT + URI_TOOL_COUNT in server.ts
+    expect(result.tools.length).toBeGreaterThanOrEqual(BASE_TOOL_COUNT + URI_TOOL_COUNT);
   });
 
   it("all tools have a name and description", async () => {

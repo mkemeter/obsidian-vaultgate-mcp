@@ -123,6 +123,16 @@ export interface Config {
    * Set `OBSIDIAN_DAILY_NOTES_PATH` to the vault-relative folder name.
    */
   dailyNotesPath: string | undefined;
+
+  /**
+   * When `true`, the three URI-scheme tools (`note_open`, `search_open`,
+   * `daily_open`) are not registered. Useful for server/background deployments
+   * where launching `obsidian://` URIs would steal focus or disrupt other users.
+   *
+   * Defaults to `false` (URI tools enabled). Set `VAULTGATE_NO_URI=true` to
+   * disable. This is an expert opt-out; most users should leave it unset.
+   */
+  noUri: boolean;
 }
 
 /** Default conventions filename when `OBSIDIAN_CONTEXT_FILE` is unset. */
@@ -244,6 +254,7 @@ export function loadConfig(): Config {
     homeScope: process.env.OBSIDIAN_SCOPE?.trim() || "unscoped",
     scopeSwitchingEnabled: process.env.VAULTGATE_SCOPE_SWITCHING?.trim() === "true",
     dailyNotesPath: process.env.OBSIDIAN_DAILY_NOTES_PATH?.trim() || undefined,
+    noUri: process.env.VAULTGATE_NO_URI?.trim() === "true",
   };
 }
 

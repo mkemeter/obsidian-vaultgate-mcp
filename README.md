@@ -389,6 +389,7 @@ All configuration via environment variables. None are required for single-vault 
 | `OBSIDIAN_SCOPE` | `unscoped` | Starting scope when `OBSIDIAN_VAULT_PATH` is set. Notes outside this scope are invisible to the AI. Use `unscoped` to start in the built-in root zone. |
 | `VAULTGATE_SCOPE_SWITCHING` | `false` | Set to `true` to expose the `vault_scope_set` tool and let the AI switch scopes on request. When `false`, the scope is fixed for the session. |
 | `OBSIDIAN_DAILY_NOTES_PATH` | _(unset)_ | Vault-relative folder for daily notes (e.g. `Daily Notes`). When set and scoping is active, scope is enforced on daily note tools. |
+| `VAULTGATE_NO_URI` | `false` | Set to `true` to skip registering `note_open`, `search_open`, and `daily_open`. Useful in server or background deployments where launching `obsidian://` URIs would steal focus or disrupt other users. URI tools are enabled by default. |
 
 ### Vault scopes
 

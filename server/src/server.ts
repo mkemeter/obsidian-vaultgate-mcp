@@ -24,7 +24,10 @@ import { registerTemplateTools } from "./tools/templates.js";
 import { registerUriTools } from "./tools/uri.js";
 
 /** Number of always-present tools (includes vault_context + vault_context_set). */
-export const BASE_TOOL_COUNT = 34;
+export const BASE_TOOL_COUNT = 31;
+
+/** Number of URI-scheme tools registered unless VAULTGATE_NO_URI=true. */
+export const URI_TOOL_COUNT = 3;
 
 /** Number of additional tools registered when @xenova/transformers is available. */
 export const SEMANTIC_TOOL_COUNT = 5;
@@ -161,7 +164,11 @@ export async function createServer(iconUrl?: string): Promise<McpServer> {
   registerPluginTools(server); // plugins_list, plugin_reload
   registerDevTools(server); // eval, dev_errors, dev_console, dev_css, dev_dom, dev_screenshot, dev_mobile
   registerContextTools(server); // vault_context, vault_context_set
-  registerUriTools(server); // note_open, search_open, daily_open
+
+  // URI tools — registered unless VAULTGATE_NO_URI=true.
+  if (!config.noUri) {
+    registerUriTools(server); // note_open, search_open, daily_open
+  }
 
   // Scope tools — registered when vault scoping is active (OBSIDIAN_VAULT_PATH set).
   if (isScopingEnabled()) {

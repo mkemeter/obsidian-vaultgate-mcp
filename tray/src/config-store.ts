@@ -65,6 +65,15 @@ export interface VaultGateConfig {
    * notes.
    */
   dailyNotesPath: string;
+  /**
+   * When `true`, the URI-scheme tools (`note_open`, `search_open`, `daily_open`)
+   * are not registered. For server/background deployments where launching
+   * `obsidian://` URIs would steal focus or disrupt other users.
+   *
+   * Defaults to `false` (URI tools enabled). Expert opt-out — most users should
+   * leave this unset. Requires a server restart to take effect.
+   */
+  noUri: boolean;
 }
 
 /** A vault registered in Obsidian's `obsidian.json`. */
@@ -87,6 +96,7 @@ const DEFAULTS: VaultGateConfig = {
   homeScope: "unscoped",
   scopeSwitchingEnabled: false,
   dailyNotesPath: "",
+  noUri: false,
 };
 
 /** Resolves the absolute path to the persisted config JSON file. */

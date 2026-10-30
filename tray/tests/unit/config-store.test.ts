@@ -107,6 +107,7 @@ describe("loadConfig / saveConfig / hasConfig", () => {
       homeScope: "unscoped",
       scopeSwitchingEnabled: false,
       dailyNotesPath: "",
+      noUri: false,
     });
   });
 
@@ -127,6 +128,7 @@ describe("loadConfig / saveConfig / hasConfig", () => {
       homeScope: "unscoped",
       scopeSwitchingEnabled: false,
       dailyNotesPath: "",
+      noUri: false,
     });
   });
 

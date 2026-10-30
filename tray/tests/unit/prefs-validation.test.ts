@@ -161,4 +161,20 @@ describe("validateConfigPatch", () => {
       );
     });
   });
+
+  describe("noUri", () => {
+    it("accepts true", () => {
+      expect(validateConfigPatch({ noUri: true }).noUri).toBe(true);
+    });
+
+    it("accepts false", () => {
+      expect(validateConfigPatch({ noUri: false }).noUri).toBe(false);
+    });
+
+    it("rejects a non-boolean value", () => {
+      expect(() => validateConfigPatch({ noUri: "true" as unknown as boolean })).toThrow(
+        /Invalid noUri value/
+      );
+    });
+  });
 });

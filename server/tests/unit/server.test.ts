@@ -71,8 +71,8 @@ describe("createServer — icon absent, no semantic module", () => {
       { method: "tools/list", params: {} },
       {}
     );
-    // Without semantic tools, only BASE_TOOL_COUNT tools are registered
-    const { BASE_TOOL_COUNT } = await import("../../src/server.js");
-    expect(result.tools.length).toBe(BASE_TOOL_COUNT);
+    // Without semantic tools, only BASE_TOOL_COUNT + URI_TOOL_COUNT tools are registered
+    const { BASE_TOOL_COUNT, URI_TOOL_COUNT } = await import("../../src/server.js");
+    expect(result.tools.length).toBe(BASE_TOOL_COUNT + URI_TOOL_COUNT);
   });
 });

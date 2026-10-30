@@ -109,6 +109,7 @@ Most vault bridges read and write your `.md` files directly on disk. VaultGate d
   - [Auto-start at login](#auto-start-at-login)
   - [Uninstall](#uninstall)
   - [Configuration](#configuration)
+  - [Vault scopes](#vault-scopes)
   - [Available tools](#available-tools)
   - [Troubleshooting](#troubleshooting)
 - [Tray Companion App](#tray-companion-app)
@@ -186,12 +187,24 @@ Prefer lowercase kebab-case. Core taxonomy: #project, #person, #resource, #meeti
 Use sentence case for note titles. No special characters except hyphens.
 ```
 
+A ready-to-use template covering all sections is available at [`docs/VAULTGATE.template.md`](docs/VAULTGATE.template.md).
+
 You can also ask your AI assistant: *"Help me set up vault conventions"* — it will analyse your vault structure and draft `VAULTGATE.md` for you using the `vault_context_set` tool.
 
 > [!NOTE]
 > `VAULTGATE.md` is automatically delivered at the start of each conversation — conventions are merged into the first tool result your AI requests, so it always knows your vault structure without you having to ask. If you edit the file mid-session and want the AI to pick up the changes immediately, ask your assistant to call `vault_context` again.
 >
 > **Injection is configurable:** use `VAULTGATE_INJECT_CONVENTIONS=false` to disable, or `VAULTGATE_INJECT_INTERVAL=<seconds>` to change how often conventions are re-injected (default: 30s). Both settings are also available in the tray Preferences dialog.
+
+> [!TIP]
+> **Skipping write confirmations:** every write tool defaults to showing a preview and waiting for your approval. If you trust the AI and want to skip that step, add a behavioral instruction to your `VAULTGATE.md`:
+>
+> ```
+> ## When helping me
+> - When I ask you to write, append, or update a note, use dryRun: false directly — no preview needed.
+> ```
+>
+> Remove the line at any time to restore the confirmation flow. This approach is per-vault and visible in the file — safer than a global setting you might forget about.
 
 ---
 
@@ -372,10 +385,62 @@ All configuration via environment variables. None are required for single-vault 
 | `VAULTGATE_INJECT_CONVENTIONS` | `true` | Set to `false` to disable automatic injection of vault conventions into tool results. When enabled, conventions are merged into the first tool result of each new conversation. Configurable in the tray Preferences dialog. |
 | `VAULTGATE_INJECT_INTERVAL` | `30` | How often (seconds) to re-inject vault conventions. Acts as a conversation-boundary detector: tool calls within a single thread happen seconds apart, so conventions are delivered exactly once at the start of each new conversation thread. Valid range: 1–3600. Configurable in the tray Preferences dialog. |
 | `VAULTGATE_MODEL_CACHE_DIR` | _(bundled/default cache)_ | Points the semantic-search embedding model at a pre-populated HuggingFace cache directory and disables remote downloads. For offline/air-gapped setups; normally set automatically by the tray. |
+| `OBSIDIAN_VAULT_PATH` | _(unset)_ | Absolute filesystem path to the vault root. Required to enable vault scopes. When unset, scoping is disabled and the full vault is accessible. |
+| `OBSIDIAN_SCOPE` | `unscoped` | Starting scope when `OBSIDIAN_VAULT_PATH` is set. Notes outside this scope are invisible to the AI. Use `unscoped` to start in the built-in root zone. |
+| `VAULTGATE_SCOPE_SWITCHING` | `false` | Set to `true` to expose the `vault_scope_set` tool and let the AI switch scopes on request. When `false`, the scope is fixed for the session. |
+| `OBSIDIAN_DAILY_NOTES_PATH` | _(unset)_ | Vault-relative folder for daily notes (e.g. `Daily Notes`). When set and scoping is active, scope is enforced on daily note tools. |
+| `VAULTGATE_NO_URI` | `false` | Set to `true` to skip registering `note_open`, `search_open`, and `daily_open`. Useful in server or background deployments where launching `obsidian://` URIs would steal focus or disrupt other users. URI tools are enabled by default. |
+
+### Vault scopes
+
+Vault scopes let you partition your vault into named zones and restrict VaultGate to one zone at a time. Notes outside the active scope are invisible to the AI — they do not appear in file listings, reads, search results, or semantic search. This is enforced in server code, not by an LLM instruction.
+
+**When to use:** vaults mixing personal and work content, shared machines, or any situation where you want hard boundaries between areas of your vault.
+
+#### Setting up scopes
+
+1. Set `OBSIDIAN_VAULT_PATH` to the absolute path of your vault directory and choose a starting scope:
+
+   ```bash
+   OBSIDIAN_VAULT_PATH="/Users/me/MyVault" OBSIDIAN_SCOPE="work" obsidian-vaultgate-mcp
+   ```
+
+2. Create a `.vaultgate` file (plain TOML) in each folder you want to name as a scope:
+
+   ```toml
+   # Work/.vaultgate
+   scope = "work"
+   ```
+
+   ```toml
+   # Personal/.vaultgate
+   scope = "personal"
+   ```
+
+   The nearest-ancestor `.vaultgate` determines a note's scope. Notes with no `.vaultgate` ancestor belong to the built-in `"unscoped"` zone.
+
+3. To let the AI switch scopes when the user asks, add `VAULTGATE_SCOPE_SWITCHING=true` — this exposes the `vault_scope_set` tool. Without it the scope is fixed for the session.
+
+#### Conventions per scope
+
+A `.vaultgate` file can optionally declare a scope-local conventions file that is appended after the global `VAULTGATE.md`:
+
+```toml
+scope = "work"
+conventions = "WORK_CONTEXT.md"
+```
+
+The AI receives the global conventions plus the zone-specific file at the start of each session, without any extra prompting.
+
+#### Known limitations
+
+- The scope is a server-process singleton: if multiple AI clients connect to the same server, a scope switch by one affects all.
+- `tags` and `unresolved` expose vault-wide metadata — scope is not enforced for these metadata-only tools.
+- The scope map is built at startup. After adding or modifying `.vaultgate` files, restart the server (or use the "Refresh scope map" control in the tray Preferences).
 
 ### Available tools
 
-VaultGate exposes 34 base tools across three categories, plus 5 semantic search tools when the embedding model is available. These tools are the concrete implementation of the features described above — and they are identical across both the headless and tray distributions.
+VaultGate exposes 34 base tools across three categories, plus 5 semantic search tools when the embedding model is available, plus up to 2 scope tools when vault scoping is configured. These tools are the concrete implementation of the features described above — and they are identical across both the headless and tray distributions.
 
 #### GUI navigation
 
@@ -447,6 +512,15 @@ The embedding model (`all-MiniLM-L6-v2`, ~23 MB) downloads once to `~/.cache/obs
 
 > [!WARNING]
 > The `@xenova/transformers` package depends on `onnxruntime-web`, which in turn depends on `protobufjs` v6.x. The v6.x branch of protobufjs has [known vulnerabilities](https://github.com/protobufjs/protobuf.js/security/advisories). Your vault content is never sent to the network — the only external traffic is the one-time model download from HuggingFace. The risk is limited to the model download path and is inherited from the supply chain; it cannot be patched from this package until upstream updates.
+
+#### Scope tools
+
+Registered automatically when `OBSIDIAN_VAULT_PATH` is set. See [Vault scopes](#vault-scopes) for setup instructions.
+
+| Tool | Description |
+|---|---|
+| `vault_scope` | Show the current scope, home scope, and all available scopes in the vault |
+| `vault_scope_set` | Switch the active scope — only registered when `VAULTGATE_SCOPE_SWITCHING=true` |
 
 ### Troubleshooting
 
@@ -685,7 +759,8 @@ obsidian-vaultgate-mcp/
 │   ├── CONTRIBUTING.md
 │   ├── CHANGELOG.md
 │   ├── SECURITY.md
-│   └── THIRD_PARTY_NOTICES.md
+│   ├── THIRD_PARTY_NOTICES.md
+│   └── VAULTGATE.template.md  ← starter template for your own vault conventions
 ├── server.json         MCP registry manifest (version-synced)
 └── .github/workflows/  CI (ci.yml = server, tray.yml = tray, publish.yml = npm publish, codeql.yml + mutation.yml = scans)
 ```
