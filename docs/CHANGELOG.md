@@ -28,6 +28,10 @@ A section may be absent if that distribution had no changes in the release.
 
 - **Upgraded semantic-search library from `@xenova/transformers` v2 to `@huggingface/transformers` v3** — package rename only; the embedding model (`Xenova/all-MiniLM-L6-v2`, Apache-2.0, Microsoft Research) and the public API are unchanged. Existing semantic index caches are automatically rebuilt on first startup after the upgrade (`INDEX_VERSION` bumped from 4 to 5 to guard against subtle float differences between ONNX runtime versions).
 
+#### Fixed
+
+- **Semantic search shows "0 notes indexed" in tray mode** — `@huggingface/transformers` v3 defaults to loading `model.onnx` (fp32). With `VAULTGATE_ALLOW_REMOTE_MODELS=false` and only `model_quantized.onnx` bundled in the app, `pipeline()` threw silently on every embed attempt; the per-note `catch {}` swallowed the error, leaving the index at 0 notes and saving a corrupt `{files:{}, complete:true}` cache. The embedder now requests `{ dtype: "q8" }` explicitly, directing v3 to use the bundled quantized weights.
+
 ### Tray
 
 #### Added

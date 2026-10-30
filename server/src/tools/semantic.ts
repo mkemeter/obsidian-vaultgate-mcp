@@ -94,7 +94,11 @@ type EmbedderFn = (
   texts: string[],
   opts: { pooling: string; normalize: boolean }
 ) => Promise<{ tolist(): number[][] }>;
-type PipelineCallable = (task: "feature-extraction", model: string) => Promise<EmbedderFn>;
+type PipelineCallable = (
+  task: "feature-extraction",
+  model: string,
+  options?: { dtype?: string }
+) => Promise<EmbedderFn>;
 let embedderInstance: EmbedderFn | null = null;
 // By design: embedder lifetime is module lifetime. The transformer pipeline is
 // expensive to load (~several seconds on first run), so it is never released
@@ -259,7 +263,8 @@ async function getEmbedder(): Promise<EmbedderFn> {
     const t0 = Date.now();
     embedderInstance = await (pipeline as unknown as PipelineCallable)(
       "feature-extraction",
-      MODEL_ID
+      MODEL_ID,
+      { dtype: "q8" }
     );
     console.error(
       `[VaultGate] Semantic model ready (loaded in ${((Date.now() - t0) / 1000).toFixed(1)}s)`

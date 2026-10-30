@@ -1682,6 +1682,115 @@ describe("VAULTGATE_MODEL_CACHE_DIR — pre-bundled model cache wiring", () => {
 });
 
 // ---------------------------------------------------------------------------
+// regression: pipeline() must be called with { dtype: "q8" } so @huggingface/
+// transformers v3 loads model_quantized.onnx (bundled) not model.onnx (fp32)
+// ---------------------------------------------------------------------------
+
+describe("regression: getEmbedder() calls pipeline with { dtype: 'q8' }", () => {
+  // Root cause: @huggingface/transformers v3 defaults to loading model.onnx
+  // (fp32). With VAULTGATE_ALLOW_REMOTE_MODELS=false and only model_quantized.onnx
+  // bundled in the tray app, pipeline() throws "file was not found locally at
+  // .../model.onnx". The catch{} in syncNewAndDeleted swallows the error, all
+  // notes fail to embed, and {files:{}, complete:true} is saved — producing the
+  // "Smart Search ready — 0 notes" symptom. Fix: pass { dtype: "q8" } so v3
+  // requests model_quantized.onnx instead of model.onnx.
+
+  const ORIGINAL_CACHE_DIR = process.env.VAULTGATE_MODEL_CACHE_DIR;
+  const ORIGINAL_REMOTE_FLAG = process.env.VAULTGATE_ALLOW_REMOTE_MODELS;
+
+  afterAll(() => {
+    if (ORIGINAL_CACHE_DIR === undefined) delete process.env.VAULTGATE_MODEL_CACHE_DIR;
+    else process.env.VAULTGATE_MODEL_CACHE_DIR = ORIGINAL_CACHE_DIR;
+    if (ORIGINAL_REMOTE_FLAG === undefined) delete process.env.VAULTGATE_ALLOW_REMOTE_MODELS;
+    else process.env.VAULTGATE_ALLOW_REMOTE_MODELS = ORIGINAL_REMOTE_FLAG;
+  });
+
+  it("passes { dtype: 'q8' } to pipeline() (tray mode: bundled model, remote disabled)", async () => {
+    process.env.VAULTGATE_MODEL_CACHE_DIR = "/tmp/vaultgate-test-models";
+    process.env.VAULTGATE_ALLOW_REMOTE_MODELS = "false";
+
+    const pipelineMock = vi
+      .fn()
+      .mockResolvedValue(
+        vi.fn().mockImplementation(() => Promise.resolve({ tolist: () => [FAKE_VEC_A] }))
+      );
+
+    vi.resetModules();
+    vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+    vi.doMock("../../../src/config.js", () => ({
+      config: { vault: "v", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+    }));
+    vi.doMock("@huggingface/transformers", () => ({
+      pipeline: pipelineMock,
+      env: { cacheDir: "", allowRemoteModels: true },
+    }));
+
+    const { runObsidian } = await import("../../../src/cli.js");
+    vi.mocked(runObsidian).mockImplementation(async (args: string[]) => {
+      if (args[0] === "files" && args[1] === "list") return "note-a.md\n";
+      if (args[0] === "read") return NOTE_A_CONTENT;
+      return "";
+    });
+
+    const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
+    const semantic = await import("../../../src/tools/semantic.js");
+    const server = new McpServer({ name: "t", version: "0" });
+    semantic.registerSemanticTools(server);
+
+    await callTool(server, "semantic_search", { query: "test" });
+    await waitForReady(semantic.getIndexStateForTesting);
+
+    // regression: v3 must receive dtype:'q8' so it loads model_quantized.onnx
+    expect(pipelineMock).toHaveBeenCalledWith(
+      "feature-extraction",
+      "Xenova/all-MiniLM-L6-v2",
+      { dtype: "q8" }
+    );
+  });
+
+  it("passes { dtype: 'q8' } to pipeline() on headless npm path too", async () => {
+    delete process.env.VAULTGATE_MODEL_CACHE_DIR;
+    delete process.env.VAULTGATE_ALLOW_REMOTE_MODELS;
+
+    const pipelineMock = vi
+      .fn()
+      .mockResolvedValue(
+        vi.fn().mockImplementation(() => Promise.resolve({ tolist: () => [FAKE_VEC_A] }))
+      );
+
+    vi.resetModules();
+    vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+    vi.doMock("../../../src/config.js", () => ({
+      config: { vault: "v2", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+    }));
+    vi.doMock("@huggingface/transformers", () => ({
+      pipeline: pipelineMock,
+    }));
+
+    const { runObsidian } = await import("../../../src/cli.js");
+    vi.mocked(runObsidian).mockImplementation(async (args: string[]) => {
+      if (args[0] === "files" && args[1] === "list") return "note-a.md\n";
+      if (args[0] === "read") return NOTE_A_CONTENT;
+      return "";
+    });
+
+    const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
+    const semantic = await import("../../../src/tools/semantic.js");
+    const server = new McpServer({ name: "t", version: "0" });
+    semantic.registerSemanticTools(server);
+
+    await callTool(server, "semantic_search", { query: "test" });
+    await waitForReady(semantic.getIndexStateForTesting);
+
+    expect(pipelineMock).toHaveBeenCalledWith(
+      "feature-extraction",
+      "Xenova/all-MiniLM-L6-v2",
+      { dtype: "q8" }
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // regression: empty/non-embeddable notes must not be re-embedded every sync
 // ---------------------------------------------------------------------------
 

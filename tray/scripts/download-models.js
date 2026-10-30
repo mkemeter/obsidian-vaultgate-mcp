@@ -40,7 +40,7 @@ const fs = require("node:fs");
   }
 
   console.log(`[download-models] downloading ${MODEL_ID} → ${cacheDir}`);
-  await pipeline("feature-extraction", MODEL_ID);
+  await pipeline("feature-extraction", MODEL_ID, { dtype: "q8" });
   console.log("[download-models] done");
 })().catch((err) => {
   console.error("[download-models] failed:", err);
