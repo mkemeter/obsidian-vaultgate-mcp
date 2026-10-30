@@ -69,7 +69,7 @@ describe("packaging — declared dependencies", () => {
   it("scanner sanity: discovers known declared bare imports under src/", () => {
     const found = allBarePackages();
     expect(found.has("@modelcontextprotocol/sdk")).toBe(true);
-    expect(found.has("@xenova/transformers")).toBe(true);
+    expect(found.has("@huggingface/transformers")).toBe(true);
   });
 
   // regression (red until fixed): `zod` is imported throughout src/tools/* but

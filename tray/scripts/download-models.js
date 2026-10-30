@@ -3,7 +3,7 @@
  * Pre-downloads the embedding model into `tray/assets/models/` at build time
  * so the packaged app ships with the model and works offline on first run.
  *
- * The download uses `env.cacheDir`; the installed @xenova/transformers (>= 2.17)
+ * The download uses `env.cacheDir`; the installed @huggingface/transformers (>= 3.0)
  * stores the model in the flat layout `<cacheDir>/<model_id>/` (verified
  * against the installed hub.js: `fsCacheKey = pathJoin(model_id, file)`). The
  * pre-2.17 HuggingFace snapshot layout (`models--Xenova--all-MiniLM-L6-v2/
@@ -18,7 +18,7 @@ const path = require("node:path");
 const fs = require("node:fs");
 
 (async () => {
-  const transformers = await import("@xenova/transformers");
+  const transformers = await import("@huggingface/transformers");
   const { env, pipeline } = transformers;
 
   const cacheDir = path.resolve(__dirname, "..", "assets", "models");

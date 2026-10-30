@@ -30,7 +30,7 @@ export const BASE_TOOL_COUNT = 32;
 /** Number of URI-scheme tools registered unless VAULTGATE_NO_URI=true. */
 export const URI_TOOL_COUNT = 3;
 
-/** Number of additional tools registered when @xenova/transformers is available. */
+/** Number of additional tools registered when @huggingface/transformers is available. */
 export const SEMANTIC_TOOL_COUNT = 5;
 
 /** Number of additional tools registered when vault scoping is enabled. */
@@ -185,7 +185,7 @@ export async function createServer(iconUrl?: string): Promise<McpServer> {
   try {
     semanticModule = await import("./tools/semantic.js");
   } catch {
-    // @xenova/transformers unavailable on this platform — skip semantic tools silently.
+    // @huggingface/transformers unavailable on this platform — skip semantic tools silently.
   }
   if (semanticModule) {
     semanticModule.registerSemanticTools(server);

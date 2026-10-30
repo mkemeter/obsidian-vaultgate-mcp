@@ -24,6 +24,10 @@ A section may be absent if that distribution had no changes in the release.
 - **Four new env vars**: `OBSIDIAN_VAULT_PATH`, `OBSIDIAN_SCOPE`, `VAULTGATE_SCOPE_SWITCHING`, `OBSIDIAN_DAILY_NOTES_PATH`.
 - **`VAULTGATE_NO_URI`** — set to `true` to skip registering `note_open`, `search_open`, and `daily_open`. Useful in server or background deployments (pm2, launchd, shared machines) where launching `obsidian://` URIs would steal focus or disrupt other users. URI tools are enabled by default; this is an expert opt-out only.
 
+#### Changed
+
+- **Upgraded semantic-search library from `@xenova/transformers` v2 to `@huggingface/transformers` v3** — package rename only; the embedding model (`Xenova/all-MiniLM-L6-v2`, Apache-2.0, Microsoft Research) and the public API are unchanged. Existing semantic index caches are automatically rebuilt on first startup after the upgrade (`INDEX_VERSION` bumped from 4 to 5 to guard against subtle float differences between ONNX runtime versions).
+
 ### Tray
 
 #### Added

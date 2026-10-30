@@ -1,7 +1,7 @@
 /**
  * Semantic search tools for obsidian-vaultgate-mcp.
  *
- * Requires @xenova/transformers (optional dependency). If the package is
+ * Requires @huggingface/transformers (optional dependency). If the package is
  * unavailable this module will fail to import and server.ts silently skips it.
  *
  * Five tools are registered:
@@ -31,8 +31,8 @@ import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as transformers from "@huggingface/transformers";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import * as transformers from "@xenova/transformers";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
 import { config } from "../config.js";
@@ -89,7 +89,13 @@ let isReHashing = false;
  * save time), and from clobbering the new build's state/`liveIndex`.
  */
 let buildGeneration = 0;
-let embedderInstance: Awaited<ReturnType<typeof pipeline>> | null = null;
+// @huggingface/transformers v3 pipeline overloads produce a union too complex for ReturnType<>; narrow to actual usage.
+type EmbedderFn = (
+  texts: string[],
+  opts: { pooling: string; normalize: boolean }
+) => Promise<{ tolist(): number[][] }>;
+type PipelineCallable = (task: "feature-extraction", model: string) => Promise<EmbedderFn>;
+let embedderInstance: EmbedderFn | null = null;
 // By design: embedder lifetime is module lifetime. The transformer pipeline is
 // expensive to load (~several seconds on first run), so it is never released
 // once created — even after clear_index resets liveIndex and indexState. If a
@@ -102,7 +108,7 @@ let emptyListRetries = 0;
 const MAX_EMPTY_LIST_RETRIES = 3;
 
 const MODEL_ID = "Xenova/all-MiniLM-L6-v2";
-const INDEX_VERSION = 4;
+const INDEX_VERSION = 5;
 const CHUNK_SIZE = 2000;
 const REHASH_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 h
 const DEFAULT_TOP_N = 10;
@@ -111,7 +117,7 @@ const DEFAULT_MIN_SCORE = 0.2;
 // ---------------------------------------------------------------------------
 // Pre-bundled model cache (used by the VaultGate tray app)
 // ---------------------------------------------------------------------------
-// When `VAULTGATE_MODEL_CACHE_DIR` is set the server points @xenova/transformers
+// When `VAULTGATE_MODEL_CACHE_DIR` is set the server points @huggingface/transformers
 // at a pre-populated HuggingFace snapshot directory shipped inside the Electron
 // app bundle, and disables remote downloads. On the headless npm path the stable
 // default is applied lazily in getEmbedder() (see resolveModelCacheDir) —
@@ -190,7 +196,7 @@ export function resolveIndexCacheDir(): string {
  * Honors the `VAULTGATE_MODEL_CACHE_DIR` env override (set by the tray app to the
  * pre-populated model directory inside the app bundle); otherwise defaults to
  * `<index-cache base>/models` — a stable location that survives npm reinstalls,
- * unlike @xenova/transformers' package-local node_modules default, which a
+ * unlike @huggingface/transformers' package-local node_modules default, which a
  * reinstall silently wipes (forcing a ~23 MB re-download). Read at call time so
  * tests can redirect it per-run. Mirrors the sibling `resolveIndexCacheDir()`.
  */
@@ -232,9 +238,9 @@ function saveIndex(idx: VaultIndex): void {
 // Embedding helpers
 // ---------------------------------------------------------------------------
 
-async function getEmbedder(): Promise<Awaited<ReturnType<typeof pipeline>>> {
+async function getEmbedder(): Promise<EmbedderFn> {
   if (!embedderInstance) {
-    // Stable default model cache (headless path): point @xenova/transformers at
+    // Stable default model cache (headless path): point @huggingface/transformers at
     // `<index-cache base>/models` unless the env override already wired a
     // directory at module load. Deferred to first use so module import stays
     // side-effect-free for the unit-test mocks (which export only `pipeline`,
@@ -251,7 +257,10 @@ async function getEmbedder(): Promise<Awaited<ReturnType<typeof pipeline>>> {
       `[VaultGate] Loading semantic model ${MODEL_ID} — first run may take several minutes while the model is compiled for your CPU...`
     );
     const t0 = Date.now();
-    embedderInstance = await pipeline("feature-extraction", MODEL_ID);
+    embedderInstance = await (pipeline as unknown as PipelineCallable)(
+      "feature-extraction",
+      MODEL_ID
+    );
     console.error(
       `[VaultGate] Semantic model ready (loaded in ${((Date.now() - t0) / 1000).toFixed(1)}s)`
     );

@@ -4,7 +4,7 @@
  * the server's node_modules into dist/server/node_modules/.
  *
  * We ship the unbundled build rather than an esbuild bundle because the
- * server's dependency stack (zod, @xenova/transformers, onnxruntime-node)
+ * server's dependency stack (zod, @huggingface/transformers, onnxruntime-node)
  * has CJS/ESM interop characteristics that esbuild's bundler mishandles.
  */
 

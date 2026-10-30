@@ -70,7 +70,7 @@ async function freshModule(runMock: (args: string[]) => Promise<string>) {
   vi.doMock("../../../src/config.js", () => ({
     config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
   }));
-  vi.doMock("@xenova/transformers", () => ({
+  vi.doMock("@huggingface/transformers", () => ({
     pipeline: vi.fn().mockResolvedValue(
       vi.fn().mockImplementation(() =>
         Promise.resolve({ tolist: () => [FAKE_VEC_A] })
@@ -106,7 +106,7 @@ describe("cosineSimilarity", () => {
 
   beforeEach(async () => {
     vi.resetModules();
-    vi.doMock("@xenova/transformers", () => ({ pipeline: vi.fn() }));
+    vi.doMock("@huggingface/transformers", () => ({ pipeline: vi.fn() }));
     vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
     vi.doMock("../../../src/config.js", () => ({
       config: { vault: undefined, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
@@ -157,7 +157,7 @@ async function freshModuleNoCache(runMock: (args: string[]) => Promise<string>) 
   vi.doMock("../../../src/config.js", () => ({
     config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
   }));
-  vi.doMock("@xenova/transformers", () => ({
+  vi.doMock("@huggingface/transformers", () => ({
     pipeline: vi.fn().mockResolvedValue(
       vi.fn().mockImplementation(() =>
         Promise.resolve({ tolist: () => [FAKE_VEC_A] })
@@ -199,7 +199,7 @@ async function freshModuleWithCache(runMock: (args: string[]) => Promise<string>
   vi.doMock("../../../src/config.js", () => ({
     config: { vault: vaultName, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
   }));
-  vi.doMock("@xenova/transformers", () => ({
+  vi.doMock("@huggingface/transformers", () => ({
     pipeline: vi.fn().mockResolvedValue(
       vi.fn().mockImplementation(() =>
         Promise.resolve({ tolist: () => [FAKE_VEC_A] })
@@ -225,7 +225,7 @@ async function freshModuleWithCache(runMock: (args: string[]) => Promise<string>
   // one note with empty chunks (exercises averageAndNormalise([]) guard),
   // lastReHash=0 so REHASH_INTERVAL_MS has elapsed → fullReHash fires.
   const seededIndex = {
-    version: 4,
+    version: 5,
     model: "Xenova/all-MiniLM-L6-v2",
     lastReHash: 0,
     complete: true,
@@ -301,7 +301,7 @@ describe("cache-hit startup path — configured vault syncs immediately", () => 
     vi.doMock("../../../src/config.js", () => ({
       config: { vault: vaultName, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
     }));
-    vi.doMock("@xenova/transformers", () => ({
+    vi.doMock("@huggingface/transformers", () => ({
       pipeline: vi.fn().mockResolvedValue(
         vi.fn().mockImplementation(() =>
           Promise.resolve({ tolist: () => [FAKE_VEC_A] })
@@ -328,7 +328,7 @@ describe("cache-hit startup path — configured vault syncs immediately", () => 
 
     // Cache has only 1 note; vault now has 2 (note-b.md is new)
     const seededIndex = {
-      version: 4,
+      version: 5,
       model: "Xenova/all-MiniLM-L6-v2",
       lastReHash: Date.now(),
       complete: true,
@@ -449,7 +449,7 @@ describe("semantic_search", () => {
       config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
     }));
     // Notes get FAKE_VEC_B (orthogonal to query FAKE_VEC_A) → score = 0
-    vi.doMock("@xenova/transformers", () => ({
+    vi.doMock("@huggingface/transformers", () => ({
       pipeline: vi.fn().mockResolvedValue(
         vi.fn().mockImplementation(() =>
           Promise.resolve({ tolist: () => [FAKE_VEC_B] })
@@ -781,7 +781,7 @@ describe("clear_index", () => {
     vi.doMock("../../../src/config.js", () => ({
       config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
     }));
-    vi.doMock("@xenova/transformers", () => ({
+    vi.doMock("@huggingface/transformers", () => ({
       pipeline: vi.fn().mockResolvedValue(
         vi.fn().mockImplementation(() => Promise.resolve({ tolist: () => [FAKE_VEC_A] }))
       ),
@@ -815,7 +815,7 @@ describe("clear_index", () => {
     vi.doMock("../../../src/config.js", () => ({
       config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
     }));
-    vi.doMock("@xenova/transformers", () => ({
+    vi.doMock("@huggingface/transformers", () => ({
       pipeline: vi.fn().mockResolvedValue(
         vi.fn().mockImplementation(() => Promise.resolve({ tolist: () => [FAKE_VEC_A] }))
       ),
@@ -932,7 +932,7 @@ describe("splitIntoSections via semantic_search", () => {
     vi.doMock("../../../src/config.js", () => ({
       config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
     }));
-    vi.doMock("@xenova/transformers", () => ({
+    vi.doMock("@huggingface/transformers", () => ({
       pipeline: vi.fn().mockResolvedValue(
         vi.fn().mockImplementation((texts: string[]) =>
           Promise.resolve({ tolist: () => texts.map(() => FAKE_VEC_A) })
@@ -1028,7 +1028,7 @@ describe("splitIntoSections via semantic_search", () => {
       config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
     }));
     // Return one FAKE_VEC_A per input text so sub-chunks embed correctly.
-    vi.doMock("@xenova/transformers", () => ({
+    vi.doMock("@huggingface/transformers", () => ({
       pipeline: vi.fn().mockResolvedValue(
         vi.fn().mockImplementation((texts: string[]) =>
           Promise.resolve({ tolist: () => texts.map(() => FAKE_VEC_A) })
@@ -1080,7 +1080,7 @@ describe("splitIntoSections via semantic_search", () => {
     vi.doMock("../../../src/config.js", () => ({
       config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
     }));
-    vi.doMock("@xenova/transformers", () => ({
+    vi.doMock("@huggingface/transformers", () => ({
       pipeline: vi.fn().mockResolvedValue(
         vi.fn().mockImplementation((texts: string[]) =>
           Promise.resolve({ tolist: () => texts.map(() => FAKE_VEC_A) })
@@ -1137,7 +1137,7 @@ describe("vault switch heuristic", () => {
     vi.doMock("../../../src/config.js", () => ({
       config: { vault: undefined, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
     }));
-    vi.doMock("@xenova/transformers", () => ({
+    vi.doMock("@huggingface/transformers", () => ({
       pipeline: vi.fn().mockResolvedValue(
         vi.fn().mockImplementation((texts: string[]) =>
           Promise.resolve({ tolist: () => texts.map(() => FAKE_VEC_A) })
@@ -1158,7 +1158,7 @@ describe("vault switch heuristic", () => {
     const cacheFile = path.join(cacheDir, "embeddings-default.json");
     fs.writeFileSync(
       cacheFile,
-      JSON.stringify({ files: cachedFiles, model: "Xenova/all-MiniLM-L6-v2", version: 4, lastReHash: 0, complete: true }),
+      JSON.stringify({ files: cachedFiles, model: "Xenova/all-MiniLM-L6-v2", version: 5, lastReHash: 0, complete: true }),
       "utf-8"
     );
 
@@ -1397,7 +1397,7 @@ describe("loadIndex stale cache", () => {
     vi.doMock("../../../src/config.js", () => ({
       config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
     }));
-    vi.doMock("@xenova/transformers", () => ({
+    vi.doMock("@huggingface/transformers", () => ({
       pipeline: vi.fn().mockResolvedValue(
         vi.fn().mockImplementation((texts: string[]) =>
           Promise.resolve({ tolist: () => texts.map(() => FAKE_VEC_A) })
@@ -1452,7 +1452,7 @@ describe("loadIndex BGE→MiniLM migration", () => {
     vi.doMock("../../../src/config.js", () => ({
       config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
     }));
-    vi.doMock("@xenova/transformers", () => ({
+    vi.doMock("@huggingface/transformers", () => ({
       pipeline: vi.fn().mockResolvedValue(
         vi.fn().mockImplementation(() =>
           Promise.resolve({ tolist: () => [FAKE_VEC_A] })
@@ -1507,7 +1507,7 @@ describe("incomplete cache triggers full re-index", () => {
     vi.doMock("../../../src/config.js", () => ({
       config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
     }));
-    vi.doMock("@xenova/transformers", () => ({
+    vi.doMock("@huggingface/transformers", () => ({
       pipeline: vi.fn().mockResolvedValue(
         vi.fn().mockImplementation(() =>
           Promise.resolve({ tolist: () => [FAKE_VEC_A] })
@@ -1533,7 +1533,7 @@ describe("incomplete cache triggers full re-index", () => {
     fs.writeFileSync(
       cacheFile,
       JSON.stringify({
-        version: 4,
+        version: 5,
         model: "Xenova/all-MiniLM-L6-v2",
         lastReHash: 0,
         files: { "partial-note.md": { hash: "abc", chunks: [] } },
@@ -1615,7 +1615,7 @@ describe("VAULTGATE_MODEL_CACHE_DIR — pre-bundled model cache wiring", () => {
     vi.doMock("../../../src/config.js", () => ({
       config: { vault: "v", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
     }));
-    vi.doMock("@xenova/transformers", () => ({
+    vi.doMock("@huggingface/transformers", () => ({
       pipeline: vi
         .fn()
         .mockResolvedValue(
@@ -1656,7 +1656,7 @@ describe("VAULTGATE_MODEL_CACHE_DIR — pre-bundled model cache wiring", () => {
     vi.doMock("../../../src/config.js", () => ({
       config: { vault: "v", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
     }));
-    vi.doMock("@xenova/transformers", () => ({ pipeline: vi.fn(), env }));
+    vi.doMock("@huggingface/transformers", () => ({ pipeline: vi.fn(), env }));
 
     await import("../../../src/tools/semantic.js");
 
@@ -1673,7 +1673,7 @@ describe("VAULTGATE_MODEL_CACHE_DIR — pre-bundled model cache wiring", () => {
     vi.doMock("../../../src/config.js", () => ({
       config: { vault: "v", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
     }));
-    vi.doMock("@xenova/transformers", () => ({ pipeline: vi.fn(), env }));
+    vi.doMock("@huggingface/transformers", () => ({ pipeline: vi.fn(), env }));
 
     await import("../../../src/tools/semantic.js");
 
@@ -1963,7 +1963,7 @@ describe("VAULTGATE_INDEX_CACHE_DIR — embeddings index location override", () 
       config: { vault: vaultName, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
     }));
     vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
-    vi.doMock("@xenova/transformers", () => ({
+    vi.doMock("@huggingface/transformers", () => ({
       pipeline: vi.fn().mockResolvedValue(
         vi.fn().mockImplementation(() => Promise.resolve({ tolist: () => [FAKE_VEC_A] }))
       ),
@@ -2158,7 +2158,7 @@ describe("regression: partial listVaultPaths does not prune index at startup", (
     vi.doMock("../../../src/config.js", () => ({
       config: { vault: vaultName, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
     }));
-    vi.doMock("@xenova/transformers", () => ({
+    vi.doMock("@huggingface/transformers", () => ({
       pipeline: vi.fn().mockResolvedValue(
         vi.fn().mockImplementation(() => Promise.resolve({ tolist: () => [FAKE_VEC_A] })),
       ),
@@ -2173,7 +2173,7 @@ describe("regression: partial listVaultPaths does not prune index at startup", (
     const indexPath = path.join(cacheDir, `embeddings-${safeKey}.json`);
     fs.writeFileSync(
       indexPath,
-      JSON.stringify({ version: 4, model: "Xenova/all-MiniLM-L6-v2", lastReHash: 0, complete: true, files: cachedFiles }),
+      JSON.stringify({ version: 5, model: "Xenova/all-MiniLM-L6-v2", lastReHash: 0, complete: true, files: cachedFiles }),
       "utf-8",
     );
     semantic.registerSemanticTools(server);
@@ -2471,7 +2471,7 @@ async function gatedModule(opts: {
     releaseFn = resolve;
   });
 
-  vi.doMock("@xenova/transformers", () => ({
+  vi.doMock("@huggingface/transformers", () => ({
     pipeline: vi.fn().mockResolvedValue(
       vi.fn(async (texts: string[]) => {
         const joined = texts.join("\n");
@@ -2705,7 +2705,7 @@ describe("resolveIndexCacheDir", () => {
     vi.doMock("../../../src/config.js", () => ({
       config: { vault: "v", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
     }));
-    vi.doMock("@xenova/transformers", () => ({ pipeline: vi.fn() }));
+    vi.doMock("@huggingface/transformers", () => ({ pipeline: vi.fn() }));
 
     const { resolveIndexCacheDir } = await import("../../../src/tools/semantic.js");
     expect(resolveIndexCacheDir()).toBe("/tmp/vaultgate-explicit-index");
@@ -2718,7 +2718,7 @@ describe("resolveIndexCacheDir", () => {
     vi.doMock("../../../src/config.js", () => ({
       config: { vault: "v", cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
     }));
-    vi.doMock("@xenova/transformers", () => ({ pipeline: vi.fn() }));
+    vi.doMock("@huggingface/transformers", () => ({ pipeline: vi.fn() }));
 
     const { resolveIndexCacheDir } = await import("../../../src/tools/semantic.js");
     expect(resolveIndexCacheDir()).toBe(
