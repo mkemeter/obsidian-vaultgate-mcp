@@ -4,29 +4,37 @@
  * Each test resets modules so config re-reads env vars and scope.ts starts
  * from a clean state. Uses vi.doMock to re-apply the CLI stub after reset.
  */
-import * as fs from "node:fs";
-import * as os from "node:os";
-import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-let tmpDir: string;
-
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "vaultgate-scope-test-"));
+  vi.resetModules();
 });
 
 afterEach(() => {
-  try {
-    fs.rmdirSync(tmpDir);
-  } catch {
-    // best-effort cleanup
-  }
   vi.resetModules();
-  delete process.env.OBSIDIAN_VAULT_PATH;
+  delete process.env.OBSIDIAN_SCOPE;
   delete process.env.VAULTGATE_SCOPE_SWITCHING;
 });
 
-async function listTools(): Promise<string[]> {
+/** Mocks CLI and returns a list of tools registered by createServer(). */
+async function listTools(
+  filesListOutput: string,
+  readResponses: Record<string, string> = {}
+): Promise<string[]> {
+  vi.doMock("../../src/cli.js", () => ({
+    runObsidian: vi.fn().mockImplementation(async (args: string[]) => {
+      if (args[0] === "files:list") return filesListOutput;
+      if (args[0] === "read") {
+        const pathArg = args.find((a: string) => a.startsWith("path="))?.slice(5);
+        if (pathArg !== undefined && Object.prototype.hasOwnProperty.call(readResponses, pathArg)) {
+          return readResponses[pathArg];
+        }
+        throw new Error(`File not found: ${pathArg ?? "(none)"}`);
+      }
+      // initialize reads vault context — let it throw (not found is fine)
+      return "";
+    }),
+  }));
   const { createServer } = await import("../../src/server.js");
   const server = await createServer();
   // @ts-ignore — internal handler
@@ -38,33 +46,41 @@ async function listTools(): Promise<string[]> {
 }
 
 describe("scope tool registration", () => {
-  it("does not register vault_scope when OBSIDIAN_VAULT_PATH is not set", async () => {
-    vi.doMock("../../src/cli.js", () => ({ runObsidian: vi.fn().mockResolvedValue("") }));
-    const names = await listTools();
+  it("does not register vault_scope when vault has no scope zones", async () => {
+    const names = await listTools("");
     expect(names).not.toContain("vault_scope");
     expect(names).not.toContain("vault_scope_set");
   });
 
-  it("registers vault_scope when OBSIDIAN_VAULT_PATH is set to a valid directory", async () => {
-    vi.doMock("../../src/cli.js", () => ({ runObsidian: vi.fn().mockResolvedValue("") }));
-    process.env.OBSIDIAN_VAULT_PATH = tmpDir;
-    const names = await listTools();
+  it("registers vault_scope when vault has at least one scope zone", async () => {
+    const names = await listTools("Work/VAULTGATE.md", {
+      "Work/VAULTGATE.md": "---\nscope: work\n---\n# Work",
+    });
     expect(names).toContain("vault_scope");
     expect(names).not.toContain("vault_scope_set");
   });
 
   it("registers both vault_scope and vault_scope_set when scope switching is enabled", async () => {
-    vi.doMock("../../src/cli.js", () => ({ runObsidian: vi.fn().mockResolvedValue("") }));
-    process.env.OBSIDIAN_VAULT_PATH = tmpDir;
     process.env.VAULTGATE_SCOPE_SWITCHING = "true";
-    const names = await listTools();
+    const names = await listTools("Work/VAULTGATE.md", {
+      "Work/VAULTGATE.md": "---\nscope: work\n---\n# Work",
+    });
     expect(names).toContain("vault_scope");
     expect(names).toContain("vault_scope_set");
   });
 
   it("tool count matches BASE_TOOL_COUNT + SCOPE_TOOL_COUNT when scoping is enabled", async () => {
-    vi.doMock("../../src/cli.js", () => ({ runObsidian: vi.fn().mockResolvedValue("") }));
-    process.env.OBSIDIAN_VAULT_PATH = tmpDir;
+    vi.doMock("../../src/cli.js", () => ({
+      runObsidian: vi.fn().mockImplementation(async (args: string[]) => {
+        if (args[0] === "files:list") return "Work/VAULTGATE.md";
+        if (args[0] === "read") {
+          const p = args.find((a: string) => a.startsWith("path="))?.slice(5);
+          if (p === "Work/VAULTGATE.md") return "---\nscope: work\n---\n# Work";
+          throw new Error("not found");
+        }
+        return "";
+      }),
+    }));
     const {
       createServer,
       BASE_TOOL_COUNT,

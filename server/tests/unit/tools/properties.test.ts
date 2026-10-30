@@ -10,7 +10,6 @@ vi.mock("../../../src/scope.js", () => ({
   isPathBlocked: vi.fn().mockReturnValue(false),
   isScopingEnabled: vi.fn().mockReturnValue(false),
   filterByScope: vi.fn().mockImplementation((paths: string[]) => paths),
-  isVaultGateFile: vi.fn().mockReturnValue(false),
   SCOPE_BLOCKED_MESSAGE: "scope blocked",
 }));
 

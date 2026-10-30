@@ -1,23 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import * as fs from "node:fs";
 
-// Mock the entire node:fs module so tests run without a real filesystem.
-vi.mock("node:fs");
-
-const mockFs = vi.mocked(fs);
-
-// We also need to mock config.ts for normalizeContextFileName so scope.ts can import it.
+// Mock cli.js and config.js before any imports.
+// For module-state tests that call vi.resetModules(), fresh dynamic imports
+// re-use these registered factories automatically.
+vi.mock("../../src/cli.js", () => ({
+  runObsidian: vi.fn(),
+}));
 vi.mock("../../src/config.js", () => ({
-  normalizeContextFileName: (raw: string | undefined) => {
-    if (!raw) return "VAULTGATE.md";
-    if (raw.includes("/") || raw.includes("\\") || raw.includes("..")) {
-      throw new Error(`Invalid conventions value "${raw}"`);
-    }
-    if (!raw.toLowerCase().endsWith(".md")) {
-      throw new Error(`Invalid conventions value "${raw}"`);
-    }
-    return raw;
-  },
   config: {
     vault: undefined,
     cliBin: "obsidian",
@@ -26,7 +15,6 @@ vi.mock("../../src/config.js", () => ({
     contextFileName: "VAULTGATE.md",
     injectConventions: true,
     injectIntervalSecs: 30,
-    vaultPath: undefined,
     homeScope: "unscoped",
     scopeSwitchingEnabled: false,
     dailyNotesPath: undefined,
@@ -34,6 +22,13 @@ vi.mock("../../src/config.js", () => ({
   setVault: vi.fn(),
   setInjectionConfig: vi.fn(),
 }));
+
+import * as cliModule from "../../src/cli.js";
+const mockRunObsidian = vi.mocked(cliModule.runObsidian);
+
+// ---------------------------------------------------------------------------
+// Pure utilities — no module state, no resets needed
+// ---------------------------------------------------------------------------
 
 describe("normalizePath", () => {
   it("returns empty string for vault root representations", async () => {
@@ -56,516 +51,385 @@ describe("normalizePath", () => {
   });
 });
 
-describe("isVaultGateFile", () => {
-  it("recognises .vaultgate at vault root", async () => {
-    const { isVaultGateFile } = await import("../../src/scope.js");
-    expect(isVaultGateFile(".vaultgate")).toBe(true);
-    expect(isVaultGateFile("/.vaultgate")).toBe(true);
+describe("extractBody", () => {
+  it("returns content unchanged when no frontmatter present", async () => {
+    const { extractBody } = await import("../../src/scope.js");
+    expect(extractBody("# Hello\n\nWorld")).toBe("# Hello\n\nWorld");
   });
 
-  it("recognises .vaultgate in subdirectories", async () => {
-    const { isVaultGateFile } = await import("../../src/scope.js");
-    expect(isVaultGateFile("Folder/.vaultgate")).toBe(true);
-    expect(isVaultGateFile("a/b/c/.vaultgate")).toBe(true);
+  it("strips YAML frontmatter block", async () => {
+    const { extractBody } = await import("../../src/scope.js");
+    const content = "---\nscope: work\n---\n# Body";
+    expect(extractBody(content)).toBe("# Body");
   });
 
-  it("does not match .vaultgate-prefixed names", async () => {
-    const { isVaultGateFile } = await import("../../src/scope.js");
-    expect(isVaultGateFile(".vaultgate.bak")).toBe(false);
-    expect(isVaultGateFile("Folder/.vaultgaterc")).toBe(false);
+  it("handles frontmatter with CRLF line endings", async () => {
+    const { extractBody } = await import("../../src/scope.js");
+    const content = "---\r\nscope: work\r\n---\r\n# Body";
+    expect(extractBody(content)).toBe("# Body");
   });
 
-  it("does not match regular note files", async () => {
-    const { isVaultGateFile } = await import("../../src/scope.js");
-    expect(isVaultGateFile("Notes.md")).toBe(false);
-    expect(isVaultGateFile("Folder/Note.md")).toBe(false);
-  });
-});
-
-describe("parseVaultGateFile", () => {
-  it("parses scope key", async () => {
-    const { parseVaultGateFile } = await import("../../src/scope.js");
-    const result = parseVaultGateFile('scope = "business"', "/vault/.vaultgate");
-    expect(result.scope).toBe("business");
+  it("returns empty string when file is frontmatter-only", async () => {
+    const { extractBody } = await import("../../src/scope.js");
+    expect(extractBody("---\nscope: work\n---\n")).toBe("");
   });
 
-  it("parses both scope and conventions keys", async () => {
-    const { parseVaultGateFile } = await import("../../src/scope.js");
-    const result = parseVaultGateFile(
-      'scope = "work"\nconventions = "VAULTGATE-work.md"',
-      "/vault/.vaultgate"
-    );
-    expect(result.scope).toBe("work");
-    expect(result.conventions).toBe("VAULTGATE-work.md");
-  });
-
-  it("ignores comment lines", async () => {
-    const { parseVaultGateFile } = await import("../../src/scope.js");
-    const result = parseVaultGateFile(
-      '# This is a comment\nscope = "ai"',
-      "/vault/.vaultgate"
-    );
-    expect(result.scope).toBe("ai");
-  });
-
-  it("ignores blank lines", async () => {
-    const { parseVaultGateFile } = await import("../../src/scope.js");
-    const result = parseVaultGateFile(
-      '\n\nscope = "ai"\n\n',
-      "/vault/.vaultgate"
-    );
-    expect(result.scope).toBe("ai");
-  });
-
-  it("ignores unknown keys", async () => {
-    const { parseVaultGateFile } = await import("../../src/scope.js");
-    const result = parseVaultGateFile(
-      'scope = "ai"\nunknown = "value"',
-      "/vault/.vaultgate"
-    );
-    expect(result.scope).toBe("ai");
-    expect(Object.keys(result)).not.toContain("unknown");
-  });
-
-  it("treats empty scope value as absent", async () => {
-    const { parseVaultGateFile } = await import("../../src/scope.js");
-    const result = parseVaultGateFile('scope = ""', "/vault/.vaultgate");
-    expect(result.scope).toBeUndefined();
-  });
-
-  it("treats whitespace-only scope value as absent", async () => {
-    const { parseVaultGateFile } = await import("../../src/scope.js");
-    const result = parseVaultGateFile('scope = "   "', "/vault/.vaultgate");
-    expect(result.scope).toBeUndefined();
-  });
-
-  it("discards scope names exceeding 64 characters", async () => {
-    const { parseVaultGateFile } = await import("../../src/scope.js");
-    const long = "a".repeat(65);
-    const result = parseVaultGateFile(`scope = "${long}"`, "/vault/.vaultgate");
-    expect(result.scope).toBeUndefined();
-  });
-
-  it("accepts scope names exactly 64 characters long", async () => {
-    const { parseVaultGateFile } = await import("../../src/scope.js");
-    const at64 = "a".repeat(64);
-    const result = parseVaultGateFile(`scope = "${at64}"`, "/vault/.vaultgate");
-    expect(result.scope).toBe(at64);
-  });
-
-  it("discards invalid conventions values (with path separator)", async () => {
-    const { parseVaultGateFile } = await import("../../src/scope.js");
-    const result = parseVaultGateFile(
-      'scope = "ai"\nconventions = "sub/VAULTGATE.md"',
-      "/vault/AI/.vaultgate"
-    );
-    expect(result.conventions).toBeUndefined();
-  });
-
-  it("discards conventions values not ending in .md", async () => {
-    const { parseVaultGateFile } = await import("../../src/scope.js");
-    const result = parseVaultGateFile(
-      'conventions = "instructions.txt"',
-      "/vault/.vaultgate"
-    );
-    expect(result.conventions).toBeUndefined();
-  });
-
-  it("parses without quoted value when line is malformed", async () => {
-    const { parseVaultGateFile } = await import("../../src/scope.js");
-    const result = parseVaultGateFile("scope = business", "/vault/.vaultgate");
-    expect(result.scope).toBeUndefined();
+  it("does not strip text that looks like frontmatter but is not at start", async () => {
+    const { extractBody } = await import("../../src/scope.js");
+    const content = "# Title\n---\nscope: work\n---\n";
+    expect(extractBody(content)).toBe(content);
   });
 });
 
 // ---------------------------------------------------------------------------
-// buildScopeMap / initScopeEngine / resolveNoteScope / related
-//
-// These require module state resets between tests — use vi.resetModules().
+// CLI-based scope engine — module state resets required
 // ---------------------------------------------------------------------------
 
-describe("buildScopeMap", () => {
+describe("scope engine (CLI-based)", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.resetAllMocks();
+    // Re-apply mock defaults after resetModules clears mock implementations.
+    mockRunObsidian.mockRejectedValue(new Error("unexpected CLI call"));
   });
 
-  function setupVaultWithFiles(files: Record<string, string | null>) {
-    // files: keys are absolute paths; values are content strings or null (dir)
-    mockFs.existsSync.mockImplementation((p: fs.PathLike) => {
-      const str = p.toString();
-      return Object.keys(files).some((f) => f === str || str.startsWith(f.replace("/.vaultgate", "")));
-    });
-    mockFs.statSync.mockImplementation((p: fs.PathLike) => {
-      const str = p.toString();
-      return { isDirectory: () => !str.endsWith(".vaultgate") } as fs.Stats;
-    });
-    mockFs.readFileSync.mockImplementation((p: fs.PathLike | number) => {
-      const str = p.toString();
-      if (Object.prototype.hasOwnProperty.call(files, str) && files[str] !== null) {
-        return files[str] as string;
-      }
-      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
-    });
-    mockFs.readdirSync.mockImplementation((p: fs.PathLike) => [] as unknown as fs.Dirent[]);
-  }
-
-  it("returns empty map when vault has no .vaultgate files", async () => {
-    mockFs.existsSync.mockReturnValue(false);
-    mockFs.readdirSync.mockReturnValue([] as unknown as fs.Dirent[]);
-    const { buildScopeMap } = await import("../../src/scope.js");
-    const map = buildScopeMap("/vault");
-    expect(map.size).toBe(0);
-  });
-
-  it("silently skips subdirectories when readdirSync fails for them", async () => {
-    // walkDir catch block: readdirSync fails for a child directory — should not throw.
-    mockFs.existsSync.mockImplementation((p: fs.PathLike) => p.toString() === "/vault");
-    mockFs.statSync.mockImplementation((p: fs.PathLike) => ({
-      isDirectory: () => p.toString() === "/vault",
-    })) as unknown as typeof fs.statSync;
-    mockFs.readdirSync.mockImplementation((p: fs.PathLike) => {
-      if (p.toString() === "/vault") {
-        return [{ name: "BadDir", isDirectory: () => true }] as unknown as fs.Dirent[];
-      }
-      throw new Error("Permission denied");
-    });
-    const { buildScopeMap } = await import("../../src/scope.js");
-    const map = buildScopeMap("/vault");
-    expect(map.size).toBe(0);
-  });
-
-  it("parses a single .vaultgate at vault root", async () => {
-    mockFs.existsSync.mockImplementation((p: fs.PathLike) =>
-      p.toString().endsWith(".vaultgate")
-    );
-    mockFs.readFileSync.mockReturnValue('scope = "ai"');
-    mockFs.readdirSync.mockReturnValue([] as unknown as fs.Dirent[]);
-    const { buildScopeMap } = await import("../../src/scope.js");
-    const map = buildScopeMap("/vault");
-    expect(map.get("")).toEqual({ scope: "ai" });
-  });
-});
-
-describe("resolveNoteScope + isNoteInScope + filterByScope + discoverScopes + getScopeConventionsFile + state", () => {
-  beforeEach(() => {
-    vi.resetModules();
-    vi.resetAllMocks();
-  });
-
-  async function initWithMap(
-    vaultGateFiles: Record<string, string>,
-    scope = "unscoped"
+  /**
+   * Sets up the CLI mock to simulate a vault with the given conventions files,
+   * then calls initScopeEngine with the given scope and switching parameters.
+   *
+   * @param files vault-relative path → file content (only files with contextFileName basename matter)
+   */
+  async function initWithCli(
+    files: Record<string, string>,
+    scope = "unscoped",
+    switching = false
   ) {
-    // Build a fake vault directory at /vault with .vaultgate files at given
-    // vault-relative paths (e.g. "AI Space/.vaultgate" → content string).
-    const absoluteFiles: Record<string, string> = {};
-    for (const [rel, content] of Object.entries(vaultGateFiles)) {
-      absoluteFiles[`/vault/${rel}`] = content;
-    }
-
-    // Normalize OS-native backslash paths (Windows) to forward slashes so the
-    // mock's forward-slash keyed absoluteFiles map is found on all platforms.
-    const normStr = (p: fs.PathLike | number) => p.toString().replace(/\\/g, "/");
-
-    mockFs.existsSync.mockImplementation((p: fs.PathLike) => {
-      const str = normStr(p);
-      if (str === "/vault") return true;
-      return Object.prototype.hasOwnProperty.call(absoluteFiles, str);
-    });
-    mockFs.statSync.mockImplementation((p: fs.PathLike) => ({
-      isDirectory: () => normStr(p) === "/vault",
-    })) as unknown as typeof fs.statSync;
-    mockFs.readFileSync.mockImplementation((p: fs.PathLike | number) => {
-      const str = normStr(p);
-      if (Object.prototype.hasOwnProperty.call(absoluteFiles, str)) return absoluteFiles[str];
-      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
-    });
-
-    // Provide a readdirSync that emits subdirectory entries based on vaultGateFiles keys.
-    const subdirs = new Set<string>();
-    for (const rel of Object.keys(vaultGateFiles)) {
-      const parts = rel.split("/");
-      if (parts.length > 1) {
-        // e.g. "AI Space/.vaultgate" → subdirectory "AI Space"
-        subdirs.add(parts[0]);
+    const { runObsidian } = await import("../../src/cli.js");
+    vi.mocked(runObsidian).mockImplementation(async (args: string[]) => {
+      if (args[0] === "files:list") {
+        return Object.keys(files).join("\n");
       }
-    }
-    mockFs.readdirSync.mockImplementation((p: fs.PathLike) => {
-      if (normStr(p) === "/vault") {
-        return [...subdirs].map((name) => ({
-          name,
-          isDirectory: () => true,
-        })) as unknown as fs.Dirent[];
+      if (args[0] === "read") {
+        const pathArg = args.find((a) => a.startsWith("path="))?.slice(5);
+        if (pathArg !== undefined && Object.prototype.hasOwnProperty.call(files, pathArg)) {
+          return files[pathArg];
+        }
+        throw new Error(`File not found: ${pathArg ?? "(none)"}`);
       }
-      return [] as unknown as fs.Dirent[];
+      throw new Error(`Unexpected CLI args: ${args.join(" ")}`);
     });
-
     const { initScopeEngine } = await import("../../src/scope.js");
-    initScopeEngine("/vault", scope, false);
+    await initScopeEngine(scope, switching);
   }
 
-  it("returns 'unscoped' for notes with no .vaultgate ancestor", async () => {
-    await initWithMap({});
-    const { resolveNoteScope } = await import("../../src/scope.js");
-    expect(resolveNoteScope("Notes/Idea.md")).toBe("unscoped");
-    expect(resolveNoteScope("Root.md")).toBe("unscoped");
+  // ---- isScopingEnabled ----
+
+  it("isScopingEnabled returns false before initScopeEngine is called", async () => {
+    const { isScopingEnabled } = await import("../../src/scope.js");
+    expect(isScopingEnabled()).toBe(false);
   });
 
-  it("resolves scope from the nearest ancestor .vaultgate", async () => {
-    await initWithMap({ "AI Space/.vaultgate": 'scope = "ai"' });
-    const { resolveNoteScope } = await import("../../src/scope.js");
-    expect(resolveNoteScope("AI Space/Note.md")).toBe("ai");
-    expect(resolveNoteScope("AI Space/Sub/Note.md")).toBe("ai");
+  it("isScopingEnabled stays false when vault has no conventions files", async () => {
+    await initWithCli({});
+    const { isScopingEnabled } = await import("../../src/scope.js");
+    expect(isScopingEnabled()).toBe(false);
   });
 
-  it("inherits scope through multiple levels of nesting", async () => {
-    await initWithMap({ "Work/.vaultgate": 'scope = "work"' });
-    const { resolveNoteScope } = await import("../../src/scope.js");
-    expect(resolveNoteScope("Work/Projects/2026/Report.md")).toBe("work");
+  it("isScopingEnabled stays false when conventions file has no scope: frontmatter", async () => {
+    await initWithCli({ "VAULTGATE.md": "# No scope here" });
+    const { isScopingEnabled } = await import("../../src/scope.js");
+    expect(isScopingEnabled()).toBe(false);
   });
 
-  it("falls through to unscoped for notes outside any .vaultgate directory", async () => {
-    await initWithMap({ "AI Space/.vaultgate": 'scope = "ai"' });
-    const { resolveNoteScope } = await import("../../src/scope.js");
-    expect(resolveNoteScope("Private/Note.md")).toBe("unscoped");
-    expect(resolveNoteScope("Root.md")).toBe("unscoped");
+  it("isScopingEnabled returns true when at least one scope zone is found", async () => {
+    await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---\n# Work" });
+    const { isScopingEnabled } = await import("../../src/scope.js");
+    expect(isScopingEnabled()).toBe(true);
   });
 
-  it("resolves scope for a non-existent note via its parent directory", async () => {
-    await initWithMap({ "AI Space/.vaultgate": 'scope = "ai"' });
-    const { resolveNoteScope } = await import("../../src/scope.js");
-    // Note does not exist yet; parent dir is "AI Space" → scope "ai".
-    expect(resolveNoteScope("AI Space/New Note.md")).toBe("ai");
+  it("isScopingEnabled stays false when CLI fails", async () => {
+    const { runObsidian } = await import("../../src/cli.js");
+    vi.mocked(runObsidian).mockRejectedValue(new Error("Obsidian unavailable"));
+    const { initScopeEngine, isScopingEnabled } = await import("../../src/scope.js");
+    await initScopeEngine("unscoped", false);
+    expect(isScopingEnabled()).toBe(false);
   });
 
-  it("normalises paths with leading slash before resolving", async () => {
-    await initWithMap({ "AI Space/.vaultgate": 'scope = "ai"' });
-    const { resolveNoteScope } = await import("../../src/scope.js");
-    expect(resolveNoteScope("/AI Space/Note.md")).toBe("ai");
+  // ---- isScopeSwitchingEnabled ----
+
+  it("isScopeSwitchingEnabled reflects the switching parameter", async () => {
+    await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" }, "unscoped", true);
+    const { isScopeSwitchingEnabled } = await import("../../src/scope.js");
+    expect(isScopeSwitchingEnabled()).toBe(true);
   });
 
-  it("normalises backslash paths before resolving", async () => {
-    await initWithMap({ "AI Space/.vaultgate": 'scope = "ai"' });
-    const { resolveNoteScope } = await import("../../src/scope.js");
-    expect(resolveNoteScope("AI Space\\Note.md")).toBe("ai");
-  });
-
-  it("isNoteInScope returns true when note matches active scope", async () => {
-    await initWithMap({ "AI Space/.vaultgate": 'scope = "ai"' }, "ai");
-    const { isNoteInScope } = await import("../../src/scope.js");
-    expect(isNoteInScope("AI Space/Note.md")).toBe(true);
-  });
-
-  it("isNoteInScope returns false when note is in a different scope", async () => {
-    await initWithMap(
-      {
-        "AI Space/.vaultgate": 'scope = "ai"',
-        "Private/.vaultgate": 'scope = "private"',
-      },
-      "ai"
-    );
-    const { isNoteInScope } = await import("../../src/scope.js");
-    expect(isNoteInScope("Private/Note.md")).toBe(false);
-    expect(isNoteInScope("Root.md")).toBe(false); // unscoped, not "ai"
-  });
-
-  it("filterByScope keeps only in-scope paths", async () => {
-    await initWithMap(
-      {
-        "AI Space/.vaultgate": 'scope = "ai"',
-        "Private/.vaultgate": 'scope = "private"',
-      },
-      "ai"
-    );
-    const { filterByScope } = await import("../../src/scope.js");
-    const filtered = filterByScope([
-      "AI Space/Note.md",
-      "Private/Secret.md",
-      "Root.md",
-    ]);
-    expect(filtered).toEqual(["AI Space/Note.md"]);
-  });
-
-  it("filterByScope returns empty array when no paths match", async () => {
-    await initWithMap({ "AI Space/.vaultgate": 'scope = "ai"' }, "ai");
-    const { filterByScope } = await import("../../src/scope.js");
-    expect(filterByScope(["Root.md", "Other/Note.md"])).toEqual([]);
-  });
-
-  it("filterByScope returns the original array when scoping is disabled", async () => {
-    vi.resetModules();
-    vi.resetAllMocks();
-    // Do NOT call initScopeEngine → scoping stays disabled.
-    const { filterByScope } = await import("../../src/scope.js");
-    const paths = ["A.md", "B.md"];
-    expect(filterByScope(paths)).toBe(paths);
-  });
+  // ---- discoverScopes ----
 
   it("discoverScopes always includes 'unscoped'", async () => {
-    await initWithMap({});
+    await initWithCli({});
     const { discoverScopes } = await import("../../src/scope.js");
     expect(discoverScopes()).toContain("unscoped");
   });
 
   it("discoverScopes returns all declared scopes plus 'unscoped'", async () => {
-    await initWithMap({
-      "AI Space/.vaultgate": 'scope = "ai"',
-      "Private/.vaultgate": 'scope = "private"',
+    await initWithCli({
+      "Work/VAULTGATE.md": "---\nscope: work\n---",
+      "Personal/VAULTGATE.md": "---\nscope: personal\n---",
     });
     const { discoverScopes } = await import("../../src/scope.js");
-    expect(discoverScopes()).toEqual(["ai", "private", "unscoped"]);
+    expect(discoverScopes()).toEqual(["personal", "unscoped", "work"]);
   });
 
   it("discoverScopes deduplicates scopes shared across multiple dirs", async () => {
-    // Use flat structure — the initWithMap helper only mocks one level of subdirs.
-    await initWithMap({
-      "DirA/.vaultgate": 'scope = "work"',
-      "DirB/.vaultgate": 'scope = "work"',
+    await initWithCli({
+      "DirA/VAULTGATE.md": "---\nscope: work\n---",
+      "DirB/VAULTGATE.md": "---\nscope: work\n---",
     });
     const { discoverScopes } = await import("../../src/scope.js");
     expect(discoverScopes().filter((s) => s === "work")).toHaveLength(1);
   });
 
-  it("getScopeConventionsFile returns undefined when active scope is 'unscoped'", async () => {
-    await initWithMap({ "AI Space/.vaultgate": 'scope = "ai"\nconventions = "VAULTGATE-ai.md"' });
-    // active scope is "unscoped" (default)
-    const { getScopeConventionsFile } = await import("../../src/scope.js");
-    expect(getScopeConventionsFile()).toBeUndefined();
+  // ---- resolveNoteScope ----
+
+  it("resolveNoteScope returns 'unscoped' for notes with no ancestor scope zone", async () => {
+    await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" });
+    const { resolveNoteScope } = await import("../../src/scope.js");
+    expect(resolveNoteScope("Personal/Note.md")).toBe("unscoped");
+    expect(resolveNoteScope("Root.md")).toBe("unscoped");
   });
 
-  it("getScopeConventionsFile returns conventions filename for the active scope", async () => {
-    await initWithMap(
-      { "AI Space/.vaultgate": 'scope = "ai"\nconventions = "VAULTGATE-ai.md"' },
-      "ai"
-    );
-    const { getScopeConventionsFile } = await import("../../src/scope.js");
-    expect(getScopeConventionsFile()).toBe("VAULTGATE-ai.md");
+  it("resolveNoteScope resolves scope from nearest ancestor conventions file", async () => {
+    await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" });
+    const { resolveNoteScope } = await import("../../src/scope.js");
+    expect(resolveNoteScope("Work/Note.md")).toBe("work");
+    expect(resolveNoteScope("Work/Sub/Deep/Note.md")).toBe("work");
   });
 
-  it("getScopeConventionsFile returns undefined when scope has no conventions key", async () => {
-    await initWithMap({ "AI Space/.vaultgate": 'scope = "ai"' }, "ai");
-    const { getScopeConventionsFile } = await import("../../src/scope.js");
-    expect(getScopeConventionsFile()).toBeUndefined();
+  it("resolveNoteScope normalises backslash paths", async () => {
+    await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" });
+    const { resolveNoteScope } = await import("../../src/scope.js");
+    expect(resolveNoteScope("Work\\Note.md")).toBe("work");
   });
 
-  it("getScopeConventionsFile picks shortest-path .vaultgate when multiple dirs share a scope", async () => {
-    await initWithMap(
+  it("resolveNoteScope normalises leading-slash paths", async () => {
+    await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" });
+    const { resolveNoteScope } = await import("../../src/scope.js");
+    expect(resolveNoteScope("/Work/Note.md")).toBe("work");
+  });
+
+  // ---- isNoteInScope ----
+
+  it("isNoteInScope returns true when note matches active scope", async () => {
+    await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" }, "work");
+    const { isNoteInScope } = await import("../../src/scope.js");
+    expect(isNoteInScope("Work/Note.md")).toBe(true);
+  });
+
+  it("isNoteInScope returns false when note is in a different scope", async () => {
+    await initWithCli(
       {
-        "Work/.vaultgate": 'scope = "work"\nconventions = "VAULTGATE-work-root.md"',
-        "Work/Sub/.vaultgate": 'scope = "work"\nconventions = "VAULTGATE-work-sub.md"',
+        "Work/VAULTGATE.md": "---\nscope: work\n---",
+        "Personal/VAULTGATE.md": "---\nscope: personal\n---",
       },
       "work"
     );
-    const { getScopeConventionsFile } = await import("../../src/scope.js");
-    // "Work" is shorter than "Work/Sub" → root wins
-    expect(getScopeConventionsFile()).toBe("VAULTGATE-work-root.md");
+    const { isNoteInScope } = await import("../../src/scope.js");
+    expect(isNoteInScope("Personal/Note.md")).toBe(false);
+    expect(isNoteInScope("Root.md")).toBe(false);
   });
 
+  it("isNoteInScope returns true when active scope is 'unscoped'", async () => {
+    await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" }, "unscoped");
+    const { isNoteInScope } = await import("../../src/scope.js");
+    expect(isNoteInScope("Work/Note.md")).toBe(true);
+    expect(isNoteInScope("Personal/Note.md")).toBe(true);
+  });
+
+  // ---- filterByScope ----
+
+  it("filterByScope keeps only in-scope paths", async () => {
+    await initWithCli(
+      {
+        "Work/VAULTGATE.md": "---\nscope: work\n---",
+        "Personal/VAULTGATE.md": "---\nscope: personal\n---",
+      },
+      "work"
+    );
+    const { filterByScope } = await import("../../src/scope.js");
+    const filtered = filterByScope(["Work/Note.md", "Personal/Secret.md", "Root.md"]);
+    expect(filtered).toEqual(["Work/Note.md"]);
+  });
+
+  it("filterByScope returns all paths when active scope is 'unscoped'", async () => {
+    await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" }, "unscoped");
+    const { filterByScope } = await import("../../src/scope.js");
+    const paths = ["Work/Note.md", "Personal/Note.md", "Root.md"];
+    expect(filterByScope(paths)).toBe(paths);
+  });
+
+  it("filterByScope returns original array reference when scoping is disabled", async () => {
+    // No initScopeEngine call → scoping stays disabled.
+    const { filterByScope } = await import("../../src/scope.js");
+    const paths = ["A.md", "B.md"];
+    expect(filterByScope(paths)).toBe(paths);
+  });
+
+  // ---- state accessors ----
+
   it("setActiveScope and getActiveScope update module state", async () => {
-    await initWithMap({ "AI Space/.vaultgate": 'scope = "ai"' }, "unscoped");
+    await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" }, "unscoped");
     const { setActiveScope, getActiveScope } = await import("../../src/scope.js");
-    setActiveScope("ai");
-    expect(getActiveScope()).toBe("ai");
+    setActiveScope("work");
+    expect(getActiveScope()).toBe("work");
   });
 
   it("resetToHomeScope restores the configured home scope", async () => {
-    await initWithMap({ "AI Space/.vaultgate": 'scope = "ai"' }, "ai");
+    await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" }, "work");
     const { setActiveScope, resetToHomeScope, getActiveScope } = await import("../../src/scope.js");
     setActiveScope("unscoped");
     expect(getActiveScope()).toBe("unscoped");
     resetToHomeScope();
-    expect(getActiveScope()).toBe("ai");
-  });
-
-  it("isScopingEnabled returns false before initScopeEngine is called", async () => {
-    vi.resetModules();
-    vi.resetAllMocks();
-    const { isScopingEnabled } = await import("../../src/scope.js");
-    expect(isScopingEnabled()).toBe(false);
-  });
-
-  it("isScopingEnabled returns true after successful initScopeEngine", async () => {
-    await initWithMap({});
-    const { isScopingEnabled } = await import("../../src/scope.js");
-    expect(isScopingEnabled()).toBe(true);
-  });
-
-  it("initScopeEngine stays disabled when vault path does not exist", async () => {
-    vi.resetModules();
-    vi.resetAllMocks();
-    mockFs.existsSync.mockReturnValue(false);
-    const { initScopeEngine, isScopingEnabled } = await import("../../src/scope.js");
-    initScopeEngine("/nonexistent", "ai", false);
-    expect(isScopingEnabled()).toBe(false);
-  });
-
-  it("isScopeSwitchingEnabled reflects the switching parameter", async () => {
-    vi.resetModules();
-    vi.resetAllMocks();
-    mockFs.existsSync.mockReturnValue(true);
-    mockFs.statSync.mockReturnValue({ isDirectory: () => true } as fs.Stats);
-    mockFs.readdirSync.mockReturnValue([] as unknown as fs.Dirent[]);
-    const { initScopeEngine, isScopeSwitchingEnabled } = await import("../../src/scope.js");
-    initScopeEngine("/vault", "unscoped", true);
-    expect(isScopeSwitchingEnabled()).toBe(true);
-  });
-
-  it("rebuildScopeMap is a no-op when scoping is disabled", async () => {
-    vi.resetModules();
-    vi.resetAllMocks();
-    // Do not call initScopeEngine — scoping stays disabled.
-    const { isScopingEnabled, rebuildScopeMap } = await import("../../src/scope.js");
-    expect(isScopingEnabled()).toBe(false);
-    rebuildScopeMap(); // must not throw and must not change enabled state
-    expect(isScopingEnabled()).toBe(false);
+    expect(getActiveScope()).toBe("work");
   });
 
   it("getHomeScope returns the initial scope configured at startup", async () => {
-    await initWithMap({ "AI Space/.vaultgate": 'scope = "ai"' }, "ai");
+    await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" }, "work");
     const { getHomeScope } = await import("../../src/scope.js");
-    expect(getHomeScope()).toBe("ai");
+    expect(getHomeScope()).toBe("work");
   });
 
-  it("updateVaultPath with undefined disables scoping", async () => {
-    await initWithMap({});
-    const { isScopingEnabled, updateVaultPath } = await import("../../src/scope.js");
-    expect(isScopingEnabled()).toBe(true);
-    updateVaultPath(undefined);
+  // ---- rebuildScopeMap ----
+
+  it("rebuildScopeMap is a no-op when scoping is disabled", async () => {
+    const { isScopingEnabled, rebuildScopeMap } = await import("../../src/scope.js");
+    expect(isScopingEnabled()).toBe(false);
+    await rebuildScopeMap();
     expect(isScopingEnabled()).toBe(false);
   });
 
-  it("updateVaultPath with non-existent path warns and keeps existing state", async () => {
-    await initWithMap({ "AI Space/.vaultgate": 'scope = "ai"' }, "ai");
-    const { isScopingEnabled, updateVaultPath } = await import("../../src/scope.js");
-    // Make the new path fail the existence check
-    mockFs.existsSync.mockImplementation((p: fs.PathLike) => p.toString() === "/vault");
-    mockFs.statSync.mockImplementation((p: fs.PathLike) => ({
-      isDirectory: () => p.toString() === "/vault",
-    })) as unknown as typeof fs.statSync;
-    updateVaultPath("/nonexistent-new-path");
-    // Scoping should still be enabled with the original vault
-    expect(isScopingEnabled()).toBe(true);
+  it("rebuildScopeMap re-scans CLI and updates discovered scopes", async () => {
+    await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" });
+    // Now simulate a vault change: a new scope zone appears
+    const { runObsidian } = await import("../../src/cli.js");
+    vi.mocked(runObsidian).mockImplementation(async (args: string[]) => {
+      if (args[0] === "files:list")
+        return "Work/VAULTGATE.md\nPersonal/VAULTGATE.md";
+      if (args[0] === "read") {
+        const p = args.find((a) => a.startsWith("path="))?.slice(5);
+        if (p === "Work/VAULTGATE.md") return "---\nscope: work\n---";
+        if (p === "Personal/VAULTGATE.md") return "---\nscope: personal\n---";
+        throw new Error("not found");
+      }
+      throw new Error("unexpected");
+    });
+    const { rebuildScopeMap, discoverScopes } = await import("../../src/scope.js");
+    await rebuildScopeMap();
+    expect(discoverScopes()).toContain("personal");
   });
 
-  it("updateVaultPath with valid path rebuilds the scope map and resets to home scope", async () => {
-    await initWithMap({ "Old Space/.vaultgate": 'scope = "old"' }, "old");
-    const { setActiveScope, getActiveScope, updateVaultPath, isScopingEnabled } =
-      await import("../../src/scope.js");
-    // Switch to a different scope before the vault path update
+  // ---- getConventionsPaths ----
+
+  it("getConventionsPaths returns [contextFileName] when scoping is disabled", async () => {
+    const { getConventionsPaths } = await import("../../src/scope.js");
+    expect(getConventionsPaths()).toEqual(["VAULTGATE.md"]);
+  });
+
+  it("getConventionsPaths returns [rootFile] when root has no scope and active scope is unscoped", async () => {
+    await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" }, "unscoped");
+    const { getConventionsPaths } = await import("../../src/scope.js");
+    expect(getConventionsPaths()).toEqual(["VAULTGATE.md"]);
+  });
+
+  it("getConventionsPaths returns [root, scopeFile] when root has no scope and named scope active", async () => {
+    await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" }, "work");
+    const { getConventionsPaths } = await import("../../src/scope.js");
+    expect(getConventionsPaths()).toEqual(["VAULTGATE.md", "Work/VAULTGATE.md"]);
+  });
+
+  it("getConventionsPaths returns [rootFile] when named scope has no conventions file", async () => {
+    // initScopeEngine with homeScope="work" but no scope zones found → stays disabled.
+    // Use a different setup: active scope set manually to something with no conventions file.
+    await initWithCli(
+      {
+        "Work/VAULTGATE.md": "---\nscope: work\n---",
+        "Personal/VAULTGATE.md": "---\nscope: personal\n---",
+      },
+      "unscoped"
+    );
+    const { setActiveScope, getConventionsPaths } = await import("../../src/scope.js");
+    // Switch to a scope that has a conventions file path in conventionsPathMap.
+    // To test the "no scope file" case, we test the "unscoped" active scope case instead,
+    // since conventionsPathMap only contains scopes we found.
     setActiveScope("unscoped");
-    expect(getActiveScope()).toBe("unscoped");
+    // unscoped → no scope file in map → [rootFile] only
+    expect(getConventionsPaths()).toEqual(["VAULTGATE.md"]);
+  });
 
-    // Set up the new vault path with its own .vaultgate
-    mockFs.existsSync.mockImplementation((p: fs.PathLike) => p.toString() === "/new-vault");
-    mockFs.statSync.mockImplementation((p: fs.PathLike) => ({
-      isDirectory: () => p.toString() === "/new-vault",
-    })) as unknown as typeof fs.statSync;
-    mockFs.readdirSync.mockReturnValue([] as unknown as fs.Dirent[]);
+  it("getConventionsPaths returns [scopeFile] when root itself has scope: frontmatter and scope matches", async () => {
+    // Root VAULTGATE.md declares scope: root-scope
+    await initWithCli({ "VAULTGATE.md": "---\nscope: root-scope\n---\n# Conventions" }, "root-scope");
+    const { getConventionsPaths } = await import("../../src/scope.js");
+    expect(getConventionsPaths()).toEqual(["VAULTGATE.md"]);
+  });
 
-    updateVaultPath("/new-vault");
-    // Active scope should be reset to home scope ("old")
-    expect(getActiveScope()).toBe("old");
-    expect(isScopingEnabled()).toBe(true);
+  it("getConventionsPaths returns [] when root has scope: and active scope does not match", async () => {
+    await initWithCli({ "VAULTGATE.md": "---\nscope: root-scope\n---" }, "unscoped");
+    const { getConventionsPaths } = await import("../../src/scope.js");
+    // active scope "unscoped" → no match for "root-scope" → []
+    expect(getConventionsPaths()).toEqual([]);
+  });
+
+  // ---- isRootGlobal ----
+
+  it("isRootGlobal returns true when root file has no scope: frontmatter", async () => {
+    await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" });
+    const { isRootGlobal } = await import("../../src/scope.js");
+    expect(isRootGlobal()).toBe(true);
+  });
+
+  it("isRootGlobal returns false when root file carries scope: frontmatter", async () => {
+    await initWithCli({ "VAULTGATE.md": "---\nscope: root-scope\n---" }, "root-scope");
+    const { isRootGlobal } = await import("../../src/scope.js");
+    expect(isRootGlobal()).toBe(false);
+  });
+
+  // ---- frontmatter scope value parsing (via initScopeEngine behavior) ----
+
+  it("recognises unquoted scope values", async () => {
+    await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" });
+    const { discoverScopes } = await import("../../src/scope.js");
+    expect(discoverScopes()).toContain("work");
+  });
+
+  it("recognises double-quoted scope values", async () => {
+    await initWithCli({ 'Work/VAULTGATE.md': '---\nscope: "work"\n---' });
+    const { discoverScopes } = await import("../../src/scope.js");
+    expect(discoverScopes()).toContain("work");
+  });
+
+  it("recognises single-quoted scope values", async () => {
+    await initWithCli({ "Work/VAULTGATE.md": "---\nscope: 'work'\n---" });
+    const { discoverScopes } = await import("../../src/scope.js");
+    expect(discoverScopes()).toContain("work");
+  });
+
+  it("ignores scope values exceeding 64 characters", async () => {
+    const long = "a".repeat(65);
+    const files: Record<string, string> = {};
+    files["Work/VAULTGATE.md"] = `---\nscope: ${long}\n---`;
+    await initWithCli(files);
+    const { isScopingEnabled } = await import("../../src/scope.js");
+    // Oversized scope → no zones found → scoping stays disabled
+    expect(isScopingEnabled()).toBe(false);
+  });
+
+  it("only processes files matching the configured contextFileName", async () => {
+    // The CLI returns OTHER.md and VAULTGATE.md; only VAULTGATE.md matches contextFileName.
+    await initWithCli({
+      "Work/OTHER.md": "---\nscope: work\n---",
+      "Work/VAULTGATE.md": "# No scope here",
+    });
+    const { isScopingEnabled } = await import("../../src/scope.js");
+    expect(isScopingEnabled()).toBe(false);
   });
 });

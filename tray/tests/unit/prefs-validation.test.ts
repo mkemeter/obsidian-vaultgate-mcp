@@ -126,24 +126,6 @@ describe("validateConfigPatch", () => {
     });
   });
 
-  describe("vaultPath", () => {
-    it("accepts an absolute path string", () => {
-      expect(validateConfigPatch({ vaultPath: "/Users/me/Vault" }).vaultPath).toBe(
-        "/Users/me/Vault"
-      );
-    });
-
-    it("accepts an empty string (disables scoping)", () => {
-      expect(validateConfigPatch({ vaultPath: "" }).vaultPath).toBe("");
-    });
-
-    it("rejects a non-string value", () => {
-      expect(() => validateConfigPatch({ vaultPath: 42 as unknown as string })).toThrow(
-        /Invalid vault path/
-      );
-    });
-  });
-
   describe("dailyNotesPath", () => {
     it("accepts a relative folder path", () => {
       expect(validateConfigPatch({ dailyNotesPath: "Daily Notes" }).dailyNotesPath).toBe(

@@ -25,9 +25,9 @@ vi.mock("../../../src/scope.js", () => ({
   isScopingEnabled: vi.fn(() => false),
   isPathBlocked: vi.fn(() => false),
   filterByScope: vi.fn((paths: string[]) => paths),
-  isVaultGateFile: vi.fn(() => false),
   isNoteInScope: vi.fn(() => true),
-  getScopeConventionsFile: vi.fn(() => undefined),
+  getConventionsPaths: vi.fn(() => ["VAULTGATE.md"]),
+  extractBody: vi.fn((s: string) => s),
   SCOPE_BLOCKED_MESSAGE: "This note is not accessible in the current scope.",
 }));
 
@@ -38,9 +38,8 @@ const scopeModule = await import("../../../src/scope.js");
 const mockIsScopingEnabled = vi.mocked(scopeModule.isScopingEnabled);
 const mockIsPathBlocked = vi.mocked(scopeModule.isPathBlocked);
 const mockFilterByScope = vi.mocked(scopeModule.filterByScope);
-const mockIsVaultGateFile = vi.mocked(scopeModule.isVaultGateFile);
 const mockIsNoteInScope = vi.mocked(scopeModule.isNoteInScope);
-const mockGetScopeConventionsFile = vi.mocked(scopeModule.getScopeConventionsFile);
+const mockGetConventionsPaths = vi.mocked(scopeModule.getConventionsPaths);
 
 const BLOCKED_MSG = "This note is not accessible in the current scope.";
 
@@ -58,9 +57,8 @@ beforeEach(() => {
   mockIsScopingEnabled.mockReturnValue(false);
   mockIsPathBlocked.mockReturnValue(false);
   mockFilterByScope.mockImplementation((paths: string[]) => paths);
-  mockIsVaultGateFile.mockReturnValue(false);
   mockIsNoteInScope.mockReturnValue(true);
-  mockGetScopeConventionsFile.mockReturnValue(undefined);
+  mockGetConventionsPaths.mockReturnValue(["VAULTGATE.md"]);
   mockRun.mockResolvedValue("");
   mockConfig.dailyNotesPath = undefined;
 });
@@ -70,20 +68,6 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("files_list scope filtering (Pattern B)", () => {
-  it("strips .vaultgate entries from output even when scoping is disabled", async () => {
-    const { registerFileTools } = await import("../../../src/tools/files.js");
-    mockRun.mockResolvedValue("note.md\n.vaultgate\nfolder/.vaultgate\nother.md");
-    mockIsVaultGateFile.mockImplementation((p: string) =>
-      p === ".vaultgate" || p.endsWith("/.vaultgate")
-    );
-    const server = new McpServer({ name: "t", version: "0" });
-    registerFileTools(server);
-    const result = await invoke(server, "files_list", {});
-    expect(result.content[0].text).not.toContain(".vaultgate");
-    expect(result.content[0].text).toContain("note.md");
-    expect(result.content[0].text).toContain("other.md");
-  });
-
   it("filters out-of-scope paths when scoping is enabled", async () => {
     const { registerFileTools } = await import("../../../src/tools/files.js");
     mockRun.mockResolvedValue("ai/note1.md\nprivate/secret.md\nai/note2.md");
@@ -280,17 +264,6 @@ describe("backlinks scope guard (Pattern A)", () => {
 // ---------------------------------------------------------------------------
 
 describe("templates_list scope filtering (Pattern B)", () => {
-  it("strips .vaultgate entries from template listing", async () => {
-    const { registerTemplateTools } = await import("../../../src/tools/templates.js");
-    mockRun.mockResolvedValue("Daily Note\n.vaultgate\nMeeting");
-    mockIsVaultGateFile.mockImplementation((p: string) => p === ".vaultgate");
-    const server = new McpServer({ name: "t", version: "0" });
-    registerTemplateTools(server);
-    const result = await invoke(server, "templates_list", {});
-    expect(result.content[0].text).not.toContain(".vaultgate");
-    expect(result.content[0].text).toContain("Daily Note");
-  });
-
   it("filters out-of-scope templates when scoping is enabled", async () => {
     const { registerTemplateTools } = await import("../../../src/tools/templates.js");
     mockRun.mockResolvedValue("ai/template.md\nprivate/template.md");
@@ -521,7 +494,7 @@ describe("context guard scope conventions injection", () => {
     const { installContextGuard, registerContextTools } = await import(
       "../../../src/tools/context.js"
     );
-    mockGetScopeConventionsFile.mockReturnValue("VAULTGATE-ai.md");
+    mockGetConventionsPaths.mockReturnValue(["VAULTGATE.md", "VAULTGATE-ai.md"]);
     mockRun
       .mockResolvedValueOnce("Global conventions")
       .mockResolvedValueOnce("AI scope conventions");
@@ -546,7 +519,7 @@ describe("context guard scope conventions injection", () => {
     const { installContextGuard, registerContextTools } = await import(
       "../../../src/tools/context.js"
     );
-    mockGetScopeConventionsFile.mockReturnValue("VAULTGATE-ai.md");
+    mockGetConventionsPaths.mockReturnValue(["VAULTGATE.md", "VAULTGATE-ai.md"]);
     mockRun
       .mockResolvedValueOnce("Global conventions")
       .mockRejectedValueOnce(new Error("file not found"));

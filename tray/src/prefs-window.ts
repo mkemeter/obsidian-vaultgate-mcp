@@ -46,7 +46,6 @@ export function registerPrefsIpc(): void {
       (patch.port !== undefined && patch.port !== current.port) ||
       (patch.obsidianPath !== undefined && patch.obsidianPath !== current.obsidianPath) ||
       (patch.contextFileName !== undefined && patch.contextFileName !== current.contextFileName) ||
-      (patch.vaultPath !== undefined && patch.vaultPath !== current.vaultPath) ||
       (patch.homeScope !== undefined && patch.homeScope !== current.homeScope) ||
       (patch.scopeSwitchingEnabled !== undefined &&
         patch.scopeSwitchingEnabled !== current.scopeSwitchingEnabled) ||
@@ -108,7 +107,7 @@ export function openPrefsWindow(): void {
 
   prefsWindow = new BrowserWindow({
     width: 420,
-    height: 600,
+    height: 750,
     resizable: false,
     minimizable: false,
     maximizable: false,

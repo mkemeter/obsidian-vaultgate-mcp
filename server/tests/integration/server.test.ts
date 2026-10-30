@@ -201,9 +201,17 @@ describe("server initialize handler — interpolation (site C)", () => {
     vi.mocked(runObsidian).mockReset();
   });
 
-  it("resolves {{date}} in vault instructions", async () => {
+  /** Mocks CLI to return empty files:list (no scopes) and the given content for any read call. */
+  async function mockConventionsContent(content: string) {
     const { runObsidian } = await import("../../src/cli.js");
-    vi.mocked(runObsidian).mockResolvedValueOnce("Today is {{date}}.");
+    vi.mocked(runObsidian).mockImplementation(async (args: string[]) => {
+      if (args[0] === "read") return content;
+      return ""; // files:list → no scope zones
+    });
+  }
+
+  it("resolves {{date}} in vault instructions", async () => {
+    await mockConventionsContent("Today is {{date}}.");
 
     const server = await createServer();
     // @ts-ignore
@@ -225,8 +233,7 @@ describe("server initialize handler — interpolation (site C)", () => {
   });
 
   it("resolves {{client}} to the clientInfo name from initialize", async () => {
-    const { runObsidian } = await import("../../src/cli.js");
-    vi.mocked(runObsidian).mockResolvedValueOnce("Connected via {{client}}.");
+    await mockConventionsContent("Connected via {{client}}.");
 
     const server = await createServer();
     // @ts-ignore
@@ -248,8 +255,7 @@ describe("server initialize handler — interpolation (site C)", () => {
   });
 
   it("resolves {{date}} and {{client}} together in one string", async () => {
-    const { runObsidian } = await import("../../src/cli.js");
-    vi.mocked(runObsidian).mockResolvedValueOnce("Date: {{date}}, client: {{client}}.");
+    await mockConventionsContent("Date: {{date}}, client: {{client}}.");
 
     const server = await createServer();
     // @ts-ignore
@@ -272,8 +278,7 @@ describe("server initialize handler — interpolation (site C)", () => {
   });
 
   it("leaves unknown placeholders unchanged in vault instructions", async () => {
-    const { runObsidian } = await import("../../src/cli.js");
-    vi.mocked(runObsidian).mockResolvedValueOnce("{{foo}} is not a variable");
+    await mockConventionsContent("{{foo}} is not a variable");
 
     const server = await createServer();
     // @ts-ignore

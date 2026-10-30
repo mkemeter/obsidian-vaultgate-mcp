@@ -268,7 +268,6 @@ export async function start(): Promise<void> {
       VAULTGATE_INJECT_CONVENTIONS: String(config.injectConventions ?? true),
       VAULTGATE_INJECT_INTERVAL: String(config.injectIntervalSecs ?? 30),
       // Vault scoping (omit env vars when not configured so server uses its own defaults)
-      ...(config.vaultPath ? { OBSIDIAN_VAULT_PATH: config.vaultPath } : {}),
       ...(config.homeScope && config.homeScope !== "unscoped"
         ? { OBSIDIAN_SCOPE: config.homeScope }
         : {}),

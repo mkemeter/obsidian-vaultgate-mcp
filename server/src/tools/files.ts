@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
-import { filterByScope, isPathBlocked, isVaultGateFile, SCOPE_BLOCKED_MESSAGE } from "../scope.js";
+import { filterByScope, isPathBlocked, SCOPE_BLOCKED_MESSAGE } from "../scope.js";
 import {
   buildFileArgs,
   dryRunPreview,
@@ -50,9 +50,8 @@ export function registerFileTools(server: McpServer): void {
 
       try {
         const output = await runObsidian(args);
-        // Strip .vaultgate files (always) and out-of-scope notes (when scoping enabled).
         const lines = output.split("\n").filter((l) => l.trim() !== "");
-        const filtered = filterByScope(lines).filter((l) => !isVaultGateFile(l));
+        const filtered = filterByScope(lines);
         return { content: [{ type: "text", text: filtered.join("\n") }] };
       } catch (error) {
         return {

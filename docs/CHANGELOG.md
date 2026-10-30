@@ -17,11 +17,11 @@ A section may be absent if that distribution had no changes in the release.
 
 - **`property_search` tool** — search vault notes by frontmatter field value. Filters notes by exact value match, ISO date range (`before`/`after`), key existence, or key absence (`missing: true`). Optionally restrict results to a folder prefix via the `path` parameter. Returns a newline-separated list of vault-relative paths, consistent with `files_list`. Respects vault scopes.
 - **Variable interpolation in vault conventions** — `{{variable}}` placeholders in `VAULTGATE.md` (or any configured conventions file) are resolved at injection time. Supported variables: `{{date}}` (UTC date), `{{time}}` (local HH:MM), `{{day}}` (local day of week), `{{user}}` (OS username), `{{scope}}` (active vault scope, empty when scoping is off), `{{client}}` (MCP client name from the session handshake). Unknown placeholders are left as-is. Interpolation runs at all three injection sites: the context guard, the explicit `vault_context` tool, and the MCP `initialize` instructions.
-- **Vault scopes** — partition your vault into named zones enforced in server code. Set `OBSIDIAN_VAULT_PATH` to the vault filesystem path, place `.vaultgate` TOML files in subdirectories to declare scope names, and start with `OBSIDIAN_SCOPE=<name>`. Notes outside the active scope are invisible to the AI: they disappear from file listings, reads, full-text search, and semantic search. `.vaultgate` files themselves are also blocked from AI access regardless of whether scoping is active.
-- **`vault_scope` tool** — shows the current scope, home scope, and all available scopes in the vault. Registered when `OBSIDIAN_VAULT_PATH` is set.
+- **Vault scopes** — partition your vault into named zones enforced in server code. Add a `scope:` key to the YAML frontmatter of any conventions file (e.g. `VAULTGATE.md`) in a subfolder to declare a scope zone — no filesystem path required. VaultGate discovers scope zones automatically at startup via the Obsidian CLI. Notes outside the active scope are invisible to the AI: they disappear from file listings, reads, full-text search, and semantic search. Set `OBSIDIAN_SCOPE=<name>` to start in a named scope (defaults to `unscoped`, which gives full vault access).
+- **`vault_scope` tool** — shows the current scope, home scope, and all available scopes in the vault. Registered when at least one scope zone is discovered.
 - **`vault_scope_set` tool** — switches the active scope for the current session. Registered only when `VAULTGATE_SCOPE_SWITCHING=true` (opt-in).
-- **Scope-local conventions** — a `.vaultgate` file can declare a `conventions = "SCOPE.md"` key; VaultGate appends that file after the global `VAULTGATE.md` at session start.
-- **Four new env vars**: `OBSIDIAN_VAULT_PATH`, `OBSIDIAN_SCOPE`, `VAULTGATE_SCOPE_SWITCHING`, `OBSIDIAN_DAILY_NOTES_PATH`.
+- **Scope-local conventions** — when a subdirectory's conventions file carries a `scope:` key, VaultGate appends it after the root conventions file at session start. The root file is injected as a global baseline unless it also carries a `scope:` key (making it a scope zone itself).
+- **Three new env vars**: `OBSIDIAN_SCOPE`, `VAULTGATE_SCOPE_SWITCHING`, `OBSIDIAN_DAILY_NOTES_PATH`.
 - **`VAULTGATE_NO_URI`** — set to `true` to skip registering `note_open`, `search_open`, and `daily_open`. Useful in server or background deployments (pm2, launchd, shared machines) where launching `obsidian://` URIs would steal focus or disrupt other users. URI tools are enabled by default; this is an expert opt-out only.
 
 #### Changed
@@ -32,8 +32,8 @@ A section may be absent if that distribution had no changes in the release.
 
 #### Added
 
-- **Vault scoping config fields** — four new fields in the Preferences store (`vaultPath`, `homeScope`, `scopeSwitchingEnabled`, `dailyNotesPath`) are passed to the server process as environment variables. Changing any of these restarts the server.
-- **`prefs:refreshScopeMap` IPC handler** — sends a `refresh_scope_map` control command to the running server without a restart, useful after editing `.vaultgate` files.
+- **Vault scoping config fields** — three new fields in the Preferences store (`homeScope`, `scopeSwitchingEnabled`, `dailyNotesPath`) are passed to the server process as environment variables. Changing any of these restarts the server.
+- **`prefs:refreshScopeMap` IPC handler** — sends a `refresh_scope_map` control command to the running server without a restart, useful after editing conventions files with `scope:` frontmatter.
 - **`noUri` config field** — when `true`, the server is started with `VAULTGATE_NO_URI=true`. Not exposed in the Preferences UI; advanced users can set it by editing the config file directly.
 
 ---

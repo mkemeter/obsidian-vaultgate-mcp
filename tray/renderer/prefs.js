@@ -19,6 +19,10 @@
   const injectIntervalRow = document.getElementById("inject-interval-row");
   const injectIntervalInput = document.getElementById("inject-interval");
   const injectIntervalError = document.getElementById("inject-interval-error");
+  const homeScopeInput = document.getElementById("home-scope");
+  const homeScopeError = document.getElementById("home-scope-error");
+  const scopeSwitchingInput = document.getElementById("scope-switching");
+  const noUriInput = document.getElementById("no-uri");
   const autostartInput = document.getElementById("autostart");
   const browseBtn = document.getElementById("browse");
   const saveBtn = document.getElementById("save");
@@ -52,6 +56,9 @@
   injectConventionsInput.checked = config.injectConventions ?? true;
   injectIntervalInput.value = String(config.injectIntervalSecs ?? 30);
   injectIntervalRow.style.display = injectConventionsInput.checked ? "" : "none";
+  homeScopeInput.value = config.homeScope === "unscoped" ? "" : (config.homeScope || "");
+  scopeSwitchingInput.checked = Boolean(config.scopeSwitchingEnabled);
+  noUriInput.checked = Boolean(config.noUri);
   autostartInput.checked = Boolean(autostart);
 
   // Wire server state into status indicator ------------------------------------
@@ -146,9 +153,36 @@
 
   injectIntervalInput.addEventListener("input", validateInterval);
 
+  // Home scope validation -------------------------------------------------------
+  function setHomeScopeError(msg) {
+    homeScopeError.textContent = msg;
+    homeScopeInput.classList.toggle("error", Boolean(msg));
+    saveBtn.disabled = Boolean(msg);
+  }
+
+  function validateHomeScope() {
+    const value = homeScopeInput.value.trim();
+    if (!value) {
+      setHomeScopeError("");
+      return;
+    }
+    if (value.includes("/") || value.includes("\\")) {
+      setHomeScopeError("Scope name must not contain path separators.");
+      return;
+    }
+    if (value.length > 64) {
+      setHomeScopeError("Scope name must be 64 characters or fewer.");
+      return;
+    }
+    setHomeScopeError("");
+  }
+
+  homeScopeInput.addEventListener("input", validateHomeScope);
+
   // Run initial validation
   await validatePort();
   validateInterval();
+  validateHomeScope();
 
   // Browse for Obsidian path ---------------------------------------------------
   browseBtn.addEventListener("click", async () => {
@@ -160,16 +194,19 @@
   saveBtn.addEventListener("click", async () => {
     validateContextFile();
     validateInterval();
+    validateHomeScope();
     const contextFileInvalid = Boolean(contextFileError.textContent);
     const intervalInvalid = Boolean(injectIntervalError.textContent);
+    const homeScopeInvalid = Boolean(homeScopeError.textContent);
     await validatePort();
-    if (saveBtn.disabled || contextFileInvalid || intervalInvalid) {
+    if (saveBtn.disabled || contextFileInvalid || intervalInvalid || homeScopeInvalid) {
       saveBtn.disabled = true;
       return;
     }
 
     const port = Number.parseInt(portInput.value, 10);
     const injectIntervalSecs = Number.parseInt(injectIntervalInput.value, 10);
+    const homeScopeValue = homeScopeInput.value.trim();
     const patch = {
       vault: vaultSelect.value,
       port: Number.isFinite(port) ? port : config.port,
@@ -177,6 +214,9 @@
       contextFileName: contextFileInput.value.trim() || "VAULTGATE.md",
       injectConventions: injectConventionsInput.checked,
       injectIntervalSecs: Number.isFinite(injectIntervalSecs) ? injectIntervalSecs : 30,
+      homeScope: homeScopeValue || "unscoped",
+      scopeSwitchingEnabled: scopeSwitchingInput.checked,
+      noUri: noUriInput.checked,
     };
     await api.setAutostart(autostartInput.checked);
     await api.saveConfig(patch);

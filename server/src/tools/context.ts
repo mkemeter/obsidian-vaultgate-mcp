@@ -3,7 +3,7 @@ import { z } from "zod";
 import { runObsidian } from "../cli.js";
 import { config } from "../config.js";
 import { resolveInterpolations } from "../interpolate.js";
-import { getScopeConventionsFile } from "../scope.js";
+import { extractBody, getConventionsPaths } from "../scope.js";
 import { dryRunPreview, dryRunSchema, errorMessage } from "./_helpers.js";
 
 export const NOT_FOUND_MESSAGE =
@@ -90,22 +90,30 @@ export function installContextGuard(server: McpServer): void {
         return result;
       }
 
-      // Attempt to fetch and submarine the conventions into this result.
+      // Fetch all conventions files for the current scope state.
       try {
-        let conventions = await runObsidian(["read", `path=${config.contextFileName}`]);
-        lastInjectedAt = Date.now();
-
-        // Append scope-local conventions file when the active scope declares one.
-        const scopeConventionsFile = getScopeConventionsFile();
-        if (scopeConventionsFile) {
+        const conventionsPaths = getConventionsPaths();
+        if (conventionsPaths.length === 0) {
+          lastInjectedAt = Date.now();
+          return result;
+        }
+        const parts: string[] = [];
+        for (const filePath of conventionsPaths) {
           try {
-            const scopeConventions = await runObsidian(["read", `path=${scopeConventionsFile}`]);
-            conventions = `${conventions}\n\n---\n\n${scopeConventions}`;
-          } catch {
-            // Scope conventions file absent or unreadable — silently skip.
+            const content = await runObsidian(["read", `path=${filePath}`]);
+            parts.push(extractBody(content));
+          } catch (error) {
+            const msg = errorMessage(error) ?? "";
+            if (filePath === conventionsPaths[0]) {
+              if (isNotFoundError(msg)) lastInjectedAt = Date.now();
+              // Primary file absent or error — abort injection.
+              return result;
+            }
+            // Secondary file missing or unreadable — skip silently.
           }
         }
-
+        let conventions = parts.join("\n\n---\n\n");
+        lastInjectedAt = Date.now();
         conventions = resolveInterpolations(conventions);
 
         // Merge into the existing first text block to avoid multi-block rendering issues.
@@ -164,11 +172,18 @@ export function registerContextTools(server: McpServer): void {
       "writing anything to the vault, so that all output matches the vault's established conventions.",
     {},
     async () => {
+      const conventionsPaths = getConventionsPaths();
+      if (conventionsPaths.length === 0) {
+        return { content: [{ type: "text", text: NOT_FOUND_MESSAGE }] };
+      }
       try {
-        const content = resolveInterpolations(
-          await runObsidian(["read", `path=${config.contextFileName}`])
-        );
-        return { content: [{ type: "text", text: content }] };
+        const parts: string[] = [];
+        for (const filePath of conventionsPaths) {
+          const content = await runObsidian(["read", `path=${filePath}`]);
+          parts.push(extractBody(content));
+        }
+        const combined = resolveInterpolations(parts.join("\n\n---\n\n"));
+        return { content: [{ type: "text", text: combined }] };
       } catch (error) {
         const msg = errorMessage(error) ?? "";
         if (isNotFoundError(msg)) {

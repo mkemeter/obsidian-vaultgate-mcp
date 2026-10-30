@@ -20,7 +20,6 @@ const configPatchSchema = z.object({
   vault: z.string().optional(),
   injectConventions: z.boolean().optional(),
   injectIntervalSecs: z.number().optional(),
-  vaultPath: z.string().optional(),
   activeScope: z.string().optional(),
 });
 

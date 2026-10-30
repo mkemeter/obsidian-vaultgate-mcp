@@ -1,13 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
-import {
-  filterByScope,
-  isPathBlocked,
-  isScopingEnabled,
-  isVaultGateFile,
-  SCOPE_BLOCKED_MESSAGE,
-} from "../scope.js";
+import { filterByScope, isPathBlocked, isScopingEnabled, SCOPE_BLOCKED_MESSAGE } from "../scope.js";
 import { buildFileArgs, dryRunPreview, dryRunSchema, errorMessage } from "./_helpers.js";
 
 /**
@@ -144,7 +138,7 @@ export function registerPropertyTools(server: McpServer): void {
       try {
         const listOutput = await runObsidian(["files", "list"]);
         let files = listOutput.split("\n").filter(Boolean);
-        files = filterByScope(files).filter((l) => !isVaultGateFile(l));
+        files = filterByScope(files);
         if (path) {
           const prefix = path.endsWith("/") ? path : `${path}/`;
           files = files.filter((f) => f.startsWith(prefix));

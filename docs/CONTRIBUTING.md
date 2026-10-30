@@ -244,21 +244,23 @@ JavaScript inside Obsidian:
 
 ### Vault scopes
 
-Vault scopes are a server-enforced access-control layer. When `OBSIDIAN_VAULT_PATH` is set and the directory exists, `createServer()` calls `initScopeEngine()` before registering tools, which scans the vault filesystem for `.vaultgate` TOML files and builds a `ScopeMap` (a `Map<normalizedDir, { scope, conventions }>`). All subsequent tool calls consult this map.
+Vault scopes are a server-enforced access-control layer. `createServer()` always calls `initScopeEngine()` before registering tools, which discovers scope zones via the Obsidian CLI (no filesystem access). It calls `runObsidian(["files:list"])` to enumerate all files, filters for those matching `config.contextFileName`, reads each via `runObsidian(["read", "path=..."])`, and parses the `scope:` YAML frontmatter key. Scoping self-enables only when at least one scope zone is found — vaults without any `scope:` frontmatter behave exactly as before.
 
 **`server/src/scope.ts`** owns all scope state as module-level singletons:
-- `initScopeEngine(vaultPath, homeScope, switchingEnabled)` — scans the vault and sets the active scope.
-- `isScopingEnabled()` — true only after a successful `initScopeEngine` call; gates every scope check.
-- `isPathBlocked(notePath)` — combines two orthogonal checks in one call: (1) `.vaultgate` blocking (always active even without scoping — these files are never AI-visible), (2) scope mismatch (only when `isScopingEnabled()`). Returns `true` if either check fires.
-- `filterByScope(paths)` — filters a list of vault-relative paths to only those in the active scope; also strips `.vaultgate` entries.
-- `rebuildScopeMap()` — re-scans the vault atomically; called via `__vaultgate_control__` IPC.
+- `initScopeEngine(homeScope, switchingEnabled)` — discovers scope zones via CLI and sets the active scope.
+- `isScopingEnabled()` — true only after `initScopeEngine` finds at least one scope zone; gates every scope check.
+- `isPathBlocked(notePath)` — returns `true` when scoping is enabled and the note's scope does not match the active scope. Notes are always accessible in the `"unscoped"` state. Passing `undefined` returns `false` (the active Obsidian file is unknown to VaultGate).
+- `filterByScope(paths)` — filters a list of vault-relative paths to only those in the active scope.
+- `getConventionsPaths()` — returns the ordered list of conventions file paths to inject (root + scope-local, or scope-only when root carries `scope:` frontmatter).
+- `extractBody(content)` — strips YAML frontmatter before injecting conventions so the AI sees only prose.
+- `rebuildScopeMap()` — re-scans the vault via CLI atomically; called via `__vaultgate_control__` IPC.
 
 **Tool filtering patterns:**
 - *Pattern A* (input path guard): tools that accept a note path call `isPathBlocked(path)` before the CLI call. Returns the `SCOPE_BLOCKED_MESSAGE` error on match.
 - *Pattern B* (list output filter): `files_list` and `templates_list` pass CLI output through `filterByScope()` before returning.
 - *Pattern D* (full-vault op block): `search` returns an error when scoping is active, directing the user to use scoped alternatives.
 
-**Scope map staleness:** the map is built once at startup. Callers in the headless path must restart to pick up `.vaultgate` changes. The tray exposes a "Refresh scope map" control that sends the `refresh_scope_map` control command without a restart.
+**Scope map staleness:** the map is built once at startup. Callers in the headless path must restart to pick up `scope:` frontmatter changes. The tray exposes a "Refresh scope map" control that sends the `refresh_scope_map` control command without a restart.
 
 **Concurrent session caveat:** `activeScope` is a module-level singleton shared across all MCP connections to the same process. A scope switch by one client immediately affects all others. This is a known v1 limitation.
 

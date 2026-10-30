@@ -10,7 +10,7 @@ import {
 import { runObsidian } from "./cli.js";
 import { config } from "./config.js";
 import { resolveInterpolations, setClientName } from "./interpolate.js";
-import { initScopeEngine, isScopingEnabled } from "./scope.js";
+import { extractBody, getConventionsPaths, initScopeEngine, isScopingEnabled } from "./scope.js";
 import { installContextGuard, registerContextTools } from "./tools/context.js";
 import { registerDailyTools } from "./tools/daily.js";
 import { registerDevTools } from "./tools/dev.js";
@@ -109,15 +109,14 @@ export async function createServer(iconUrl?: string): Promise<McpServer> {
   const server = new McpServer(serverInfo);
 
   // Initialise vault scoping before tool registration so filters are active
-  // when tools are first called. No-op when OBSIDIAN_VAULT_PATH is unset.
-  if (config.vaultPath) {
-    initScopeEngine(config.vaultPath, config.homeScope, config.scopeSwitchingEnabled);
-    if (isScopingEnabled() && !config.dailyNotesPath) {
-      console.error(
-        "[VaultGate] OBSIDIAN_DAILY_NOTES_PATH not set — daily note tools will not enforce scope. " +
-          "Set it to the vault-relative folder for daily notes (e.g. 'Daily Notes')."
-      );
-    }
+  // when tools are first called. Self-enables only when scope zones are found
+  // via CLI discovery — vaults without scope frontmatter behave as before.
+  await initScopeEngine(config.homeScope, config.scopeSwitchingEnabled);
+  if (isScopingEnabled() && !config.dailyNotesPath) {
+    console.error(
+      "[VaultGate] OBSIDIAN_DAILY_NOTES_PATH not set — daily note tools will not enforce scope. " +
+        "Set it to the vault-relative folder for daily notes (e.g. 'Daily Notes')."
+    );
   }
 
   // Install the per-session context guard before any tools are registered so
@@ -133,9 +132,18 @@ export async function createServer(iconUrl?: string): Promise<McpServer> {
     setClientName(request.params.clientInfo?.name ?? "unknown");
     let vaultInstructions: string | undefined;
     try {
-      const raw = resolveInterpolations(
-        await runObsidian(["read", `path=${config.contextFileName}`])
-      );
+      const conventionsPaths = getConventionsPaths();
+      const parts: string[] = [];
+      for (const filePath of conventionsPaths) {
+        try {
+          const content = await runObsidian(["read", `path=${filePath}`]);
+          parts.push(extractBody(content));
+        } catch {
+          if (filePath === conventionsPaths[0])
+            throw new Error("primary conventions file not found");
+        }
+      }
+      const raw = resolveInterpolations(parts.join("\n\n---\n\n"));
       if (raw.trim()) {
         vaultInstructions = raw.trim();
       }
@@ -174,7 +182,7 @@ export async function createServer(iconUrl?: string): Promise<McpServer> {
     registerUriTools(server); // note_open, search_open, daily_open
   }
 
-  // Scope tools — registered when vault scoping is active (OBSIDIAN_VAULT_PATH set).
+  // Scope tools — registered when vault scoping is active (scope zones found in vault).
   if (isScopingEnabled()) {
     registerScopeTools(server);
   }

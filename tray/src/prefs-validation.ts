@@ -69,11 +69,6 @@ export function validateConfigPatch(patch: Partial<VaultGateConfig>): Partial<Va
       );
     }
   }
-  if (patch.vaultPath !== undefined) {
-    if (typeof patch.vaultPath !== "string") {
-      throw new Error("Invalid vault path — must be a string.");
-    }
-  }
   if (patch.dailyNotesPath !== undefined) {
     if (typeof patch.dailyNotesPath !== "string") {
       throw new Error("Invalid daily notes path — must be a string.");

@@ -407,8 +407,7 @@ All configuration via environment variables. None are required for single-vault 
 | `VAULTGATE_INJECT_CONVENTIONS` | `true` | Set to `false` to disable automatic injection of vault conventions into tool results. When enabled, conventions are merged into the first tool result of each new conversation. Configurable in the tray Preferences dialog. |
 | `VAULTGATE_INJECT_INTERVAL` | `30` | How often (seconds) to re-inject vault conventions. Acts as a conversation-boundary detector: tool calls within a single thread happen seconds apart, so conventions are delivered exactly once at the start of each new conversation thread. Valid range: 1–3600. Configurable in the tray Preferences dialog. |
 | `VAULTGATE_MODEL_CACHE_DIR` | _(bundled/default cache)_ | Points the semantic-search embedding model at a pre-populated HuggingFace cache directory and disables remote downloads. For offline/air-gapped setups; normally set automatically by the tray. |
-| `OBSIDIAN_VAULT_PATH` | _(unset)_ | Absolute filesystem path to the vault root. Required to enable vault scopes. When unset, scoping is disabled and the full vault is accessible. |
-| `OBSIDIAN_SCOPE` | `unscoped` | Starting scope when `OBSIDIAN_VAULT_PATH` is set. Notes outside this scope are invisible to the AI. Use `unscoped` to start in the built-in root zone. |
+| `OBSIDIAN_SCOPE` | `unscoped` | Starting scope when vault scoping is active. Notes outside this scope are invisible to the AI. Use `unscoped` to start in the built-in root zone (full vault access). |
 | `VAULTGATE_SCOPE_SWITCHING` | `false` | Set to `true` to expose the `vault_scope_set` tool and let the AI switch scopes on request. When `false`, the scope is fixed for the session. |
 | `OBSIDIAN_DAILY_NOTES_PATH` | _(unset)_ | Vault-relative folder for daily notes (e.g. `Daily Notes`). When set and scoping is active, scope is enforced on daily note tools. |
 | `VAULTGATE_NO_URI` | `false` | Set to `true` to skip registering `note_open`, `search_open`, and `daily_open`. Useful in server or background deployments where launching `obsidian://` URIs would steal focus or disrupt other users. URI tools are enabled by default. |
@@ -421,44 +420,50 @@ Vault scopes let you partition your vault into named zones and restrict VaultGat
 
 #### Setting up scopes
 
-1. Set `OBSIDIAN_VAULT_PATH` to the absolute path of your vault directory and choose a starting scope:
+1. Choose a starting scope via the `OBSIDIAN_SCOPE` env var (optional — defaults to `unscoped`, which gives full vault access):
 
    ```bash
-   OBSIDIAN_VAULT_PATH="/Users/me/MyVault" OBSIDIAN_SCOPE="work" obsidian-vaultgate-mcp
+   OBSIDIAN_SCOPE="work" obsidian-vaultgate-mcp
    ```
 
-2. Create a `.vaultgate` file (plain TOML) in each folder you want to name as a scope:
+2. Add a `scope:` key to the YAML frontmatter of the conventions file (default `VAULTGATE.md`) in each folder you want to name as a scope:
 
-   ```toml
-   # Work/.vaultgate
-   scope = "work"
+   ```markdown
+   ---
+   scope: work
+   ---
+
+   # Work context
+   These notes cover active work projects.
    ```
 
-   ```toml
-   # Personal/.vaultgate
-   scope = "personal"
+   ```markdown
+   ---
+   scope: personal
+   ---
+
+   # Personal context
+   Private journal and personal notes.
    ```
 
-   The nearest-ancestor `.vaultgate` determines a note's scope. Notes with no `.vaultgate` ancestor belong to the built-in `"unscoped"` zone.
+   VaultGate discovers scope zones at startup by listing vault files via the Obsidian CLI — no filesystem path is required. The nearest-ancestor file with a `scope:` key determines a note's scope. Notes with no scoped ancestor belong to the built-in `"unscoped"` zone (full vault access).
 
 3. To let the AI switch scopes when the user asks, add `VAULTGATE_SCOPE_SWITCHING=true` — this exposes the `vault_scope_set` tool. Without it the scope is fixed for the session.
 
 #### Conventions per scope
 
-A `.vaultgate` file can optionally declare a scope-local conventions file that is appended after the global `VAULTGATE.md`:
+When a subdirectory's conventions file carries a `scope:` key, VaultGate appends it after the root conventions file at session start:
 
-```toml
-scope = "work"
-conventions = "WORK_CONTEXT.md"
-```
+- **Root conventions file without `scope:`** — always injected as the global baseline for every scope, with the active scope's conventions file appended on top.
+- **Root conventions file with `scope:`** — the root is itself a scope zone. Only the matching scope's file is injected; there is no global baseline.
 
-The AI receives the global conventions plus the zone-specific file at the start of each session, without any extra prompting.
+The AI receives the relevant conventions at the start of each session without any extra prompting.
 
 #### Known limitations
 
 - The scope is a server-process singleton: if multiple AI clients connect to the same server, a scope switch by one affects all.
 - `tags` and `unresolved` expose vault-wide metadata — scope is not enforced for these metadata-only tools.
-- The scope map is built at startup. After adding or modifying `.vaultgate` files, restart the server (or use the "Refresh scope map" control in the tray Preferences).
+- The scope map is built at startup. After adding or editing a `scope:` frontmatter key, restart the server (or use the "Refresh scope map" control in the tray Preferences).
 
 ### Available tools
 
@@ -538,7 +543,7 @@ The embedding model (`all-MiniLM-L6-v2`, ~23 MB) downloads once to `~/.cache/obs
 
 #### Scope tools
 
-Registered automatically when `OBSIDIAN_VAULT_PATH` is set. See [Vault scopes](#vault-scopes) for setup instructions.
+Registered automatically when VaultGate discovers scope zones in the vault (at least one conventions file with a `scope:` frontmatter key). See [Vault scopes](#vault-scopes) for setup instructions.
 
 | Tool | Description |
 |---|---|

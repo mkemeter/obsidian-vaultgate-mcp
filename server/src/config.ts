@@ -74,20 +74,6 @@ export interface Config {
   injectIntervalSecs: number;
 
   /**
-   * Absolute filesystem path to the vault root directory.
-   *
-   * Required for vault scopes — `.vaultgate` files are read directly from
-   * the filesystem, not via the Obsidian CLI. When unset or pointing to a
-   * non-existent directory, vault scoping is disabled and the server operates
-   * on the full vault as before.
-   *
-   * Set `OBSIDIAN_VAULT_PATH` to an absolute path (e.g. `/Users/me/Vault`).
-   * Tray users have this filled in automatically from the Obsidian vault
-   * registry when they select a vault in Preferences.
-   */
-  vaultPath: string | undefined;
-
-  /**
    * The scope VaultGate uses at startup (the "home scope").
    *
    * Notes outside this scope are invisible to all tools for the duration of
@@ -250,7 +236,6 @@ export function loadConfig(): Config {
     contextFileName: normalizeContextFileName(process.env.OBSIDIAN_CONTEXT_FILE?.trim()),
     injectConventions,
     injectIntervalSecs,
-    vaultPath: process.env.OBSIDIAN_VAULT_PATH?.trim() || undefined,
     homeScope: process.env.OBSIDIAN_SCOPE?.trim() || "unscoped",
     scopeSwitchingEnabled: process.env.VAULTGATE_SCOPE_SWITCHING?.trim() === "true",
     dailyNotesPath: process.env.OBSIDIAN_DAILY_NOTES_PATH?.trim() || undefined,
@@ -268,15 +253,6 @@ export const config = loadConfig();
  */
 export function setVault(vault: string | undefined): void {
   config.vault = vault;
-}
-
-/**
- * Updates the vault filesystem path at runtime.
- * Called by the tray app via IPC when the vault selection changes.
- * The scope engine is notified separately by the IPC handler.
- */
-export function setVaultPath(vaultPath: string | undefined): void {
-  config.vaultPath = vaultPath;
 }
 
 /**

@@ -43,12 +43,6 @@ export interface VaultGateConfig {
   /** Whether the user has been notified once that the index is ready. */
   smartSearchReadyNotified: boolean;
   /**
-   * Absolute filesystem path to the Obsidian vault folder, used for vault
-   * scoping. Auto-populated from the Obsidian vault registry when the user
-   * selects a vault. Empty string = scoping disabled.
-   */
-  vaultPath: string;
-  /**
    * The home scope (scope active at server start). Server resets to this scope
    * on restart. Empty string falls back to `"unscoped"`.
    */
@@ -92,7 +86,6 @@ const DEFAULTS: VaultGateConfig = {
   injectConventions: true,
   injectIntervalSecs: DEFAULT_INJECT_INTERVAL,
   smartSearchReadyNotified: false,
-  vaultPath: "",
   homeScope: "unscoped",
   scopeSwitchingEnabled: false,
   dailyNotesPath: "",

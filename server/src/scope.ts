@@ -1,52 +1,47 @@
-import * as fs from "node:fs";
-import * as path from "node:path";
-import { normalizeContextFileName } from "./config.js";
+import { runObsidian } from "./cli.js";
+import { config } from "./config.js";
 
 /**
  * Vault scopes — server-enforced partitioning of an Obsidian vault into named
  * zones. Notes outside the active scope are invisible to all tools.
  *
- * Configuration: drop a `.vaultgate` file (VaultGate-specific TOML subset) in
- * any directory to declare a scope for notes in that directory and below.
- * Nearest ancestor wins. Notes with no `.vaultgate` ancestor belong to the
- * built-in `"unscoped"` zone.
+ * Configuration: add a `scope:` key to the YAML frontmatter of the vault
+ * conventions file (e.g. `VAULTGATE.md`) in any subdirectory to declare a
+ * scope zone for notes in that directory and below. VaultGate discovers all
+ * scope zones automatically at startup by listing vault files via the CLI —
+ * no filesystem access is ever performed.
+ *
+ * Root conventions file behaviour:
+ * - WITHOUT `scope:` frontmatter → always injected as the global baseline.
+ *   When the active scope is a named scope, that scope's conventions file is
+ *   appended on top of the root.
+ * - WITH `scope:` frontmatter → the root file is a named scope zone itself.
+ *   It is only injected when the active scope matches; not globally.
  *
  * Core invariant: notes from different scopes never appear in the same tool
  * result. Enforced here in server code, not by LLM instructions.
  *
- * Enabling: call `initScopeEngine()` with a valid vault path. All functions
- * are passthrough no-ops until that call succeeds (`isScopingEnabled()` returns
- * `false`). Vaults with no `.vaultgate` files behave identically to before.
+ * CLI-only invariant: all vault access goes exclusively through runObsidian().
+ * Direct filesystem reads/writes on vault content are forbidden in this module.
  */
 
-/** Parsed content of a single `.vaultgate` file. */
-export interface VaultGateFile {
-  /** Scope name for notes in this directory and below. */
-  scope?: string;
-  /** Optional scope-local conventions filename (bare `.md` name, vault-root). */
-  conventions?: string;
-}
-
-/**
- * Map from normalized vault-relative directory path to the parsed `.vaultgate`
- * config for that directory. Only directories that contain a `.vaultgate` file
- * are present as keys.
- *
- * Paths are normalized: forward slashes, no leading `/`, trimmed.
- * The vault root is represented by an empty string `""`.
- */
-type ScopeMap = Map<string, VaultGateFile>;
+/** Maximum length (characters) for a scope name. Longer values are discarded. */
+const MAX_SCOPE_NAME_LENGTH = 64;
 
 // ---------------------------------------------------------------------------
 // Module state
 // ---------------------------------------------------------------------------
 
-let scopeMap: ScopeMap = new Map();
-let vaultRootPath: string | undefined;
-let homeScope: string = "unscoped";
-let activeScope: string = "unscoped";
-let scopeSwitchingEnabled: boolean = false;
-let enabled: boolean = false;
+/** Maps vault-relative directory path → scope name declared there. */
+let scopeZoneMap: Map<string, string> = new Map();
+/** Maps scope name → vault-relative path of the conventions file that declares it. */
+let conventionsPathMap: Map<string, string> = new Map();
+/** True when the vault root conventions file itself carries a `scope:` key. */
+let rootHasScope = false;
+let homeScope = "unscoped";
+let activeScope = "unscoped";
+let scopeSwitchingEnabled = false;
+let enabled = false;
 
 // ---------------------------------------------------------------------------
 // Path helpers
@@ -60,105 +55,105 @@ export function normalizePath(p: string): string {
   return p.replace(/\\/g, "/").replace(/^\/+/, "").trim();
 }
 
+// ---------------------------------------------------------------------------
+// Frontmatter helpers
+// ---------------------------------------------------------------------------
+
 /**
- * Returns `true` if the path points to a `.vaultgate` configuration file.
- * These files must never be exposed to AI-visible operations regardless of
- * scope state.
+ * Extracts the body of a Markdown file, stripping YAML frontmatter if present.
+ * Used before injecting conventions so the AI sees only prose, not config metadata.
  */
-export function isVaultGateFile(notePath: string): boolean {
-  const normalized = normalizePath(notePath);
-  return normalized === ".vaultgate" || normalized.endsWith("/.vaultgate");
+export function extractBody(content: string): string {
+  const match = /^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.exec(content);
+  return match ? content.slice(match[0].length) : content;
+}
+
+/**
+ * Parses the `scope:` value from YAML frontmatter, returning it as a string or
+ * `undefined` when absent, malformed, or exceeding {@link MAX_SCOPE_NAME_LENGTH}.
+ */
+function parseScopeFrontmatter(content: string): string | undefined {
+  const frontmatterMatch = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(content);
+  if (!frontmatterMatch?.[1]) return undefined;
+  const fm = frontmatterMatch[1];
+  const scopeMatch = /^scope:\s*["']?([^"'\r\n]+?)["']?\s*$/m.exec(fm);
+  if (!scopeMatch?.[1]) return undefined;
+  const raw = scopeMatch[1].trim();
+  if (!raw || raw.length > MAX_SCOPE_NAME_LENGTH) return undefined;
+  return raw;
 }
 
 // ---------------------------------------------------------------------------
-// .vaultgate parser
+// CLI-based scope map builder
 // ---------------------------------------------------------------------------
 
-/** Maximum length (characters) for a scope name. Longer values are discarded. */
-const MAX_SCOPE_NAME_LENGTH = 64;
-
 /**
- * Parses a `.vaultgate` file from a string.
+ * Discovers scope zones by listing vault files via the CLI, reading each
+ * conventions file, and parsing YAML frontmatter for `scope:` declarations.
  *
- * Supports a minimal TOML subset: `key = "value"` lines only (quoted strings).
- * Lines starting with `#` are comments. Unknown keys are silently ignored.
- * Invalid values are discarded with a warning.
+ * Only files whose basename matches `config.contextFileName` are examined.
+ * Atomically replaces module state on success; throws on CLI failure so the
+ * caller can decide whether to disable scoping or keep the existing state.
  */
-export function parseVaultGateFile(content: string, filePath: string): VaultGateFile {
-  const result: VaultGateFile = {};
-  for (const raw of content.split("\n")) {
-    const line = raw.trim();
-    if (!line || line.startsWith("#")) continue;
-    const match = /^(\w+)\s*=\s*"(.*)"/.exec(line);
-    if (!match) continue;
-    const [, key, value] = match;
-    if (key === undefined || value === undefined) continue;
-    const trimmed = value.trim();
-    if (key === "scope") {
-      if (!trimmed) continue;
-      if (trimmed.length > MAX_SCOPE_NAME_LENGTH) {
-        console.error(
-          `[VaultGate] scope.ts: scope name "${trimmed}" in ${filePath} exceeds ${MAX_SCOPE_NAME_LENGTH} chars — ignoring.`
-        );
-        continue;
-      }
-      result.scope = trimmed;
-    } else if (key === "conventions") {
-      try {
-        result.conventions = normalizeContextFileName(trimmed);
-      } catch {
-        console.error(
-          `[VaultGate] scope.ts: invalid conventions value "${trimmed}" in ${filePath} — ignoring.`
-        );
-      }
-    }
-  }
-  return result;
-}
+async function buildScopeMapFromCli(): Promise<void> {
+  const contextFileName = config.contextFileName;
 
-// ---------------------------------------------------------------------------
-// ScopeMap builder
-// ---------------------------------------------------------------------------
-
-/**
- * Recursively walks the vault filesystem, reads every `.vaultgate` file found,
- * and returns a `ScopeMap` (normalized dir path → parsed config).
- *
- * Non-existent or unreadable `.vaultgate` files are skipped silently.
- * Filesystem errors on subdirectory traversal are logged and skipped.
- */
-export function buildScopeMap(vaultPath: string): ScopeMap {
-  const map: ScopeMap = new Map();
-  walkDir(vaultPath, vaultPath, map);
-  return map;
-}
-
-function walkDir(vaultPath: string, dir: string, map: ScopeMap): void {
-  const vaultGatePath = path.join(dir, ".vaultgate");
-  if (fs.existsSync(vaultGatePath)) {
-    try {
-      const content = fs.readFileSync(vaultGatePath, "utf8");
-      const parsed = parseVaultGateFile(content, vaultGatePath);
-      const relDir = normalizePath(path.relative(vaultPath, dir));
-      map.set(relDir, parsed);
-    } catch (err) {
-      console.error(`[VaultGate] scope.ts: failed to read ${vaultGatePath}: ${err}`);
-    }
-  }
-
-  let entries: fs.Dirent[];
+  let fileList: string;
   try {
-    entries = fs.readdirSync(dir, { withFileTypes: true });
+    fileList = await runObsidian(["files:list"]);
   } catch (err) {
-    console.error(`[VaultGate] scope.ts: failed to read directory ${dir}: ${err}`);
-    return;
+    throw new Error(`Failed to list vault files: ${err}`);
   }
 
-  for (const entry of entries) {
-    if (entry.isDirectory() && !entry.name.startsWith(".")) {
-      walkDir(vaultPath, path.join(dir, entry.name), map);
+  const allFiles = fileList
+    .split("\n")
+    .map((s) => normalizePath(s.trim()))
+    .filter(Boolean);
+
+  const conventionsFiles = allFiles.filter((p) => {
+    const base = p.includes("/") ? p.slice(p.lastIndexOf("/") + 1) : p;
+    return base === contextFileName;
+  });
+
+  const newZoneMap: Map<string, string> = new Map();
+  // Tracks the shortest-path file per scope name for the conventionsPathMap.
+  const scopeShortestDir = new Map<string, { dir: string; filePath: string }>();
+  let newRootHasScope = false;
+
+  for (const filePath of conventionsFiles) {
+    let content: string;
+    try {
+      content = await runObsidian(["read", `path=${filePath}`]);
+    } catch {
+      continue;
+    }
+
+    const scope = parseScopeFrontmatter(content);
+    if (!scope) continue;
+
+    const dirRaw = filePath.includes("/") ? filePath.slice(0, filePath.lastIndexOf("/")) : "";
+    const dir = normalizePath(dirRaw);
+    newZoneMap.set(dir, scope);
+
+    const existing = scopeShortestDir.get(scope);
+    if (!existing || dir.length < existing.dir.length) {
+      scopeShortestDir.set(scope, { dir, filePath });
+    }
+
+    if (dir === "") {
+      newRootHasScope = true;
     }
   }
+
+  const newConventionsMap: Map<string, string> = new Map();
+  for (const [scope, { filePath }] of scopeShortestDir) {
+    newConventionsMap.set(scope, filePath);
+  }
+
+  // Atomic replacement — only reaches here if files:list succeeded.
+  scopeZoneMap = newZoneMap;
+  conventionsPathMap = newConventionsMap;
+  rootHasScope = newRootHasScope;
 }
 
 // ---------------------------------------------------------------------------
@@ -167,21 +162,16 @@ function walkDir(vaultPath: string, dir: string, map: ScopeMap): void {
 
 /**
  * Resolves the scope for a vault-relative note path by walking up the
- * directory chain and returning the `scope` from the nearest ancestor
- * `.vaultgate` file. Returns `"unscoped"` when no ancestor declares a scope.
- *
- * For non-existent notes (e.g. `note_create` targets), resolution starts from
- * the note's parent directory — the note inherits its destination folder's scope.
+ * directory chain and returning the scope from the nearest ancestor
+ * conventions file. Returns `"unscoped"` when no ancestor declares a scope.
  */
 export function resolveNoteScope(notePath: string): string {
   if (!enabled) return "unscoped";
   const normalized = normalizePath(notePath);
-  // Start from the parent directory of the note.
   let dir = normalized.includes("/") ? normalized.slice(0, normalized.lastIndexOf("/")) : "";
-  // Walk up until we find a .vaultgate with a scope, or exhaust ancestors.
   while (true) {
-    const entry = scopeMap.get(dir);
-    if (entry?.scope) return entry.scope;
+    const scope = scopeZoneMap.get(dir);
+    if (scope) return scope;
     if (dir === "") break;
     dir = dir.includes("/") ? dir.slice(0, dir.lastIndexOf("/")) : "";
   }
@@ -190,10 +180,11 @@ export function resolveNoteScope(notePath: string): string {
 
 /**
  * Returns `true` when the note belongs to the currently active scope.
- * Always returns `true` when scoping is disabled (passthrough).
+ * Always returns `true` when scoping is disabled or the active scope is
+ * `"unscoped"` (which grants full vault access).
  */
 export function isNoteInScope(notePath: string): boolean {
-  if (!enabled) return true;
+  if (!enabled || activeScope === "unscoped") return true;
   return resolveNoteScope(notePath) === activeScope;
 }
 
@@ -202,72 +193,82 @@ export const SCOPE_BLOCKED_MESSAGE = "This note is not accessible in the current
 
 /**
  * Returns `true` when the given note path must be blocked from all AI-visible
- * operations. Two conditions trigger blocking:
- *
- * 1. The path resolves to a `.vaultgate` config file (always, even when scoping
- *    is disabled) — these files must never be AI-visible.
- * 2. When scoping is enabled, the note's scope does not match the active scope.
+ * operations: when scoping is enabled and the note's scope does not match the
+ * active scope. Notes are always accessible in the `"unscoped"` state.
  *
  * Passing `undefined` (the active Obsidian file — unknown to VaultGate) always
  * returns `false`, allowing the call to proceed.
- *
- * @param notePath  Vault-relative note path, or `undefined`.
  */
 export function isPathBlocked(notePath: string | undefined): boolean {
   if (notePath === undefined) return false;
-  if (isVaultGateFile(notePath)) return true;
   return !isNoteInScope(notePath);
 }
 
 /**
  * Filters an array of vault-relative paths to those belonging to the active scope.
- * Returns the full array unchanged when scoping is disabled.
+ * Returns the full array unchanged when scoping is disabled or the active scope is
+ * `"unscoped"` (full vault access).
  */
 export function filterByScope(paths: string[]): string[] {
-  if (!enabled) return paths;
+  if (!enabled || activeScope === "unscoped") return paths;
   return paths.filter((p) => resolveNoteScope(p) === activeScope);
 }
 
 /**
- * Returns all unique scope names declared across all `.vaultgate` files, plus
+ * Returns all unique scope names discovered across all conventions files, plus
  * the always-present `"unscoped"` zone. The list is sorted alphabetically.
  */
 export function discoverScopes(): string[] {
   const scopes = new Set<string>(["unscoped"]);
-  for (const entry of scopeMap.values()) {
-    if (entry.scope) scopes.add(entry.scope);
+  for (const scope of conventionsPathMap.keys()) {
+    scopes.add(scope);
   }
   return [...scopes].sort();
 }
 
 /**
- * Returns the `conventions` filename for the currently active scope, or
- * `undefined` if:
- * - scoping is disabled,
- * - the active scope is `"unscoped"`,
- * - no `.vaultgate` file declares a `conventions` key for the active scope.
+ * Returns the ordered list of vault-relative conventions file paths to read
+ * and inject for the current session state.
  *
- * When multiple directories share the same scope, the one with the shortest
- * (closest to vault root) path wins — deterministic, no ambiguity.
+ * Logic:
+ * - Scoping disabled → `[config.contextFileName]` (root file only)
+ * - Root has no `scope:` frontmatter (global baseline):
+ *   - Unscoped or unnamed scope → `[root]`
+ *   - Named scope with a conventions file → `[root, scopeFile]`
+ * - Root has `scope:` frontmatter (root is itself a scope zone):
+ *   - Active scope has a conventions file → `[scopeFile]`
+ *   - Otherwise → `[]` (no conventions injected)
  */
-export function getScopeConventionsFile(): string | undefined {
-  if (!enabled || activeScope === "unscoped") return undefined;
-  let best: { dir: string; conventions: string } | undefined;
-  for (const [dir, entry] of scopeMap.entries()) {
-    if (entry.scope === activeScope && entry.conventions) {
-      if (!best || dir.length < best.dir.length) {
-        best = { dir, conventions: entry.conventions };
-      }
-    }
+export function getConventionsPaths(): string[] {
+  if (!enabled) {
+    return [config.contextFileName];
   }
-  return best?.conventions;
+  if (!rootHasScope) {
+    const paths: string[] = [config.contextFileName];
+    if (activeScope !== "unscoped") {
+      const scopePath = conventionsPathMap.get(activeScope);
+      if (scopePath) paths.push(scopePath);
+    }
+    return paths;
+  }
+  // Root carries a scope: — only inject it when the active scope matches.
+  const scopePath = conventionsPathMap.get(activeScope);
+  return scopePath ? [scopePath] : [];
+}
+
+/**
+ * Returns `true` when the root conventions file does NOT carry a `scope:`
+ * frontmatter key, meaning it acts as a global baseline injected for all scopes.
+ */
+export function isRootGlobal(): boolean {
+  return !rootHasScope;
 }
 
 // ---------------------------------------------------------------------------
 // State accessors / mutators
 // ---------------------------------------------------------------------------
 
-/** Returns `true` when scoping is active (vault path was set and valid). */
+/** Returns `true` when scoping is active (scope zones were discovered). */
 export function isScopingEnabled(): boolean {
   return enabled;
 }
@@ -285,9 +286,6 @@ export function getHomeScope(): string {
 /**
  * Changes the active scope for the current session.
  * Does not validate against `discoverScopes()` — callers must validate.
- *
- * Note: this is module-level state shared across all MCP client connections
- * on this server process. A scope change affects all active sessions.
  */
 export function setActiveScope(scope: string): void {
   activeScope = scope;
@@ -308,31 +306,36 @@ export function isScopeSwitchingEnabled(): boolean {
 // ---------------------------------------------------------------------------
 
 /**
- * Initialises the scope engine from the given vault path.
+ * Initialises the scope engine by discovering scope zones via the Obsidian CLI.
  *
- * Reads every `.vaultgate` file under `vaultPath` synchronously, builds the
- * `ScopeMap`, and sets module-level state. On success, `isScopingEnabled()`
- * returns `true` and all scope functions become active.
+ * Scoping is enabled only when at least one conventions file with a `scope:`
+ * frontmatter key is found. Vaults without any scope declarations behave exactly
+ * as before — no filtering, no tool registration.
  *
- * Noop-safe: if `vaultPath` does not exist or is not a directory, the engine
- * stays disabled and a warning is logged (no exception thrown).
+ * Safe to call unconditionally at server startup; the engine self-enables only
+ * when scope zones are found. On CLI failure, scoping stays disabled.
  *
- * @param vaultPath      Absolute path to the vault root on the filesystem.
- * @param initialScope   Home scope name (from `OBSIDIAN_SCOPE` / tray config).
- * @param switching      Whether the `vault_scope_set` tool should be registered.
+ * @param initialScope  Home scope name (from `OBSIDIAN_SCOPE` env / tray config).
+ * @param switching     Whether the `vault_scope_set` tool should be registered.
  */
-export function initScopeEngine(vaultPath: string, initialScope: string, switching: boolean): void {
-  if (!fs.existsSync(vaultPath) || !fs.statSync(vaultPath).isDirectory()) {
-    console.error(
-      `[VaultGate] OBSIDIAN_VAULT_PATH "${vaultPath}" does not exist or is not a directory — vault scoping disabled.`
-    );
-    return;
-  }
-  vaultRootPath = vaultPath;
+export async function initScopeEngine(initialScope: string, switching: boolean): Promise<void> {
   homeScope = initialScope || "unscoped";
   activeScope = homeScope;
   scopeSwitchingEnabled = switching;
-  scopeMap = buildScopeMap(vaultPath);
+
+  try {
+    await buildScopeMapFromCli();
+  } catch (err) {
+    console.error(
+      `[VaultGate] scope.ts: Failed to build scope map: ${err} — vault scoping disabled.`
+    );
+    return;
+  }
+
+  if (scopeZoneMap.size === 0) {
+    return;
+  }
+
   enabled = true;
   console.error(
     `[VaultGate] Vault scoping enabled. Home scope: "${homeScope}". Discovered scopes: ${discoverScopes().join(", ")}.`
@@ -340,43 +343,18 @@ export function initScopeEngine(vaultPath: string, initialScope: string, switchi
 }
 
 /**
- * Re-scans the vault filesystem and atomically replaces the ScopeMap.
- * Called when `.vaultgate` files may have changed (vault path IPC update,
- * or manual "Refresh scope map" tray action).
- *
- * Noop when scoping is disabled.
+ * Re-scans the vault and atomically replaces the scope map.
+ * Called when conventions files may have changed (vault switch, manual tray refresh).
+ * No-op when scoping is disabled.
  */
-export function rebuildScopeMap(): void {
-  if (!enabled || !vaultRootPath) return;
-  scopeMap = buildScopeMap(vaultRootPath);
-  console.error(
-    `[VaultGate] Scope map rebuilt. Discovered scopes: ${discoverScopes().join(", ")}.`
-  );
-}
-
-/**
- * Updates the vault path and rebuilds the scope map.
- * Called by the tray IPC handler when the user changes the vault in Preferences.
- * Also resets the active scope to the home scope.
- *
- * @param newVaultPath  New absolute filesystem path to the vault root.
- */
-export function updateVaultPath(newVaultPath: string | undefined): void {
-  if (!newVaultPath) {
-    enabled = false;
-    vaultRootPath = undefined;
-    return;
-  }
-  if (!fs.existsSync(newVaultPath) || !fs.statSync(newVaultPath).isDirectory()) {
+export async function rebuildScopeMap(): Promise<void> {
+  if (!enabled) return;
+  try {
+    await buildScopeMapFromCli();
     console.error(
-      `[VaultGate] updateVaultPath: "${newVaultPath}" does not exist or is not a directory — keeping existing scope state.`
+      `[VaultGate] Scope map rebuilt. Discovered scopes: ${discoverScopes().join(", ")}.`
     );
-    return;
+  } catch (err) {
+    console.error(`[VaultGate] scope.ts: Scope map rebuild failed: ${err}`);
   }
-  vaultRootPath = newVaultPath;
-  scopeMap = buildScopeMap(newVaultPath);
-  resetToHomeScope();
-  console.error(
-    `[VaultGate] Vault path updated. Scope map rebuilt. Discovered scopes: ${discoverScopes().join(", ")}.`
-  );
 }

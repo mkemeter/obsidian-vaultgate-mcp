@@ -27,7 +27,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { config, setInjectionConfig, setVault, setVaultPath } from "./config.js";
+import { config, setInjectionConfig, setVault } from "./config.js";
 import { runHealthCheck } from "./health.js";
 import { parseIpcMessage } from "./ipc.js";
 import { isScopingEnabled, rebuildScopeMap, resetToHomeScope, setActiveScope } from "./scope.js";
@@ -321,6 +321,9 @@ async function startHttp(): Promise<void> {
           setVault(patch.vault || undefined);
           if (isScopingEnabled()) {
             resetToHomeScope();
+            rebuildScopeMap().catch((err) =>
+              console.error(`[VaultGate] IPC vault-change scope rebuild failed: ${err}`)
+            );
           }
           // Reset the semantic index so it rebuilds for the new vault.
           // Dynamic import avoids loading the heavy ML stack at startup when
@@ -330,17 +333,6 @@ async function startHttp(): Promise<void> {
             .catch(() => {
               // Semantic tools not available — nothing to reset.
             });
-        }
-        if (patch.vaultPath !== undefined) {
-          const newPath = patch.vaultPath || undefined;
-          console.error(
-            `[VaultGate] IPC __vaultgate_config__: vaultPath=${newPath ?? "(cleared)"}`
-          );
-          setVaultPath(newPath);
-          if (newPath && isScopingEnabled()) {
-            rebuildScopeMap();
-          }
-          resetToHomeScope();
         }
         if (patch.activeScope !== undefined) {
           console.error(`[VaultGate] IPC __vaultgate_config__: activeScope=${patch.activeScope}`);
@@ -361,8 +353,9 @@ async function startHttp(): Promise<void> {
       console.error(`[VaultGate] IPC __vaultgate_control__: command=${command}`);
       if (command === "refresh_scope_map") {
         if (isScopingEnabled()) {
-          rebuildScopeMap();
-          console.error("[VaultGate] IPC scope map refreshed");
+          rebuildScopeMap()
+            .then(() => console.error("[VaultGate] IPC scope map refreshed"))
+            .catch((err) => console.error(`[VaultGate] IPC refresh_scope_map failed: ${err}`));
         } else {
           console.error("[VaultGate] IPC refresh_scope_map: scoping not enabled, skipped");
         }
