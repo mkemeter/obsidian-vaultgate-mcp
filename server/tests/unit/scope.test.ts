@@ -264,16 +264,20 @@ describe("resolveNoteScope + isNoteInScope + filterByScope + discoverScopes + ge
       absoluteFiles[`/vault/${rel}`] = content;
     }
 
+    // Normalize OS-native backslash paths (Windows) to forward slashes so the
+    // mock's forward-slash keyed absoluteFiles map is found on all platforms.
+    const normStr = (p: fs.PathLike | number) => p.toString().replace(/\\/g, "/");
+
     mockFs.existsSync.mockImplementation((p: fs.PathLike) => {
-      const str = p.toString();
+      const str = normStr(p);
       if (str === "/vault") return true;
       return Object.prototype.hasOwnProperty.call(absoluteFiles, str);
     });
     mockFs.statSync.mockImplementation((p: fs.PathLike) => ({
-      isDirectory: () => p.toString() === "/vault",
+      isDirectory: () => normStr(p) === "/vault",
     })) as unknown as typeof fs.statSync;
     mockFs.readFileSync.mockImplementation((p: fs.PathLike | number) => {
-      const str = p.toString();
+      const str = normStr(p);
       if (Object.prototype.hasOwnProperty.call(absoluteFiles, str)) return absoluteFiles[str];
       throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
     });
@@ -288,7 +292,7 @@ describe("resolveNoteScope + isNoteInScope + filterByScope + discoverScopes + ge
       }
     }
     mockFs.readdirSync.mockImplementation((p: fs.PathLike) => {
-      if (p.toString() === "/vault") {
+      if (normStr(p) === "/vault") {
         return [...subdirs].map((name) => ({
           name,
           isDirectory: () => true,
