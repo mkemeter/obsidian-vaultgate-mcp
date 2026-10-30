@@ -275,10 +275,10 @@ async function startHttp(): Promise<void> {
     httpServer.listen(config.port, config.host, resolve);
     httpServer.on("error", (err: NodeJS.ErrnoException) => {
       if (err.code === "EADDRINUSE") {
-        process.stderr.write(
-          `\nERROR: Port ${config.port} is already in use.\n` +
+        console.error(
+          `[VaultGate] ERROR: Port ${config.port} is already in use.\n` +
             `  Another instance of obsidian-vaultgate-mcp may already be running.\n` +
-            `  Change the port: OBSIDIAN_MCP_PORT=3003 obsidian-vaultgate-mcp\n\n`
+            `  Change the port: OBSIDIAN_MCP_PORT=3003 obsidian-vaultgate-mcp`
         );
         process.exit(1);
       }
@@ -324,7 +324,7 @@ async function startHttp(): Promise<void> {
           }
           // Reset the semantic index so it rebuilds for the new vault.
           // Dynamic import avoids loading the heavy ML stack at startup when
-          // @xenova/transformers may not be installed.
+          // @huggingface/transformers may not be installed.
           import("./tools/semantic.js")
             .then(({ resetIndexForVaultChange }) => resetIndexForVaultChange())
             .catch(() => {

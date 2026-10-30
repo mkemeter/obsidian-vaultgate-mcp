@@ -46,22 +46,22 @@ describe("runHealthCheck", () => {
     mockExistsSync.mockReturnValue(false);
     mockStatSync.mockReturnValue({ isFile: () => true } as fs.Stats);
 
-    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {}) as never);
 
     await runHealthCheck();
 
-    expect(stderrSpy).toHaveBeenCalledWith(
+    expect(consoleSpy).toHaveBeenCalledWith(
       expect.stringContaining("ERROR: Obsidian CLI binary not found")
     );
     // Pin exact hint substrings to kill StringLiteral mutants on those lines
-    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("Troubleshooting:"));
-    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("Ensure Obsidian v1.8.9+"));
-    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("OBSIDIAN_CLI_PATH="));
-    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("Register CLI"));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Troubleshooting:"));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Ensure Obsidian v1.8.9+"));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("OBSIDIAN_CLI_PATH="));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Register CLI"));
     expect(exitSpy).toHaveBeenCalledWith(1);
 
-    stderrSpy.mockRestore();
+    consoleSpy.mockRestore();
     exitSpy.mockRestore();
   });
 
@@ -71,23 +71,23 @@ describe("runHealthCheck", () => {
     mockExistsSync.mockReturnValue(true);
     mockStatSync.mockReturnValue({ isFile: () => false } as fs.Stats);
 
-    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {}) as never);
 
     await runHealthCheck();
 
-    expect(stderrSpy).toHaveBeenCalledWith(
+    expect(consoleSpy).toHaveBeenCalledWith(
       expect.stringContaining("points to a directory, not the Obsidian binary")
     );
     // Pin exact hint substrings to kill StringLiteral mutants on those lines
-    expect(stderrSpy).toHaveBeenCalledWith(
+    expect(consoleSpy).toHaveBeenCalledWith(
       expect.stringContaining("Set it to the executable file itself")
     );
-    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("Windows:"));
-    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("macOS:"));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Windows:"));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("macOS:"));
     expect(exitSpy).toHaveBeenCalledWith(1);
 
-    stderrSpy.mockRestore();
+    consoleSpy.mockRestore();
     exitSpy.mockRestore();
   });
 
@@ -101,20 +101,20 @@ describe("runHealthCheck", () => {
       throw Object.assign(new Error("permission denied"), { code: "EACCES" });
     });
 
-    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {}) as never);
 
     await runHealthCheck();
 
-    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("not executable"));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("not executable"));
     // Pin exact hint substrings to kill StringLiteral mutants on those lines
-    expect(stderrSpy).toHaveBeenCalledWith(
+    expect(consoleSpy).toHaveBeenCalledWith(
       expect.stringContaining("Fix the file permissions")
     );
-    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("chmod +x"));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("chmod +x"));
     expect(exitSpy).toHaveBeenCalledWith(1);
 
-    stderrSpy.mockRestore();
+    consoleSpy.mockRestore();
     exitSpy.mockRestore();
   });
 });
@@ -199,14 +199,14 @@ describe("runHealthCheck — PATH resolution for bare CLI names", () => {
       mockExistsSync.mockReturnValue(false);
       mockStatSync.mockReturnValue({ isFile: () => false } as fs.Stats);
 
-      const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {}) as never);
 
       await runHealthCheck();
 
-      expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("not found"));
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("not found"));
       expect(exitSpy).toHaveBeenCalledWith(1);
-      stderrSpy.mockRestore();
+      consoleSpy.mockRestore();
       exitSpy.mockRestore();
     } finally {
       if (origPath === undefined) delete process.env.PATH;
@@ -255,7 +255,7 @@ describe("runHealthCheck — PATH resolution for bare CLI names", () => {
     mockExistsSync.mockReturnValue(false);
     mockStatSync.mockReturnValue({ isFile: () => true } as fs.Stats);
 
-    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {}) as never);
     try {
       await runHealthCheck();
@@ -264,11 +264,11 @@ describe("runHealthCheck — PATH resolution for bare CLI names", () => {
     }
 
     expect(exitSpy).toHaveBeenCalledWith(1);
-    const all = stderrSpy.mock.calls.map((c) => String(c[0])).join("\n");
+    const all = consoleSpy.mock.calls.map((c) => String(c[0])).join("\n");
     expect(all).toContain("not found at: C:\\Program Files\\Obsidian\\Obsidian.exe");
     expect(all).not.toContain("searched CWD and PATH");
 
-    stderrSpy.mockRestore();
+    consoleSpy.mockRestore();
     exitSpy.mockRestore();
   });
 
@@ -313,19 +313,19 @@ describe("runHealthCheck — PATH resolution for bare CLI names", () => {
     mockExistsSync.mockReturnValue(false);
     mockStatSync.mockReturnValue({ isFile: () => true } as fs.Stats);
 
-    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {}) as never);
     try {
       await runHealthCheck();
       expect(exitSpy).toHaveBeenCalledWith(1);
-      const all = stderrSpy.mock.calls.map((c) => String(c[0])).join("\n");
+      const all = consoleSpy.mock.calls.map((c) => String(c[0])).join("\n");
       expect(all).toContain("(searched CWD and PATH)");
     } finally {
       if (origPath === undefined) delete process.env.PATH;
       else process.env.PATH = origPath;
       if (origPathCase === undefined) delete process.env.Path;
       else process.env.Path = origPathCase;
-      stderrSpy.mockRestore();
+      consoleSpy.mockRestore();
       exitSpy.mockRestore();
     }
   });

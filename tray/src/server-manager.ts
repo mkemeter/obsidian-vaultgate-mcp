@@ -291,10 +291,13 @@ export async function start(): Promise<void> {
   proc.on("message", (msg: unknown) => {
     if (msg && typeof msg === "object" && "__vaultgate_index__" in msg) {
       const ev = (msg as { __vaultgate_index__: IndexProgressEvent }).__vaultgate_index__;
+      if (ev.state) log(`IPC recv __vaultgate_index__: state=${ev.state}`);
       // Merge onto latestIndex so that `state` (set once by a "state" event) is
       // not clobbered by per-note "progress" events which carry no `state` field.
       latestIndex = { ...latestIndex, ...ev };
       emitter.emit("indexProgress", ev);
+    } else {
+      log(`IPC recv: unrecognized message shape (type=${typeof msg})`);
     }
   });
 

@@ -75,7 +75,7 @@ export function getIconDataUri(): string {
  * Callers attach the appropriate transport in `index.ts`.
  *
  * Semantic search tools (semantic_search, find_similar, index_vault, clear_index, vault_info)
- * are registered automatically when @xenova/transformers is available on the
+ * are registered automatically when @huggingface/transformers is available on the
  * platform. If the optional dependency is absent the server starts normally
  * with BASE_TOOL_COUNT tools.
  *
@@ -163,7 +163,7 @@ export async function createServer(iconUrl?: string): Promise<McpServer> {
   registerDailyTools(server); // daily_read, daily_append
   registerTaskTools(server); // tasks_all, tasks_pending, tasks_daily
   registerTemplateTools(server); // templates_list, templates_apply
-  registerPropertyTools(server); // property_read, property_set
+  registerPropertyTools(server); // property_read, property_set, property_search
   registerTagTools(server); // tags, backlinks, unresolved
   registerPluginTools(server); // plugins_list, plugin_reload
   registerDevTools(server); // eval, dev_errors, dev_console, dev_css, dev_dom, dev_screenshot, dev_mobile
@@ -179,7 +179,7 @@ export async function createServer(iconUrl?: string): Promise<McpServer> {
     registerScopeTools(server);
   }
 
-  // Semantic search tools — optional, require @xenova/transformers ONNX runtime.
+  // Semantic search tools — optional, require @huggingface/transformers ONNX runtime.
   // Only the import is guarded; if the module loads, registration errors propagate normally.
   let semanticModule: { registerSemanticTools: (s: McpServer) => void } | undefined;
   try {

@@ -83,7 +83,9 @@ server/
 │   ├── config.ts         Loads env vars (OBSIDIAN_VAULT, OBSIDIAN_CLI_PATH, OBSIDIAN_MCP_PORT, OBSIDIAN_CONTEXT_FILE)
 │   ├── cli.ts            runObsidian() — the single point of contact with the CLI binary
 │   ├── health.ts         Startup check — verifies the binary is reachable before serving
+│   ├── interpolate.ts    resolveInterpolations() — expands {{today}}, {{time}} etc. in vault content
 │   ├── ipc.ts            parseIpcMessage() — validates tray → server messages at the boundary
+│   ├── scope.ts          Vault scope engine — path filtering for multi-vault setups
 │   ├── uri.ts            openUri() / runUri() — OS-level URI dispatch (obsidian:// links)
 │   ├── installer.ts      resolveInstallerCommand() / runInstaller() — spawn the platform deploy script
 │   ├── install.ts        bin shim → runInstaller("install")   (obsidian-vaultgate-mcp-install)
@@ -96,7 +98,7 @@ server/
 │       ├── daily.ts      daily_read, daily_append
 │       ├── tasks.ts      tasks_all, tasks_pending, tasks_daily
 │       ├── templates.ts  templates_list, templates_apply
-│       ├── properties.ts property_read, property_set
+│       ├── properties.ts property_read, property_set, property_search
 │       ├── tags.ts       tags, backlinks, unresolved
 │       ├── plugins.ts    plugins_list, plugin_reload
 │       ├── dev.ts        eval, dev_errors, dev_console, dev_css, dev_dom,
@@ -104,7 +106,7 @@ server/
 │       ├── context.ts    vault_context, vault_context_set
 │       ├── uri.ts        note_open, search_open, daily_open
 │       └── semantic.ts   semantic_search, find_similar, index_vault,
-│                         clear_index, vault_info  (optional — requires @xenova/transformers)
+│                         clear_index, vault_info  (optional — requires @huggingface/transformers)
 │
 └── tests/
     ├── setup.ts          global vitest setup — redirects the embeddings index
@@ -260,7 +262,7 @@ Vault scopes are a server-enforced access-control layer. When `OBSIDIAN_VAULT_PA
 
 **Concurrent session caveat:** `activeScope` is a module-level singleton shared across all MCP connections to the same process. A scope switch by one client immediately affects all others. This is a known v1 limitation.
 
-**INDEX_VERSION = 4** (was 3): the semantic index stores `scope: string` per `IndexEntry`. Old caches fail the version check and trigger a full re-index on startup.
+**INDEX_VERSION = 5** (was 4): the semantic index stores `scope: string` per `IndexEntry`. Old caches fail the version check and trigger a full re-index on startup.
 
 ---
 
@@ -591,6 +593,10 @@ tray/
 │   ├── config-store.ts      JSON persistence + Obsidian-path / vault auto-detection.
 │   ├── autostart.ts         macOS login-item toggle wrapper.
 │   ├── auto-detect.ts       Pure functions for Obsidian binary and vault detection (fully tested).
+│   ├── context-file.ts      Conventions-file name validation for the tray Preferences UI.
+│   ├── inject-interval.ts   TTL parser / validator for the VAULTGATE_INJECT_INTERVAL preference.
+│   ├── port-utils.ts        Port availability helpers used before starting the HTTP server.
+│   ├── prefs-validation.ts  Cross-field Preferences validation logic (shared between UI and IPC).
 │   └── tray-labels.ts       Pure functions for menu label generation (fully tested).
 ├── renderer/
 │   ├── prefs.html           Preferences markup (CSP-locked, sandbox: true).
@@ -609,7 +615,7 @@ tray/
 └── vitest.config.ts             Test thresholds + Electron-bound exclusions.
 ```
 
-The tray code never imports server sources directly. It depends on the **build output** of the server package, copied into `dist/server/build/` (and production `node_modules` into `dist/server/node_modules/`) by `tray/scripts/copy-server-build.js` and `tray/scripts/copy-server-deps.js` during the tray's own build step. The server is shipped unbundled — esbuild was removed because `zod`, `@xenova/transformers`, and `onnxruntime-node` have CJS/ESM interop characteristics that esbuild mishandled.
+The tray code never imports server sources directly. It depends on the **build output** of the server package, copied into `dist/server/build/` (and production `node_modules` into `dist/server/node_modules/`) by `tray/scripts/copy-server-build.js` and `tray/scripts/copy-server-deps.js` during the tray's own build step. The server is shipped unbundled — esbuild was removed because `zod`, `@huggingface/transformers`, and `onnxruntime-node` have CJS/ESM interop characteristics that esbuild mishandled.
 
 ### Branch strategy
 

@@ -396,6 +396,7 @@ function countEmbeddedNotes(idx: VaultIndex): number {
 // Vector math
 // ---------------------------------------------------------------------------
 
+/** Returns the cosine similarity between two equal-length embedding vectors, in [-1, 1]. */
 export function cosineSimilarity(a: number[], b: number[]): number {
   let dot = 0;
   let normA = 0;
@@ -869,6 +870,7 @@ async function semanticQuery(
 // Tool registration
 // ---------------------------------------------------------------------------
 
+/** Registers semantic search tools on the MCP server and starts the background index. */
 export function registerSemanticTools(server: McpServer): void {
   startBackgroundIndex();
 

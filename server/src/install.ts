@@ -11,6 +11,6 @@
 import { runInstaller } from "./installer.js";
 
 runInstaller("install", process.argv.slice(2)).catch((error: Error) => {
-  process.stderr.write(`${error.message}\n`);
+  console.error(`[VaultGate] ${error.message}`);
   process.exit(1);
 });

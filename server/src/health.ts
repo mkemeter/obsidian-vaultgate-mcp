@@ -69,16 +69,14 @@ export async function runHealthCheck(): Promise<void> {
   const wasBareName = !config.cliBin.includes("/") && !config.cliBin.includes("\\");
 
   if (!fs.existsSync(cliBin)) {
-    process.stderr.write(
-      `\n` +
-        `ERROR: Obsidian CLI binary not found at: ${config.cliBin}` +
+    console.error(
+      `[VaultGate] ERROR: Obsidian CLI binary not found at: ${config.cliBin}` +
         (wasBareName ? " (searched CWD and PATH)" : "") +
-        `\n\n` +
-        `Troubleshooting:\n` +
+        `\n\nTroubleshooting:\n` +
         `  1. Ensure Obsidian v1.8.9+ is installed.\n` +
         `  2. Enable the CLI: Settings → General → Command line interface → Register CLI\n` +
         `  3. If the binary is not on PATH, set:\n` +
-        `       OBSIDIAN_CLI_PATH=/Applications/Obsidian.app/Contents/MacOS/obsidian\n\n`
+        `       OBSIDIAN_CLI_PATH=/Applications/Obsidian.app/Contents/MacOS/obsidian\n`
     );
     process.exit(1);
   }
@@ -88,13 +86,12 @@ export async function runHealthCheck(): Promise<void> {
   // error (see cli.ts). On Windows this happens when OBSIDIAN_CLI_PATH is set to
   // the Obsidian install folder instead of Obsidian.exe.
   if (!fs.statSync(cliBin).isFile()) {
-    process.stderr.write(
-      `\n` +
-        `ERROR: OBSIDIAN_CLI_PATH points to a directory, not the Obsidian binary:\n` +
+    console.error(
+      `[VaultGate] ERROR: OBSIDIAN_CLI_PATH points to a directory, not the Obsidian binary:\n` +
         `       ${cliBin}\n\n` +
         `Set it to the executable file itself, for example:\n` +
         `  Windows: %LOCALAPPDATA%\\Programs\\Obsidian\\Obsidian.exe\n` +
-        `  macOS:   /Applications/Obsidian.app/Contents/MacOS/obsidian\n\n`
+        `  macOS:   /Applications/Obsidian.app/Contents/MacOS/obsidian\n`
     );
     process.exit(1);
   }
@@ -107,11 +104,10 @@ export async function runHealthCheck(): Promise<void> {
   try {
     fs.accessSync(cliBin, fs.constants.X_OK);
   } catch {
-    process.stderr.write(
-      `\n` +
-        `ERROR: Obsidian CLI binary is not executable: ${cliBin}\n\n` +
+    console.error(
+      `[VaultGate] ERROR: Obsidian CLI binary is not executable: ${cliBin}\n\n` +
         `Fix the file permissions, for example:\n` +
-        `  chmod +x "${cliBin}"\n\n`
+        `  chmod +x "${cliBin}"\n`
     );
     process.exit(1);
   }

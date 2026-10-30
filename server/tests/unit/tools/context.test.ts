@@ -197,7 +197,7 @@ describe("installContextGuard — submarine behaviour", () => {
     mockRun.mockResolvedValueOnce("# Conventions");
     await invoke(server, "vault_context_set", { content: "x", dryRun: true });
     // Second call immediately after — within 30s TTL, no re-inject
-    vi.resetAllMocks();
+    vi.resetAllMocks(); // clear call records before second phase
     const result2 = await invoke(server, "vault_context_set", { content: "x", dryRun: true });
     expect(result2.content[0].text).not.toContain(CONVENTIONS_ENVELOPE_PREFIX);
     expect(mockRun).not.toHaveBeenCalled();
@@ -235,7 +235,7 @@ describe("installContextGuard — submarine behaviour", () => {
     await invoke(server, "vault_context_set", { content: "x", dryRun: true });
     // Advance only 3s — still within 5s TTL
     vi.advanceTimersByTime(3_000);
-    vi.resetAllMocks();
+    vi.resetAllMocks(); // clear call records before second phase
     const r2 = await invoke(server, "vault_context_set", { content: "x", dryRun: true });
     expect(r2.content[0].text).not.toContain(CONVENTIONS_ENVELOPE_PREFIX);
     // Advance past the 5s TTL
@@ -263,7 +263,7 @@ describe("installContextGuard — submarine behaviour", () => {
     mockRun.mockResolvedValueOnce("# Conventions");
     await invoke(server, "vault_context", {});
     // Immediately call another tool — should NOT inject (TTL just reset)
-    vi.resetAllMocks();
+    vi.resetAllMocks(); // clear call records before second phase
     const result = await invoke(server, "vault_context_set", { content: "x", dryRun: true });
     expect(result.content[0].text).not.toContain(CONVENTIONS_ENVELOPE_PREFIX);
     expect(mockRun).not.toHaveBeenCalled();
@@ -284,7 +284,7 @@ describe("installContextGuard — submarine behaviour", () => {
     const result1 = await invoke(server, "vault_context_set", { content: "x", dryRun: true });
     expect(result1.content[0].text).not.toContain(CONVENTIONS_ENVELOPE_PREFIX);
     // Within TTL — no retry
-    vi.resetAllMocks();
+    vi.resetAllMocks(); // clear call records before second phase
     const result2 = await invoke(server, "vault_context_set", { content: "x", dryRun: true });
     expect(result2.content[0].text).not.toContain(CONVENTIONS_ENVELOPE_PREFIX);
     expect(mockRun).not.toHaveBeenCalled();

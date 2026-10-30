@@ -58,7 +58,7 @@ Built entirely on Obsidian's built-in CLI APIs. Zero community plugins, no extra
 <td>
 
 **🔍 Offline semantic search**
-Query your vault by meaning, not just keywords. Powered by `@xenova/transformers` — fully local, no network call.
+Query your vault by meaning, not just keywords. Powered by `@huggingface/transformers` — fully local, no network call.
 
 </td>
 </tr>
@@ -462,7 +462,7 @@ The AI receives the global conventions plus the zone-specific file at the start 
 
 ### Available tools
 
-VaultGate exposes 34 base tools across three categories, plus 5 semantic search tools when the embedding model is available, plus up to 2 scope tools when vault scoping is configured. These tools are the concrete implementation of the features described above — and they are identical across both the headless and tray distributions.
+VaultGate exposes 35 base tools across three categories, plus 5 semantic search tools when the embedding model is available, plus up to 2 scope tools when vault scoping is configured. These tools are the concrete implementation of the features described above — and they are identical across both the headless and tray distributions.
 
 #### GUI navigation
 
@@ -523,7 +523,7 @@ Every write tool defaults to `dryRun: true` — the AI shows a preview of the in
 
 #### Semantic search
 
-When `@xenova/transformers` is available (installed as an optional dependency), five additional tools are registered automatically:
+When `@huggingface/transformers` is available (installed as an optional dependency), five additional tools are registered automatically:
 
 - `semantic_search` — query by meaning, returns ranked results with relevance scores and the matched section heading
 - `find_similar` — find notes similar to a given path
@@ -531,10 +531,10 @@ When `@xenova/transformers` is available (installed as an optional dependency), 
 - `index_vault` — re-embed changed notes without discarding the existing cache (routine re-index)
 - `clear_index` — delete the cache file entirely and rebuild from scratch; use only when the cache is corrupted or after a version change. **Do not use before `index_vault`** — `index_vault` already handles incremental updates without data loss.
 
-The embedding model (`all-MiniLM-L6-v2`, ~23 MB) downloads once to `~/.cache/obsidian-vaultgate-mcp/models/`. All subsequent operations are fully offline. If `@xenova/transformers` fails to load on the current platform, VaultGate starts normally with the base tool set — no configuration change required.
+The embedding model (`all-MiniLM-L6-v2`, ~23 MB) downloads once to `~/.cache/obsidian-vaultgate-mcp/models/`. All subsequent operations are fully offline. If `@huggingface/transformers` fails to load on the current platform, VaultGate starts normally with the base tool set — no configuration change required.
 
 > [!WARNING]
-> The `@xenova/transformers` package depends on `onnxruntime-web`, which in turn depends on `protobufjs` v6.x. The v6.x branch of protobufjs has [known vulnerabilities](https://github.com/protobufjs/protobuf.js/security/advisories). Your vault content is never sent to the network — the only external traffic is the one-time model download from HuggingFace. The risk is limited to the model download path and is inherited from the supply chain; it cannot be patched from this package until upstream updates.
+> The `@huggingface/transformers` package depends on `onnxruntime-web`, which in turn depends on `protobufjs` v6.x. The v6.x branch of protobufjs has [known vulnerabilities](https://github.com/protobufjs/protobuf.js/security/advisories). Your vault content is never sent to the network — the only external traffic is the one-time model download from HuggingFace. The risk is limited to the model download path and is inherited from the supply chain; it cannot be patched from this package until upstream updates.
 
 #### Scope tools
 
@@ -721,7 +721,7 @@ The tray app ships with the [`Xenova/all-MiniLM-L6-v2`](https://huggingface.co/X
 
 - The model is loaded from the bundle — **no download, no network call**.
 - A background job embeds your vault note-by-note. Progress is shown in the tray menu (`○ Building index (142/523)…`).
-- All 34 base tools work the entire time — only the 5 semantic tools (`semantic_search`, `find_similar`, `index_vault`, `vault_info`, `clear_index`) wait for the index.
+- All 35 base tools work the entire time — only the 5 semantic tools (`semantic_search`, `find_similar`, `index_vault`, `vault_info`, `clear_index`) wait for the index.
 
 The first time the index reaches "ready", a one-time native notification fires. The state then persists: subsequent restarts pick up the cached index from `~/.cache/obsidian-vaultgate-mcp/`.
 
