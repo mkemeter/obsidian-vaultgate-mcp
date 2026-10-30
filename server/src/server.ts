@@ -25,7 +25,7 @@ import { registerTemplateTools } from "./tools/templates.js";
 import { registerUriTools } from "./tools/uri.js";
 
 /** Number of always-present tools (includes vault_context + vault_context_set). */
-export const BASE_TOOL_COUNT = 31;
+export const BASE_TOOL_COUNT = 32;
 
 /** Number of URI-scheme tools registered unless VAULTGATE_NO_URI=true. */
 export const URI_TOOL_COUNT = 3;

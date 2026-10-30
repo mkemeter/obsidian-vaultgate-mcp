@@ -487,6 +487,7 @@ Dispatch `obsidian://` URIs through the OS to trigger navigation inside the runn
 | `tasks_daily` | Incomplete tasks from today's daily note |
 | `templates_list` | List available templates (requires core Templates plugin — see note below) |
 | `property_read` | Read a specific YAML frontmatter property by name |
+| `property_search` | Search vault notes by frontmatter field value — match exact value, date range, or absence of a key |
 | `tags` | All tags across the vault |
 | `backlinks` | Notes that link to a given note |
 | `unresolved` | Wikilinks pointing to non-existent notes |
