@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
+import { isScopingEnabled } from "../scope.js";
 import { errorMessage } from "./_helpers.js";
 
 /**
@@ -22,6 +23,17 @@ export function registerSearchTools(server: McpServer): void {
         .describe("Maximum number of results to return."),
     },
     async ({ query, limit }) => {
+      if (isScopingEnabled()) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "Full-vault search is not available when vault scoping is active. Use files_list or semantic_search to find notes within the current scope.",
+            },
+          ],
+          isError: true,
+        };
+      }
       const args = ["search", `query=${query}`];
       if (limit !== undefined) args.push(`limit=${limit}`);
 

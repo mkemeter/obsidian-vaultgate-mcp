@@ -56,6 +56,29 @@ export function validateConfigPatch(patch: Partial<VaultGateConfig>): Partial<Va
       throw new Error("Invalid Obsidian path — must be a non-empty string.");
     }
   }
+  if (patch.homeScope !== undefined) {
+    if (
+      typeof patch.homeScope !== "string" ||
+      patch.homeScope.trim().length === 0 ||
+      patch.homeScope.length > 64 ||
+      patch.homeScope.includes("/") ||
+      patch.homeScope.includes("\\")
+    ) {
+      throw new Error(
+        "Invalid scope name — must be a non-empty string up to 64 characters with no path separators."
+      );
+    }
+  }
+  if (patch.vaultPath !== undefined) {
+    if (typeof patch.vaultPath !== "string") {
+      throw new Error("Invalid vault path — must be a string.");
+    }
+  }
+  if (patch.dailyNotesPath !== undefined) {
+    if (typeof patch.dailyNotesPath !== "string") {
+      throw new Error("Invalid daily notes path — must be a string.");
+    }
+  }
 
   const normalized: Partial<VaultGateConfig> = { ...patch };
   if (patch.contextFileName !== undefined) {

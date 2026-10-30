@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
+import { isPathBlocked, SCOPE_BLOCKED_MESSAGE } from "../scope.js";
 import { buildFileArgs, errorMessage, optionalBoolSchema } from "./_helpers.js";
 
 /**
@@ -57,6 +58,10 @@ export function registerTagTools(server: McpServer): void {
       path: z.string().optional().describe("Exact vault-root path, e.g. `folder/note.md`."),
     },
     async ({ file, path }) => {
+      const notePath = path?.trim() || file?.trim();
+      if (isPathBlocked(notePath)) {
+        return { content: [{ type: "text", text: SCOPE_BLOCKED_MESSAGE }], isError: true };
+      }
       const args = ["backlinks", ...buildFileArgs(file, path)];
       try {
         const output = await runObsidian(args);

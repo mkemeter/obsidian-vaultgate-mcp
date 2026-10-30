@@ -9,6 +9,27 @@ Both distributions — the headless npm package (`server/`) and the Electron tra
 (`tray/`) — share a single version line. Each release entry groups changes by distribution.
 A section may be absent if that distribution had no changes in the release.
 
+## [Unreleased]
+
+### Server
+
+#### Added
+
+- **Vault scopes** — partition your vault into named zones enforced in server code. Set `OBSIDIAN_VAULT_PATH` to the vault filesystem path, place `.vaultgate` TOML files in subdirectories to declare scope names, and start with `OBSIDIAN_SCOPE=<name>`. Notes outside the active scope are invisible to the AI: they disappear from file listings, reads, full-text search, and semantic search. `.vaultgate` files themselves are also blocked from AI access regardless of whether scoping is active.
+- **`vault_scope` tool** — shows the current scope, home scope, and all available scopes in the vault. Registered when `OBSIDIAN_VAULT_PATH` is set.
+- **`vault_scope_set` tool** — switches the active scope for the current session. Registered only when `VAULTGATE_SCOPE_SWITCHING=true` (opt-in).
+- **Scope-local conventions** — a `.vaultgate` file can declare a `conventions = "SCOPE.md"` key; VaultGate appends that file after the global `VAULTGATE.md` at session start.
+- **Four new env vars**: `OBSIDIAN_VAULT_PATH`, `OBSIDIAN_SCOPE`, `VAULTGATE_SCOPE_SWITCHING`, `OBSIDIAN_DAILY_NOTES_PATH`.
+
+### Tray
+
+#### Added
+
+- **Vault scoping config fields** — four new fields in the Preferences store (`vaultPath`, `homeScope`, `scopeSwitchingEnabled`, `dailyNotesPath`) are passed to the server process as environment variables. Changing any of these restarts the server.
+- **`prefs:refreshScopeMap` IPC handler** — sends a `refresh_scope_map` control command to the running server without a restart, useful after editing `.vaultgate` files.
+
+---
+
 ## [0.3.3] — 2026-10-30
 
 ### Server

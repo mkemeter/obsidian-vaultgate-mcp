@@ -20,6 +20,8 @@ const configPatchSchema = z.object({
   vault: z.string().optional(),
   injectConventions: z.boolean().optional(),
   injectIntervalSecs: z.number().optional(),
+  vaultPath: z.string().optional(),
+  activeScope: z.string().optional(),
 });
 
 /** Validated shape of a `__vaultgate_config__` message. */
@@ -28,7 +30,7 @@ const configMessageSchema = z.object({
 });
 
 /** Manual index control commands the tray can trigger. */
-const controlCommandSchema = z.enum(["rebuild_index", "clear_index"]);
+const controlCommandSchema = z.enum(["rebuild_index", "clear_index", "refresh_scope_map"]);
 
 /** Validated shape of a `__vaultgate_control__` message. */
 const controlMessageSchema = z.object({

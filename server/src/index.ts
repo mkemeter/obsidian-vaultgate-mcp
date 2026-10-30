@@ -27,9 +27,10 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { config, setInjectionConfig, setVault } from "./config.js";
+import { config, setInjectionConfig, setVault, setVaultPath } from "./config.js";
 import { runHealthCheck } from "./health.js";
 import { parseIpcMessage } from "./ipc.js";
+import { isScopingEnabled, rebuildScopeMap, resetToHomeScope, setActiveScope } from "./scope.js";
 import { createServer, getFaviconIco, getIconDataUri, getIconSvg } from "./server.js";
 
 /** Origin values permitted for HTTP requests (DNS rebinding protection). */
@@ -318,6 +319,9 @@ async function startHttp(): Promise<void> {
         if (patch.vault !== undefined) {
           console.error(`[VaultGate] IPC __vaultgate_config__: vault=${patch.vault || "(empty)"}`);
           setVault(patch.vault || undefined);
+          if (isScopingEnabled()) {
+            resetToHomeScope();
+          }
           // Reset the semantic index so it rebuilds for the new vault.
           // Dynamic import avoids loading the heavy ML stack at startup when
           // @xenova/transformers may not be installed.
@@ -326,6 +330,21 @@ async function startHttp(): Promise<void> {
             .catch(() => {
               // Semantic tools not available — nothing to reset.
             });
+        }
+        if (patch.vaultPath !== undefined) {
+          const newPath = patch.vaultPath || undefined;
+          console.error(
+            `[VaultGate] IPC __vaultgate_config__: vaultPath=${newPath ?? "(cleared)"}`
+          );
+          setVaultPath(newPath);
+          if (newPath && isScopingEnabled()) {
+            rebuildScopeMap();
+          }
+          resetToHomeScope();
+        }
+        if (patch.activeScope !== undefined) {
+          console.error(`[VaultGate] IPC __vaultgate_config__: activeScope=${patch.activeScope}`);
+          setActiveScope(patch.activeScope);
         }
         if (patch.injectConventions !== undefined || patch.injectIntervalSecs !== undefined) {
           const enabled = patch.injectConventions ?? config.injectConventions;
@@ -340,6 +359,15 @@ async function startHttp(): Promise<void> {
       // parsed.kind === "control"
       const command = parsed.command;
       console.error(`[VaultGate] IPC __vaultgate_control__: command=${command}`);
+      if (command === "refresh_scope_map") {
+        if (isScopingEnabled()) {
+          rebuildScopeMap();
+          console.error("[VaultGate] IPC scope map refreshed");
+        } else {
+          console.error("[VaultGate] IPC refresh_scope_map: scoping not enabled, skipped");
+        }
+        return;
+      }
       import("./tools/semantic.js")
         .then(({ handleControlCommand }) => {
           console.error(`[VaultGate] IPC handleControlCommand(${command})`);

@@ -240,6 +240,30 @@ JavaScript inside Obsidian:
 
 ---
 
+### Vault scopes
+
+Vault scopes are a server-enforced access-control layer. When `OBSIDIAN_VAULT_PATH` is set and the directory exists, `createServer()` calls `initScopeEngine()` before registering tools, which scans the vault filesystem for `.vaultgate` TOML files and builds a `ScopeMap` (a `Map<normalizedDir, { scope, conventions }>`). All subsequent tool calls consult this map.
+
+**`server/src/scope.ts`** owns all scope state as module-level singletons:
+- `initScopeEngine(vaultPath, homeScope, switchingEnabled)` — scans the vault and sets the active scope.
+- `isScopingEnabled()` — true only after a successful `initScopeEngine` call; gates every scope check.
+- `isPathBlocked(notePath)` — combines two orthogonal checks in one call: (1) `.vaultgate` blocking (always active even without scoping — these files are never AI-visible), (2) scope mismatch (only when `isScopingEnabled()`). Returns `true` if either check fires.
+- `filterByScope(paths)` — filters a list of vault-relative paths to only those in the active scope; also strips `.vaultgate` entries.
+- `rebuildScopeMap()` — re-scans the vault atomically; called via `__vaultgate_control__` IPC.
+
+**Tool filtering patterns:**
+- *Pattern A* (input path guard): tools that accept a note path call `isPathBlocked(path)` before the CLI call. Returns the `SCOPE_BLOCKED_MESSAGE` error on match.
+- *Pattern B* (list output filter): `files_list` and `templates_list` pass CLI output through `filterByScope()` before returning.
+- *Pattern D* (full-vault op block): `search` returns an error when scoping is active, directing the user to use scoped alternatives.
+
+**Scope map staleness:** the map is built once at startup. Callers in the headless path must restart to pick up `.vaultgate` changes. The tray exposes a "Refresh scope map" control that sends the `refresh_scope_map` control command without a restart.
+
+**Concurrent session caveat:** `activeScope` is a module-level singleton shared across all MCP connections to the same process. A scope switch by one client immediately affects all others. This is a known v1 limitation.
+
+**INDEX_VERSION = 4** (was 3): the semantic index stores `scope: string` per `IndexEntry`. Old caches fail the version check and trigger a full re-index on startup.
+
+---
+
 ## Adding a new tool
 
 ### 1. Choose or create a tool file

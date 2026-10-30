@@ -225,7 +225,7 @@ async function freshModuleWithCache(runMock: (args: string[]) => Promise<string>
   // one note with empty chunks (exercises averageAndNormalise([]) guard),
   // lastReHash=0 so REHASH_INTERVAL_MS has elapsed → fullReHash fires.
   const seededIndex = {
-    version: 3,
+    version: 4,
     model: "Xenova/all-MiniLM-L6-v2",
     lastReHash: 0,
     complete: true,
@@ -328,7 +328,7 @@ describe("cache-hit startup path — configured vault syncs immediately", () => 
 
     // Cache has only 1 note; vault now has 2 (note-b.md is new)
     const seededIndex = {
-      version: 3,
+      version: 4,
       model: "Xenova/all-MiniLM-L6-v2",
       lastReHash: Date.now(),
       complete: true,
@@ -1158,7 +1158,7 @@ describe("vault switch heuristic", () => {
     const cacheFile = path.join(cacheDir, "embeddings-default.json");
     fs.writeFileSync(
       cacheFile,
-      JSON.stringify({ files: cachedFiles, model: "Xenova/all-MiniLM-L6-v2", version: 3, lastReHash: 0, complete: true }),
+      JSON.stringify({ files: cachedFiles, model: "Xenova/all-MiniLM-L6-v2", version: 4, lastReHash: 0, complete: true }),
       "utf-8"
     );
 
@@ -1533,7 +1533,7 @@ describe("incomplete cache triggers full re-index", () => {
     fs.writeFileSync(
       cacheFile,
       JSON.stringify({
-        version: 3,
+        version: 4,
         model: "Xenova/all-MiniLM-L6-v2",
         lastReHash: 0,
         files: { "partial-note.md": { hash: "abc", chunks: [] } },
@@ -2173,7 +2173,7 @@ describe("regression: partial listVaultPaths does not prune index at startup", (
     const indexPath = path.join(cacheDir, `embeddings-${safeKey}.json`);
     fs.writeFileSync(
       indexPath,
-      JSON.stringify({ version: 3, model: "Xenova/all-MiniLM-L6-v2", lastReHash: 0, complete: true, files: cachedFiles }),
+      JSON.stringify({ version: 4, model: "Xenova/all-MiniLM-L6-v2", lastReHash: 0, complete: true, files: cachedFiles }),
       "utf-8",
     );
     semantic.registerSemanticTools(server);

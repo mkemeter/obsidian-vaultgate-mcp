@@ -9,12 +9,14 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { runObsidian } from "./cli.js";
 import { config } from "./config.js";
+import { initScopeEngine, isScopingEnabled } from "./scope.js";
 import { installContextGuard, registerContextTools } from "./tools/context.js";
 import { registerDailyTools } from "./tools/daily.js";
 import { registerDevTools } from "./tools/dev.js";
 import { registerFileTools } from "./tools/files.js";
 import { registerPluginTools } from "./tools/plugins.js";
 import { registerPropertyTools } from "./tools/properties.js";
+import { registerScopeTools } from "./tools/scope.js";
 import { registerSearchTools } from "./tools/search.js";
 import { registerTagTools } from "./tools/tags.js";
 import { registerTaskTools } from "./tools/tasks.js";
@@ -26,6 +28,12 @@ export const BASE_TOOL_COUNT = 34;
 
 /** Number of additional tools registered when @xenova/transformers is available. */
 export const SEMANTIC_TOOL_COUNT = 5;
+
+/** Number of additional tools registered when vault scoping is enabled. */
+export const SCOPE_TOOL_COUNT = 1;
+
+/** Number of additional tools registered when vault scope switching is enabled. */
+export const SCOPE_SWITCHING_TOOL_COUNT = 1;
 
 /** Raw SVG icon string — used in HTTP mode where the server can serve it directly. */
 export function getIconSvg(): string {
@@ -96,6 +104,18 @@ export async function createServer(iconUrl?: string): Promise<McpServer> {
 
   const server = new McpServer(serverInfo);
 
+  // Initialise vault scoping before tool registration so filters are active
+  // when tools are first called. No-op when OBSIDIAN_VAULT_PATH is unset.
+  if (config.vaultPath) {
+    initScopeEngine(config.vaultPath, config.homeScope, config.scopeSwitchingEnabled);
+    if (isScopingEnabled() && !config.dailyNotesPath) {
+      console.error(
+        "[VaultGate] OBSIDIAN_DAILY_NOTES_PATH not set — daily note tools will not enforce scope. " +
+          "Set it to the vault-relative folder for daily notes (e.g. 'Daily Notes')."
+      );
+    }
+  }
+
   // Install the per-session context guard before any tools are registered so
   // every tool handler is wrapped. Until vault_context is called at least once,
   // non-error results get a short reminder prepended nudging the model to load
@@ -142,6 +162,11 @@ export async function createServer(iconUrl?: string): Promise<McpServer> {
   registerDevTools(server); // eval, dev_errors, dev_console, dev_css, dev_dom, dev_screenshot, dev_mobile
   registerContextTools(server); // vault_context, vault_context_set
   registerUriTools(server); // note_open, search_open, daily_open
+
+  // Scope tools — registered when vault scoping is active (OBSIDIAN_VAULT_PATH set).
+  if (isScopingEnabled()) {
+    registerScopeTools(server);
+  }
 
   // Semantic search tools — optional, require @xenova/transformers ONNX runtime.
   // Only the import is guarded; if the module loads, registration errors propagate normally.

@@ -1,6 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
+import { config } from "../config.js";
+import { isNoteInScope, isScopingEnabled, SCOPE_BLOCKED_MESSAGE } from "../scope.js";
 import { dryRunPreview, dryRunSchema, errorMessage } from "./_helpers.js";
 
 /**
@@ -13,10 +15,28 @@ import { dryRunPreview, dryRunSchema, errorMessage } from "./_helpers.js";
  * @param server  The MCP server instance to register tools on.
  */
 export function registerDailyTools(server: McpServer): void {
+  /**
+   * Returns a scope-blocked error when OBSIDIAN_DAILY_NOTES_PATH is set, scoping is active,
+   * and today's daily note is not in the active scope. Returns undefined otherwise.
+   */
+  function checkDailyScope():
+    | { content: [{ type: "text"; text: string }]; isError: true }
+    | undefined {
+    if (!isScopingEnabled() || !config.dailyNotesPath) return undefined;
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const dailyPath = `${config.dailyNotesPath}/${dateStr}.md`;
+    if (!isNoteInScope(dailyPath)) {
+      return { content: [{ type: "text", text: SCOPE_BLOCKED_MESSAGE }], isError: true };
+    }
+    return undefined;
+  }
+
   // ---------------------------------------------------------------------------
   // daily_read — read-only
   // ---------------------------------------------------------------------------
   server.tool("daily_read", "Read today's daily note from the vault.", {}, async () => {
+    const blocked = checkDailyScope();
+    if (blocked) return blocked;
     try {
       const output = await runObsidian(["daily:read"]);
       return { content: [{ type: "text", text: output }] };
@@ -45,6 +65,8 @@ export function registerDailyTools(server: McpServer): void {
       dryRun: dryRunSchema,
     },
     async ({ content, dryRun }) => {
+      const blocked = checkDailyScope();
+      if (blocked) return blocked;
       const args = ["daily:append", `content=${content}`];
 
       if (dryRun) {

@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
+import { isPathBlocked, isScopingEnabled, SCOPE_BLOCKED_MESSAGE } from "../scope.js";
 import { buildFileArgs, dryRunPreview, dryRunSchema, errorMessage } from "./_helpers.js";
 
 /**
@@ -28,6 +29,14 @@ export function registerPropertyTools(server: McpServer): void {
       path: z.string().optional().describe("Exact vault-root path, e.g. `folder/note.md`."),
     },
     async ({ name, file, path }) => {
+      const notePath = path?.trim() || file?.trim();
+      if (notePath === undefined && isScopingEnabled()) {
+        console.error(
+          "[VaultGate] property_read: no file/path provided with scoping enabled — scope cannot be verified, proceeding."
+        );
+      } else if (isPathBlocked(notePath)) {
+        return { content: [{ type: "text", text: SCOPE_BLOCKED_MESSAGE }], isError: true };
+      }
       const args = ["property:read", `name=${name}`, ...buildFileArgs(file, path)];
       try {
         const output = await runObsidian(args);
@@ -60,6 +69,14 @@ export function registerPropertyTools(server: McpServer): void {
       dryRun: dryRunSchema,
     },
     async ({ name, value, file, path, dryRun }) => {
+      const notePath = path?.trim() || file?.trim();
+      if (notePath === undefined && isScopingEnabled()) {
+        console.error(
+          "[VaultGate] property_set: no file/path provided with scoping enabled — scope cannot be verified, proceeding."
+        );
+      } else if (isPathBlocked(notePath)) {
+        return { content: [{ type: "text", text: SCOPE_BLOCKED_MESSAGE }], isError: true };
+      }
       const args = ["property:set", `name=${name}`, `value=${value}`, ...buildFileArgs(file, path)];
 
       if (dryRun) {

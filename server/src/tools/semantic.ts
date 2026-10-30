@@ -36,6 +36,14 @@ import * as transformers from "@xenova/transformers";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
 import { config } from "../config.js";
+import {
+  filterByScope,
+  getActiveScope,
+  isPathBlocked,
+  isScopingEnabled,
+  resolveNoteScope,
+  SCOPE_BLOCKED_MESSAGE,
+} from "../scope.js";
 import { dryRunSchema } from "./_helpers.js";
 
 const { pipeline } = transformers;
@@ -52,6 +60,7 @@ interface ChunkEntry {
 interface IndexEntry {
   hash: string;
   chunks: ChunkEntry[];
+  scope: string;
 }
 
 interface VaultIndex {
@@ -93,7 +102,7 @@ let emptyListRetries = 0;
 const MAX_EMPTY_LIST_RETRIES = 3;
 
 const MODEL_ID = "Xenova/all-MiniLM-L6-v2";
-const INDEX_VERSION = 3;
+const INDEX_VERSION = 4;
 const CHUNK_SIZE = 2000;
 const REHASH_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 h
 const DEFAULT_TOP_N = 10;
@@ -433,7 +442,9 @@ async function listVaultPaths(): Promise<string[]> {
     `[VaultGate] listVaultPaths: ${result.length} bytes → ${paths.length} path(s)` +
       (paths.length > 0 ? ` (last: ${paths.slice(-3).join(", ")})` : "")
   );
-  return paths;
+  // When scoping is enabled, filter to the active scope before returning. This is the
+  // primary scope enforcement point for the entire index build pipeline.
+  return isScopingEnabled() ? filterByScope(paths) : paths;
 }
 
 async function readNote(filePath: string): Promise<string> {
@@ -523,7 +534,7 @@ async function syncNewAndDeleted(
       const chunks = await embedNote(content);
       // Store unconditionally — empty-chunk entries prevent re-embedding on every
       // sync. The real content hash ensures fullReHash re-embeds if content changes.
-      idx.files[p] = { hash, chunks };
+      idx.files[p] = { hash, chunks, scope: isScopingEnabled() ? resolveNoteScope(p) : "unscoped" };
     } catch {
       // Skip notes that can't be read — non-fatal.
     }
@@ -596,7 +607,11 @@ async function fullReHash(idx: VaultIndex, gen: number = buildGeneration): Promi
           const chunks = await embedNote(content);
           // Store unconditionally — empty-chunk entries prevent re-embedding on
           // every sync. Real hash ensures re-embed if content later gains body.
-          idx.files[p] = { hash, chunks };
+          idx.files[p] = {
+            hash,
+            chunks,
+            scope: isScopingEnabled() ? resolveNoteScope(p) : "unscoped",
+          };
         }
       } catch {
         // Non-fatal.
@@ -806,6 +821,9 @@ async function semanticQuery(
   for (const [p, entry] of Object.entries(liveIndex.files)) {
     if (p === excludePath) continue;
     if (entry.chunks.length === 0) continue; // stored but not embeddable — skip
+    // Secondary scope guard: primary enforcement is listVaultPaths() scoping the build,
+    // but entries indexed before scoping was enabled may carry a stale scope.
+    if (isScopingEnabled() && entry.scope !== getActiveScope()) continue;
     let bestScore = 0;
     let bestHeading = "";
     for (const chunk of entry.chunks) {
@@ -927,6 +945,9 @@ export function registerSemanticTools(server: McpServer): void {
         .describe("Minimum similarity score 0–1 (default 0.2)"),
     },
     async ({ note_path, top_n, min_score }) => {
+      if (isPathBlocked(note_path)) {
+        return { content: [{ type: "text", text: SCOPE_BLOCKED_MESSAGE }], isError: true };
+      }
       if (indexState !== "ready") {
         return {
           content: [

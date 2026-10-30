@@ -45,7 +45,12 @@ export function registerPrefsIpc(): void {
     const requiresRestart =
       (patch.port !== undefined && patch.port !== current.port) ||
       (patch.obsidianPath !== undefined && patch.obsidianPath !== current.obsidianPath) ||
-      (patch.contextFileName !== undefined && patch.contextFileName !== current.contextFileName);
+      (patch.contextFileName !== undefined && patch.contextFileName !== current.contextFileName) ||
+      (patch.vaultPath !== undefined && patch.vaultPath !== current.vaultPath) ||
+      (patch.homeScope !== undefined && patch.homeScope !== current.homeScope) ||
+      (patch.scopeSwitchingEnabled !== undefined &&
+        patch.scopeSwitchingEnabled !== current.scopeSwitchingEnabled) ||
+      (patch.dailyNotesPath !== undefined && patch.dailyNotesPath !== current.dailyNotesPath);
 
     const injectionChanged =
       (patch.injectConventions !== undefined &&
@@ -87,6 +92,9 @@ export function registerPrefsIpc(): void {
   ipcMain.handle("prefs:isAutostartEnabled", () => isAutostartEnabled());
   ipcMain.handle("prefs:setAutostart", (_event, enabled: boolean) => setAutostart(enabled));
   ipcMain.handle("prefs:getServerState", () => serverManager.getState());
+  ipcMain.handle("prefs:refreshScopeMap", () =>
+    serverManager.sendControlCommand("refresh_scope_map")
+  );
   ipcMain.on("prefs:close", () => prefsWindow?.close());
 }
 

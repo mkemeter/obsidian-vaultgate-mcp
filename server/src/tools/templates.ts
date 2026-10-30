@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
+import { filterByScope, isPathBlocked, isVaultGateFile, SCOPE_BLOCKED_MESSAGE } from "../scope.js";
 import { buildFileArgs, dryRunPreview, dryRunSchema, errorMessage } from "./_helpers.js";
 
 /**
@@ -19,7 +20,9 @@ export function registerTemplateTools(server: McpServer): void {
   server.tool("templates_list", "List all available templates in the vault.", {}, async () => {
     try {
       const output = await runObsidian(["templates", "list"]);
-      return { content: [{ type: "text", text: output }] };
+      const lines = output.split("\n").filter((l) => l.trim() !== "");
+      const filtered = filterByScope(lines).filter((l) => !isVaultGateFile(l));
+      return { content: [{ type: "text", text: filtered.join("\n") }] };
     } catch (error) {
       return {
         content: [{ type: "text", text: errorMessage(error) }],
@@ -46,6 +49,11 @@ export function registerTemplateTools(server: McpServer): void {
       dryRun: dryRunSchema,
     },
     async ({ template, file, path, dryRun }) => {
+      // Scope guard: check target note path, not the template itself.
+      const notePath = path?.trim() || file?.trim();
+      if (isPathBlocked(notePath)) {
+        return { content: [{ type: "text", text: SCOPE_BLOCKED_MESSAGE }], isError: true };
+      }
       const args = ["templates", "apply", `template=${template}`, ...buildFileArgs(file, path)];
 
       if (dryRun) {

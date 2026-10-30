@@ -103,6 +103,10 @@ describe("loadConfig / saveConfig / hasConfig", () => {
       injectConventions: true,
       injectIntervalSecs: 30,
       smartSearchReadyNotified: false,
+      vaultPath: "",
+      homeScope: "unscoped",
+      scopeSwitchingEnabled: false,
+      dailyNotesPath: "",
     });
   });
 
@@ -119,6 +123,10 @@ describe("loadConfig / saveConfig / hasConfig", () => {
       injectConventions: true,
       injectIntervalSecs: 30,
       smartSearchReadyNotified: false,
+      vaultPath: "",
+      homeScope: "unscoped",
+      scopeSwitchingEnabled: false,
+      dailyNotesPath: "",
     });
   });
 

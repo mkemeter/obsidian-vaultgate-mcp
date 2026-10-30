@@ -72,6 +72,57 @@ export interface Config {
    * Configurable at runtime via the tray Preferences dialog.
    */
   injectIntervalSecs: number;
+
+  /**
+   * Absolute filesystem path to the vault root directory.
+   *
+   * Required for vault scopes — `.vaultgate` files are read directly from
+   * the filesystem, not via the Obsidian CLI. When unset or pointing to a
+   * non-existent directory, vault scoping is disabled and the server operates
+   * on the full vault as before.
+   *
+   * Set `OBSIDIAN_VAULT_PATH` to an absolute path (e.g. `/Users/me/Vault`).
+   * Tray users have this filled in automatically from the Obsidian vault
+   * registry when they select a vault in Preferences.
+   */
+  vaultPath: string | undefined;
+
+  /**
+   * The scope VaultGate uses at startup (the "home scope").
+   *
+   * Notes outside this scope are invisible to all tools for the duration of
+   * the session. Resets to this value on vault change or server restart.
+   *
+   * Defaults to `"unscoped"` (full vault access). Set `OBSIDIAN_SCOPE` to
+   * restrict the default context to a named scope.
+   */
+  homeScope: string;
+
+  /**
+   * Whether the LLM-facing `vault_scope_set` tool is registered.
+   *
+   * When enabled, the AI can switch scope mid-session (but still only one
+   * scope at a time — the invariant holds). Disabled by default so the AI
+   * has no awareness of other scopes unless the user opts in.
+   *
+   * Set `VAULTGATE_SCOPE_SWITCHING=true` to enable.
+   */
+  scopeSwitchingEnabled: boolean;
+
+  /**
+   * Vault-relative path to the daily notes folder (e.g. `"Daily Notes"`).
+   *
+   * Required for scope enforcement on `daily_read`, `daily_append`, and
+   * `tasks_daily` — the Obsidian CLI resolves daily note paths internally,
+   * so VaultGate needs this hint to verify the note is within the active scope.
+   *
+   * Leave unset if daily notes are not in a scoped directory (safe to omit
+   * for most vaults). When unset and scoping is active, daily-note tools
+   * proceed without scope enforcement and a startup warning is logged.
+   *
+   * Set `OBSIDIAN_DAILY_NOTES_PATH` to the vault-relative folder name.
+   */
+  dailyNotesPath: string | undefined;
 }
 
 /** Default conventions filename when `OBSIDIAN_CONTEXT_FILE` is unset. */
@@ -189,6 +240,10 @@ export function loadConfig(): Config {
     contextFileName: normalizeContextFileName(process.env.OBSIDIAN_CONTEXT_FILE?.trim()),
     injectConventions,
     injectIntervalSecs,
+    vaultPath: process.env.OBSIDIAN_VAULT_PATH?.trim() || undefined,
+    homeScope: process.env.OBSIDIAN_SCOPE?.trim() || "unscoped",
+    scopeSwitchingEnabled: process.env.VAULTGATE_SCOPE_SWITCHING?.trim() === "true",
+    dailyNotesPath: process.env.OBSIDIAN_DAILY_NOTES_PATH?.trim() || undefined,
   };
 }
 
@@ -202,6 +257,15 @@ export const config = loadConfig();
  */
 export function setVault(vault: string | undefined): void {
   config.vault = vault;
+}
+
+/**
+ * Updates the vault filesystem path at runtime.
+ * Called by the tray app via IPC when the vault selection changes.
+ * The scope engine is notified separately by the IPC handler.
+ */
+export function setVaultPath(vaultPath: string | undefined): void {
+  config.vaultPath = vaultPath;
 }
 
 /**

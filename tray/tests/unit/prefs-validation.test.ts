@@ -95,4 +95,70 @@ describe("validateConfigPatch", () => {
       expect(() => validateConfigPatch({ obsidianPath: "   " })).toThrow(/non-empty/);
     });
   });
+
+  describe("homeScope", () => {
+    it("accepts a valid scope name", () => {
+      expect(validateConfigPatch({ homeScope: "ai" }).homeScope).toBe("ai");
+    });
+
+    it("accepts 'unscoped' as a valid scope name", () => {
+      expect(validateConfigPatch({ homeScope: "unscoped" }).homeScope).toBe("unscoped");
+    });
+
+    it("rejects an empty scope name", () => {
+      expect(() => validateConfigPatch({ homeScope: "" })).toThrow(/Invalid scope name/);
+    });
+
+    it("rejects a whitespace-only scope name", () => {
+      expect(() => validateConfigPatch({ homeScope: "   " })).toThrow(/Invalid scope name/);
+    });
+
+    it("rejects a scope name longer than 64 characters", () => {
+      expect(() => validateConfigPatch({ homeScope: "a".repeat(65) })).toThrow(/Invalid scope name/);
+    });
+
+    it("rejects a scope name with a forward slash", () => {
+      expect(() => validateConfigPatch({ homeScope: "ai/notes" })).toThrow(/Invalid scope name/);
+    });
+
+    it("rejects a scope name with a backslash", () => {
+      expect(() => validateConfigPatch({ homeScope: "ai\\notes" })).toThrow(/Invalid scope name/);
+    });
+  });
+
+  describe("vaultPath", () => {
+    it("accepts an absolute path string", () => {
+      expect(validateConfigPatch({ vaultPath: "/Users/me/Vault" }).vaultPath).toBe(
+        "/Users/me/Vault"
+      );
+    });
+
+    it("accepts an empty string (disables scoping)", () => {
+      expect(validateConfigPatch({ vaultPath: "" }).vaultPath).toBe("");
+    });
+
+    it("rejects a non-string value", () => {
+      expect(() => validateConfigPatch({ vaultPath: 42 as unknown as string })).toThrow(
+        /Invalid vault path/
+      );
+    });
+  });
+
+  describe("dailyNotesPath", () => {
+    it("accepts a relative folder path", () => {
+      expect(validateConfigPatch({ dailyNotesPath: "Daily Notes" }).dailyNotesPath).toBe(
+        "Daily Notes"
+      );
+    });
+
+    it("accepts an empty string (no scope check for daily notes)", () => {
+      expect(validateConfigPatch({ dailyNotesPath: "" }).dailyNotesPath).toBe("");
+    });
+
+    it("rejects a non-string value", () => {
+      expect(() => validateConfigPatch({ dailyNotesPath: 42 as unknown as string })).toThrow(
+        /Invalid daily notes path/
+      );
+    });
+  });
 });

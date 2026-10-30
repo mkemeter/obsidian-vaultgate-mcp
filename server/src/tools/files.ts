@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
+import { filterByScope, isPathBlocked, isVaultGateFile, SCOPE_BLOCKED_MESSAGE } from "../scope.js";
 import {
   buildFileArgs,
   dryRunPreview,
@@ -49,7 +50,10 @@ export function registerFileTools(server: McpServer): void {
 
       try {
         const output = await runObsidian(args);
-        return { content: [{ type: "text", text: output }] };
+        // Strip .vaultgate files (always) and out-of-scope notes (when scoping enabled).
+        const lines = output.split("\n").filter((l) => l.trim() !== "");
+        const filtered = filterByScope(lines).filter((l) => !isVaultGateFile(l));
+        return { content: [{ type: "text", text: filtered.join("\n") }] };
       } catch (error) {
         return {
           content: [{ type: "text", text: errorMessage(error) }],
@@ -95,6 +99,10 @@ export function registerFileTools(server: McpServer): void {
             },
           ],
         };
+      }
+      const notePath = path?.trim() || file?.trim();
+      if (isPathBlocked(notePath)) {
+        return { content: [{ type: "text", text: SCOPE_BLOCKED_MESSAGE }], isError: true };
       }
       const args = ["read", ...buildFileArgs(file, path)];
 
@@ -165,6 +173,11 @@ export function registerFileTools(server: McpServer): void {
           isError: true,
         };
       }
+      // Scope check: use path if provided, else name (vault-root note).
+      const notePath = path?.trim() || name?.trim();
+      if (isPathBlocked(notePath)) {
+        return { content: [{ type: "text", text: SCOPE_BLOCKED_MESSAGE }], isError: true };
+      }
       const args = ["create"];
       if (path !== undefined) {
         args.push(`path=${path}`);
@@ -210,6 +223,10 @@ export function registerFileTools(server: McpServer): void {
       dryRun: dryRunSchema,
     },
     async ({ content, file, path, dryRun }) => {
+      const notePath = path?.trim() || file?.trim();
+      if (isPathBlocked(notePath)) {
+        return { content: [{ type: "text", text: SCOPE_BLOCKED_MESSAGE }], isError: true };
+      }
       const args = ["append", `content=${content}`, ...buildFileArgs(file, path)];
 
       if (dryRun) {
@@ -247,6 +264,10 @@ export function registerFileTools(server: McpServer): void {
       dryRun: dryRunSchema,
     },
     async ({ content, file, path, dryRun }) => {
+      const notePath = path?.trim() || file?.trim();
+      if (isPathBlocked(notePath)) {
+        return { content: [{ type: "text", text: SCOPE_BLOCKED_MESSAGE }], isError: true };
+      }
       const args = ["prepend", `content=${content}`, ...buildFileArgs(file, path)];
 
       if (dryRun) {
@@ -286,6 +307,9 @@ export function registerFileTools(server: McpServer): void {
       dryRun: dryRunSchema,
     },
     async ({ path, content, dryRun }) => {
+      if (isPathBlocked(path)) {
+        return { content: [{ type: "text", text: SCOPE_BLOCKED_MESSAGE }], isError: true };
+      }
       // `create path=<path> content=<content> overwrite` replaces the full file content.
       const args = ["create", `path=${path}`, `content=${content}`, "overwrite"];
 
@@ -324,6 +348,9 @@ export function registerFileTools(server: McpServer): void {
       dryRun: dryRunSchema,
     },
     async ({ path, dryRun }) => {
+      if (isPathBlocked(path)) {
+        return { content: [{ type: "text", text: SCOPE_BLOCKED_MESSAGE }], isError: true };
+      }
       const args = ["delete", `path=${path}`];
 
       if (dryRun) {

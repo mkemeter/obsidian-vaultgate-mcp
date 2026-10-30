@@ -267,6 +267,13 @@ export async function start(): Promise<void> {
       // Vault conventions injection
       VAULTGATE_INJECT_CONVENTIONS: String(config.injectConventions ?? true),
       VAULTGATE_INJECT_INTERVAL: String(config.injectIntervalSecs ?? 30),
+      // Vault scoping (omit env vars when not configured so server uses its own defaults)
+      ...(config.vaultPath ? { OBSIDIAN_VAULT_PATH: config.vaultPath } : {}),
+      ...(config.homeScope && config.homeScope !== "unscoped"
+        ? { OBSIDIAN_SCOPE: config.homeScope }
+        : {}),
+      ...(config.scopeSwitchingEnabled ? { VAULTGATE_SCOPE_SWITCHING: "true" } : {}),
+      ...(config.dailyNotesPath ? { OBSIDIAN_DAILY_NOTES_PATH: config.dailyNotesPath } : {}),
     },
     stdio: "pipe",
   });
@@ -453,7 +460,9 @@ export function sendInjectionConfig(enabled: boolean, intervalSecs: number): voi
  *
  * No-op if the server is not currently running.
  */
-export function sendControlCommand(command: "rebuild_index" | "clear_index"): void {
+export function sendControlCommand(
+  command: "rebuild_index" | "clear_index" | "refresh_scope_map"
+): void {
   if (!child) {
     log(`sendControlCommand(${command}) — no child process, skipping`);
     return;

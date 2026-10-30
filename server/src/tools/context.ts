@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
 import { config } from "../config.js";
+import { getScopeConventionsFile } from "../scope.js";
 import { dryRunPreview, dryRunSchema, errorMessage } from "./_helpers.js";
 
 export const NOT_FOUND_MESSAGE =
@@ -90,8 +91,19 @@ export function installContextGuard(server: McpServer): void {
 
       // Attempt to fetch and submarine the conventions into this result.
       try {
-        const conventions = await runObsidian(["read", `path=${config.contextFileName}`]);
+        let conventions = await runObsidian(["read", `path=${config.contextFileName}`]);
         lastInjectedAt = Date.now();
+
+        // Append scope-local conventions file when the active scope declares one.
+        const scopeConventionsFile = getScopeConventionsFile();
+        if (scopeConventionsFile) {
+          try {
+            const scopeConventions = await runObsidian(["read", `path=${scopeConventionsFile}`]);
+            conventions = `${conventions}\n\n---\n\n${scopeConventions}`;
+          } catch {
+            // Scope conventions file absent or unreadable — silently skip.
+          }
+        }
 
         // Merge into the existing first text block to avoid multi-block rendering issues.
         const content: Array<{ type: string; text: string }> = result?.content ?? [];

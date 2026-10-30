@@ -1,5 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { isPathBlocked, SCOPE_BLOCKED_MESSAGE } from "../scope.js";
 import { runUri } from "../uri.js";
 import { errorMessage } from "./_helpers.js";
 
@@ -45,6 +46,9 @@ export function registerUriTools(server: McpServer): void {
           content: [{ type: "text", text: "Either `file` or `path` must be provided." }],
           isError: true,
         };
+      }
+      if (isPathBlocked(fileValue)) {
+        return { content: [{ type: "text", text: SCOPE_BLOCKED_MESSAGE }], isError: true };
       }
       const params: Record<string, string> = { file: fileValue };
       if (heading) params.heading = heading;
