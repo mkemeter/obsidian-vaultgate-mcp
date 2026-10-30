@@ -33,12 +33,19 @@
         color: var(--fg);
         user-select: none;
         overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        box-sizing: border-box;
+      }
+      .tab-content {
+        flex: 1;
       }
       .status-bar {
         display: flex;
         align-items: center;
         gap: 8px;
-        margin-bottom: 16px;
+        margin-bottom: 14px;
         padding-left: 76px;
         -webkit-app-region: drag;
       }
@@ -65,13 +72,49 @@
       .status-dot[data-state="port-conflict"],
       .status-dot[data-state="obsidian-missing"] { background: var(--error); }
       .external-warning {
-        margin-bottom: 16px;
+        margin-bottom: 12px;
         padding: 8px 10px;
         border: 1px solid var(--warning);
         border-radius: 6px;
         font-size: 12px;
         line-height: 1.45;
       }
+      /* --- Tabs --- */
+      .tab-nav {
+        display: flex;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 16px;
+        gap: 0;
+      }
+      .tab-btn {
+        flex: 1;
+        padding: 6px 0;
+        font: inherit;
+        font-size: 12px;
+        font-weight: 500;
+        background: none;
+        color: var(--muted);
+        border: none;
+        border-bottom: 2px solid transparent;
+        border-radius: 0;
+        cursor: pointer;
+        transition: color 0.15s;
+      }
+      .tab-btn:hover:not(.active) {
+        color: var(--fg);
+        opacity: 1;
+      }
+      .tab-btn.active {
+        color: var(--accent);
+        border-bottom-color: var(--accent);
+      }
+      .tab-panel {
+        display: none;
+      }
+      .tab-panel.active {
+        display: block;
+      }
+      /* --- Form elements --- */
       label {
         display: block;
         margin: 10px 0 4px;
@@ -144,19 +187,6 @@
         align-items: center;
         margin-top: 14px;
       }
-      .section-divider {
-        border: none;
-        border-top: 1px solid var(--border);
-        margin: 16px 0 10px;
-      }
-      .section-label {
-        font-size: 11px;
-        font-weight: 600;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        color: var(--muted);
-        margin: 0 0 3px;
-      }
       .section-hint {
         font-size: 11px;
         color: var(--muted);
@@ -185,7 +215,7 @@
         display: flex;
         justify-content: flex-end;
         gap: 8px;
-        margin-top: 18px;
+        margin-top: 14px;
       }
     </style>
   </head>
@@ -202,67 +232,76 @@
       to manage the server from here.
     </div>
 
-    <label for="vault">Vault</label>
-    <select id="vault"></select>
-
-    <label for="port">Local server port</label>
-    <input type="number" id="port" min="1024" max="65535" />
-    <div class="field-error" id="port-error"></div>
-
-    <label for="obsidian">Obsidian binary</label>
-    <div class="row">
-      <input type="text" id="obsidian" placeholder="/Applications/Obsidian.app/Contents/MacOS/obsidian" />
-      <button id="browse">Browse…</button>
+    <div class="tab-nav">
+      <button class="tab-btn active" data-tab="server">Server</button>
+      <button class="tab-btn" data-tab="conventions">Conventions</button>
+      <button class="tab-btn" data-tab="scopes">Scopes</button>
     </div>
 
-    <hr class="section-divider" />
+    <div class="tab-content">
+    <!-- Server tab -->
+    <div class="tab-panel active" id="tab-server">
+      <label for="vault">Vault</label>
+      <select id="vault"></select>
 
-    <p class="section-label">Vault Conventions</p>
-    <p class="section-hint">The conventions file is read from your vault root and can be automatically shared with the AI on every tool call.</p>
+      <label for="port">Local server port</label>
+      <input type="number" id="port" min="1024" max="65535" />
+      <div class="field-error" id="port-error"></div>
 
-    <label for="context-file">Conventions file</label>
-    <input type="text" id="context-file" placeholder="VAULTGATE.md" />
-    <div class="field-error" id="context-file-error"></div>
-
-    <div class="checkbox">
-      <input type="checkbox" id="inject-conventions" />
-      <label for="inject-conventions" style="margin: 0; color: var(--fg)">Inject vault conventions into tool calls</label>
-    </div>
-
-    <div id="inject-interval-row">
-      <div class="inline-row">
-        <label for="inject-interval">Re-inject after</label>
-        <input type="number" id="inject-interval" min="1" max="3600" />
-        <span class="unit-suffix">seconds</span>
+      <label for="obsidian">Obsidian binary</label>
+      <div class="row">
+        <input type="text" id="obsidian" placeholder="/Applications/Obsidian.app/Contents/MacOS/obsidian" />
+        <button id="browse">Browse…</button>
       </div>
-      <div class="field-error" id="inject-interval-error"></div>
+
+      <div class="checkbox">
+        <input type="checkbox" id="no-uri" />
+        <label for="no-uri" style="margin: 0; color: var(--fg)">Disable URI tools (note_open, search_open, daily_open)</label>
+      </div>
+
+      <div class="checkbox">
+        <input type="checkbox" id="autostart" />
+        <label for="autostart" style="margin: 0; color: var(--fg)">Open VaultGate at login</label>
+      </div>
     </div>
 
-    <hr class="section-divider" />
+    <!-- Conventions tab -->
+    <div class="tab-panel" id="tab-conventions">
+      <p class="section-hint">The conventions file is read from your vault root and automatically shared with the AI on every tool call.</p>
 
-    <p class="section-label">Vault Scopes</p>
-    <p class="section-hint">Enable server-enforced folder access control. Add a <code style="font-family: monospace; font-size: 11px">scope:</code> key to any <code style="font-family: monospace; font-size: 11px">VAULTGATE.md</code> (or your configured conventions file) in a subfolder to define a scope zone — no vault path required.</p>
+      <label for="context-file">Conventions file</label>
+      <input type="text" id="context-file" placeholder="VAULTGATE.md" />
+      <div class="field-error" id="context-file-error"></div>
 
-    <label for="home-scope">Home scope</label>
-    <input type="text" id="home-scope" placeholder="unscoped" />
-    <div class="field-error" id="home-scope-error"></div>
+      <div class="checkbox">
+        <input type="checkbox" id="inject-conventions" />
+        <label for="inject-conventions" style="margin: 0; color: var(--fg)">Inject vault conventions into tool calls</label>
+      </div>
 
-    <div class="checkbox">
-      <input type="checkbox" id="scope-switching" />
-      <label for="scope-switching" style="margin: 0; color: var(--fg)">Allow AI to switch scopes</label>
+      <div id="inject-interval-row">
+        <div class="inline-row">
+          <label for="inject-interval">Re-inject after</label>
+          <input type="number" id="inject-interval" min="1" max="3600" />
+          <span class="unit-suffix">seconds</span>
+        </div>
+        <div class="field-error" id="inject-interval-error"></div>
+      </div>
     </div>
 
-    <hr class="section-divider" />
+    <!-- Scopes tab -->
+    <div class="tab-panel" id="tab-scopes">
+      <p class="section-hint">Server-enforced folder access control. Add a <code style="font-family: monospace; font-size: 11px">scope:</code> key to any <code style="font-family: monospace; font-size: 11px">VAULTGATE.md</code> (or your configured conventions file) in a subfolder to define a scope zone — no vault path required.</p>
 
-    <div class="checkbox">
-      <input type="checkbox" id="no-uri" />
-      <label for="no-uri" style="margin: 0; color: var(--fg)">Disable URI tools (note_open, search_open, daily_open)</label>
-    </div>
+      <label for="home-scope">Home scope</label>
+      <input type="text" id="home-scope" placeholder="unscoped" />
+      <div class="field-error" id="home-scope-error"></div>
 
-    <div class="checkbox">
-      <input type="checkbox" id="autostart" />
-      <label for="autostart" style="margin: 0; color: var(--fg)">Open VaultGate at login</label>
+      <div class="checkbox">
+        <input type="checkbox" id="scope-switching" />
+        <label for="scope-switching" style="margin: 0; color: var(--fg)">Allow AI to switch scopes</label>
+      </div>
     </div>
+    </div><!-- end tab-content -->
 
     <div class="footer">
       <button id="cancel">Cancel</button>

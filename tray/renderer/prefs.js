@@ -6,6 +6,15 @@
  */
 
 (async () => {
+  // Tab switching
+  document.querySelectorAll(".tab-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tab-btn, .tab-panel").forEach((el) => el.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+    });
+  });
+
   const api = window.vaultgate;
   if (!api) return;
 
