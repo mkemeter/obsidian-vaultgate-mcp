@@ -15,6 +15,7 @@ A section may be absent if that distribution had no changes in the release.
 
 #### Added
 
+- **Variable interpolation in vault conventions** — `{{variable}}` placeholders in `VAULTGATE.md` (or any configured conventions file) are resolved at injection time. Supported variables: `{{date}}` (UTC date), `{{time}}` (local HH:MM), `{{day}}` (local day of week), `{{user}}` (OS username), `{{scope}}` (active vault scope, empty when scoping is off), `{{client}}` (MCP client name from the session handshake). Unknown placeholders are left as-is. Interpolation runs at all three injection sites: the context guard, the explicit `vault_context` tool, and the MCP `initialize` instructions.
 - **Vault scopes** — partition your vault into named zones enforced in server code. Set `OBSIDIAN_VAULT_PATH` to the vault filesystem path, place `.vaultgate` TOML files in subdirectories to declare scope names, and start with `OBSIDIAN_SCOPE=<name>`. Notes outside the active scope are invisible to the AI: they disappear from file listings, reads, full-text search, and semantic search. `.vaultgate` files themselves are also blocked from AI access regardless of whether scoping is active.
 - **`vault_scope` tool** — shows the current scope, home scope, and all available scopes in the vault. Registered when `OBSIDIAN_VAULT_PATH` is set.
 - **`vault_scope_set` tool** — switches the active scope for the current session. Registered only when `VAULTGATE_SCOPE_SWITCHING=true` (opt-in).

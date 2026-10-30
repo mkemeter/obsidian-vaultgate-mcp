@@ -191,6 +191,28 @@ A ready-to-use template covering all sections is available at [`docs/VAULTGATE.t
 
 You can also ask your AI assistant: *"Help me set up vault conventions"* — it will analyse your vault structure and draft `VAULTGATE.md` for you using the `vault_context_set` tool.
 
+#### Dynamic variables
+
+Use `{{variable}}` placeholders anywhere in the conventions file — VaultGate resolves them at injection time so the AI always sees current context:
+
+| Placeholder | Resolves to | Example |
+|-------------|-------------|---------|
+| `{{date}}` | Current UTC date (YYYY-MM-DD) | `2026-10-30` |
+| `{{time}}` | Current local time (HH:MM, 24 h) | `14:37` |
+| `{{day}}` | Current local day of the week | `Thursday` |
+| `{{user}}` | OS username of the server process | `alice` |
+| `{{scope}}` | Active vault scope name; empty when scoping is off | `work` |
+| `{{client}}` | MCP client name from the session handshake | `claude-code` |
+
+Unknown placeholders (e.g. `{{foo}}`) are left unchanged so typos remain visible.
+
+Example — add a context header to the conventions file:
+
+```markdown
+## Session context
+Today is {{day}}, {{date}}. Connected via {{client}}.
+```
+
 > [!NOTE]
 > `VAULTGATE.md` is automatically delivered at the start of each conversation — conventions are merged into the first tool result your AI requests, so it always knows your vault structure without you having to ask. If you edit the file mid-session and want the AI to pick up the changes immediately, ask your assistant to call `vault_context` again.
 >

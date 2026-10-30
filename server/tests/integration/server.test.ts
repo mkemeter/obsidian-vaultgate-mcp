@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createServer, BASE_TOOL_COUNT, URI_TOOL_COUNT, SEMANTIC_TOOL_COUNT, getFaviconIco } from "../../src/server.js";
 
 vi.mock("../../src/cli.js", () => ({ runObsidian: vi.fn().mockResolvedValue("") }));
@@ -192,5 +192,104 @@ describe("server initialize handler", () => {
       {}
     );
     expect(result?.protocolVersion).not.toBe("1999-01-01");
+  });
+});
+
+describe("server initialize handler — interpolation (site C)", () => {
+  beforeEach(async () => {
+    const { runObsidian } = await import("../../src/cli.js");
+    vi.mocked(runObsidian).mockReset();
+  });
+
+  it("resolves {{date}} in vault instructions", async () => {
+    const { runObsidian } = await import("../../src/cli.js");
+    vi.mocked(runObsidian).mockResolvedValueOnce("Today is {{date}}.");
+
+    const server = await createServer();
+    // @ts-ignore
+    const handler = server.server._requestHandlers.get("initialize");
+    const result = await handler?.(
+      {
+        method: "initialize",
+        params: {
+          protocolVersion: "2024-11-05",
+          capabilities: {},
+          clientInfo: { name: "test", version: "0" },
+        },
+      },
+      {}
+    );
+
+    expect(result?.instructions).toMatch(/Today is \d{4}-\d{2}-\d{2}\./);
+    expect(result?.instructions).not.toContain("{{date}}");
+  });
+
+  it("resolves {{client}} to the clientInfo name from initialize", async () => {
+    const { runObsidian } = await import("../../src/cli.js");
+    vi.mocked(runObsidian).mockResolvedValueOnce("Connected via {{client}}.");
+
+    const server = await createServer();
+    // @ts-ignore
+    const handler = server.server._requestHandlers.get("initialize");
+    const result = await handler?.(
+      {
+        method: "initialize",
+        params: {
+          protocolVersion: "2024-11-05",
+          capabilities: {},
+          clientInfo: { name: "joule-work-desktop", version: "1.0" },
+        },
+      },
+      {}
+    );
+
+    expect(result?.instructions).toContain("Connected via joule-work-desktop.");
+    expect(result?.instructions).not.toContain("{{client}}");
+  });
+
+  it("resolves {{date}} and {{client}} together in one string", async () => {
+    const { runObsidian } = await import("../../src/cli.js");
+    vi.mocked(runObsidian).mockResolvedValueOnce("Date: {{date}}, client: {{client}}.");
+
+    const server = await createServer();
+    // @ts-ignore
+    const handler = server.server._requestHandlers.get("initialize");
+    const result = await handler?.(
+      {
+        method: "initialize",
+        params: {
+          protocolVersion: "2024-11-05",
+          capabilities: {},
+          clientInfo: { name: "claude-code", version: "0" },
+        },
+      },
+      {}
+    );
+
+    expect(result?.instructions).toMatch(/Date: \d{4}-\d{2}-\d{2}, client: claude-code\./);
+    expect(result?.instructions).not.toContain("{{date}}");
+    expect(result?.instructions).not.toContain("{{client}}");
+  });
+
+  it("leaves unknown placeholders unchanged in vault instructions", async () => {
+    const { runObsidian } = await import("../../src/cli.js");
+    vi.mocked(runObsidian).mockResolvedValueOnce("{{foo}} is not a variable");
+
+    const server = await createServer();
+    // @ts-ignore
+    const handler = server.server._requestHandlers.get("initialize");
+    const result = await handler?.(
+      {
+        method: "initialize",
+        params: {
+          protocolVersion: "2024-11-05",
+          capabilities: {},
+          clientInfo: { name: "test", version: "0" },
+        },
+      },
+      {}
+    );
+
+    expect(result?.instructions).toContain("{{foo}} is not a variable");
   });
 });

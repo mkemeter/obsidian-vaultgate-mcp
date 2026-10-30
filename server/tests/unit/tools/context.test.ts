@@ -436,3 +436,66 @@ describe("installContextGuard — submarine behaviour", () => {
     expect(result.content[1].type).toBe("image");
   });
 });
+
+describe("vault_context — interpolation (site B)", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    config.contextFileName = "VAULTGATE.md";
+  });
+
+  it("resolves {{date}} placeholders in vault_context result", async () => {
+    mockRun.mockResolvedValue("Today is {{date}}.");
+    const result = await invoke(makeServer(), "vault_context", {});
+    expect(result.content[0].text).toMatch(/Today is \d{4}-\d{2}-\d{2}\./);
+    expect(result.content[0].text).not.toContain("{{date}}");
+  });
+
+  it("resolves {{client}} to 'unknown' before any initialize handshake", async () => {
+    mockRun.mockResolvedValue("client={{client}}");
+    const result = await invoke(makeServer(), "vault_context", {});
+    expect(result.content[0].text).toContain("client=unknown");
+    expect(result.content[0].text).not.toContain("{{client}}");
+  });
+
+  it("leaves unknown placeholders unchanged", async () => {
+    mockRun.mockResolvedValue("{{foo}} is not a variable");
+    const result = await invoke(makeServer(), "vault_context", {});
+    expect(result.content[0].text).toContain("{{foo}} is not a variable");
+  });
+});
+
+describe("installContextGuard — interpolation (site A)", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.useRealTimers();
+    config.contextFileName = "VAULTGATE.md";
+    config.injectConventions = true;
+    config.injectIntervalSecs = 30;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("resolves {{date}} placeholders in guard-injected conventions", async () => {
+    mockRun.mockResolvedValueOnce("Today is {{date}}."); // submarine fetch
+    const result = await invoke(makeServer(), "vault_context_set", { content: "x", dryRun: true });
+    const text = result.content[0].text;
+    expect(text).toMatch(/Today is \d{4}-\d{2}-\d{2}\./);
+    expect(text).not.toContain("{{date}}");
+  });
+
+  it("resolves {{client}} to 'unknown' in guard-injected conventions before initialize", async () => {
+    mockRun.mockResolvedValueOnce("client={{client}}"); // submarine fetch
+    const result = await invoke(makeServer(), "vault_context_set", { content: "x", dryRun: true });
+    const text = result.content[0].text;
+    expect(text).toContain("client=unknown");
+    expect(text).not.toContain("{{client}}");
+  });
+
+  it("leaves unknown placeholders unchanged in guard-injected conventions", async () => {
+    mockRun.mockResolvedValueOnce("{{foo}} stays"); // submarine fetch
+    const result = await invoke(makeServer(), "vault_context_set", { content: "x", dryRun: true });
+    expect(result.content[0].text).toContain("{{foo}} stays");
+  });
+});

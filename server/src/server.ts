@@ -9,6 +9,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { runObsidian } from "./cli.js";
 import { config } from "./config.js";
+import { resolveInterpolations, setClientName } from "./interpolate.js";
 import { initScopeEngine, isScopingEnabled } from "./scope.js";
 import { installContextGuard, registerContextTools } from "./tools/context.js";
 import { registerDailyTools } from "./tools/daily.js";
@@ -129,9 +130,12 @@ export async function createServer(iconUrl?: string): Promise<McpServer> {
   // initialises. Overrides the default initialize handler on the inner Server so
   // Obsidian is only contacted when a client actually connects — not at startup.
   server.server.setRequestHandler(InitializeRequestSchema, async (request) => {
+    setClientName(request.params.clientInfo?.name ?? "unknown");
     let vaultInstructions: string | undefined;
     try {
-      const raw = await runObsidian(["read", `path=${config.contextFileName}`]);
+      const raw = resolveInterpolations(
+        await runObsidian(["read", `path=${config.contextFileName}`])
+      );
       if (raw.trim()) {
         vaultInstructions = raw.trim();
       }

@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runObsidian } from "../cli.js";
 import { config } from "../config.js";
+import { resolveInterpolations } from "../interpolate.js";
 import { getScopeConventionsFile } from "../scope.js";
 import { dryRunPreview, dryRunSchema, errorMessage } from "./_helpers.js";
 
@@ -105,6 +106,8 @@ export function installContextGuard(server: McpServer): void {
           }
         }
 
+        conventions = resolveInterpolations(conventions);
+
         // Merge into the existing first text block to avoid multi-block rendering issues.
         const content: Array<{ type: string; text: string }> = result?.content ?? [];
         const firstTextIdx = content.findIndex((c) => c.type === "text");
@@ -162,7 +165,9 @@ export function registerContextTools(server: McpServer): void {
     {},
     async () => {
       try {
-        const content = await runObsidian(["read", `path=${config.contextFileName}`]);
+        const content = resolveInterpolations(
+          await runObsidian(["read", `path=${config.contextFileName}`])
+        );
         return { content: [{ type: "text", text: content }] };
       } catch (error) {
         const msg = errorMessage(error) ?? "";
