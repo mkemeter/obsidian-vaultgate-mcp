@@ -100,7 +100,7 @@ async function buildScopeMapFromCli(): Promise<void> {
 
   let fileList: string;
   try {
-    fileList = await runObsidian(["files:list"]);
+    fileList = await runObsidian(["files", "list"]);
   } catch (err) {
     throw new Error(`Failed to list vault files: ${err}`);
   }

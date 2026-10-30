@@ -23,7 +23,7 @@ async function listTools(
 ): Promise<string[]> {
   vi.doMock("../../src/cli.js", () => ({
     runObsidian: vi.fn().mockImplementation(async (args: string[]) => {
-      if (args[0] === "files:list") return filesListOutput;
+      if (args[0] === "files" && args[1] === "list") return filesListOutput;
       if (args[0] === "read") {
         const pathArg = args.find((a: string) => a.startsWith("path="))?.slice(5);
         if (pathArg !== undefined && Object.prototype.hasOwnProperty.call(readResponses, pathArg)) {
@@ -72,7 +72,7 @@ describe("scope tool registration", () => {
   it("tool count matches BASE_TOOL_COUNT + SCOPE_TOOL_COUNT when scoping is enabled", async () => {
     vi.doMock("../../src/cli.js", () => ({
       runObsidian: vi.fn().mockImplementation(async (args: string[]) => {
-        if (args[0] === "files:list") return "Work/VAULTGATE.md";
+        if (args[0] === "files" && args[1] === "list") return "Work/VAULTGATE.md";
         if (args[0] === "read") {
           const p = args.find((a: string) => a.startsWith("path="))?.slice(5);
           if (p === "Work/VAULTGATE.md") return "---\nscope: work\n---\n# Work";

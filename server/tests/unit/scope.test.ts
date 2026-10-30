@@ -106,7 +106,7 @@ describe("scope engine (CLI-based)", () => {
   ) {
     const { runObsidian } = await import("../../src/cli.js");
     vi.mocked(runObsidian).mockImplementation(async (args: string[]) => {
-      if (args[0] === "files:list") {
+      if (args[0] === "files" && args[1] === "list") {
         return Object.keys(files).join("\n");
       }
       if (args[0] === "read") {
@@ -153,6 +153,25 @@ describe("scope engine (CLI-based)", () => {
     const { initScopeEngine, isScopingEnabled } = await import("../../src/scope.js");
     await initScopeEngine("unscoped", false);
     expect(isScopingEnabled()).toBe(false);
+  });
+
+  it("regression: buildScopeMapFromCli uses ['files', 'list'] not ['files:list']", async () => {
+    // 'files:list' is not a valid Obsidian CLI command — it silently returns an error
+    // string, leaving scopeZoneMap empty and enabled=false. 'files' + 'list' is correct.
+    const { runObsidian } = await import("../../src/cli.js");
+    const calls: string[][] = [];
+    vi.mocked(runObsidian).mockImplementation(async (args: string[]) => {
+      calls.push(args);
+      if (args[0] === "files" && args[1] === "list") return "Work/VAULTGATE.md\n";
+      if (args[0] === "read") return "---\nscope: work\n---\n";
+      return "";
+    });
+    const { initScopeEngine, isScopingEnabled } = await import("../../src/scope.js");
+    await initScopeEngine("unscoped", false);
+    const fileListCall = calls.find((a) => a[0] === "files");
+    expect(fileListCall).toEqual(["files", "list"]);
+    expect(calls.some((a) => a[0] === "files:list")).toBe(false);
+    expect(isScopingEnabled()).toBe(true);
   });
 
   // ---- isScopeSwitchingEnabled ----
@@ -312,7 +331,7 @@ describe("scope engine (CLI-based)", () => {
     // Now simulate a vault change: a new scope zone appears
     const { runObsidian } = await import("../../src/cli.js");
     vi.mocked(runObsidian).mockImplementation(async (args: string[]) => {
-      if (args[0] === "files:list")
+      if (args[0] === "files" && args[1] === "list")
         return "Work/VAULTGATE.md\nPersonal/VAULTGATE.md";
       if (args[0] === "read") {
         const p = args.find((a) => a.startsWith("path="))?.slice(5);

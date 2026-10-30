@@ -31,6 +31,7 @@ A section may be absent if that distribution had no changes in the release.
 #### Fixed
 
 - **Semantic search shows "0 notes indexed" in tray mode** — `@huggingface/transformers` v3 defaults to loading `model.onnx` (fp32). With `VAULTGATE_ALLOW_REMOTE_MODELS=false` and only `model_quantized.onnx` bundled in the app, `pipeline()` threw silently on every embed attempt; the per-note `catch {}` swallowed the error, leaving the index at 0 notes and saving a corrupt `{files:{}, complete:true}` cache. The embedder now requests `{ dtype: "q8" }` explicitly, directing v3 to use the bundled quantized weights.
+- **`{{scope}}` always resolved to empty string** — scope zone discovery called the Obsidian CLI with `["files:list"]` (a single colon-separated arg), which is not a valid command and returns an error string. No scope zones were ever found, `isScopingEnabled()` stayed `false`, and `{{scope}}` resolved to `""` regardless of vault contents. Fixed to use `["files", "list"]` (two separate args).
 
 ### Tray
 
