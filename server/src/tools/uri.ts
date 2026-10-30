@@ -90,7 +90,8 @@ export function registerUriTools(server: McpServer): void {
   server.tool(
     "daily_open",
     "Open today's daily note in the Obsidian GUI, bringing Obsidian to the foreground. " +
-      "Use after reading or appending to the daily note so the user can review it directly.",
+      "Call this ONLY when the user explicitly asks to open or view the daily note. " +
+      "Do NOT call automatically after reading or appending to the daily note.",
     {},
     async () => {
       try {
