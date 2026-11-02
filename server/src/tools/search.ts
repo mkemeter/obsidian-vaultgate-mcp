@@ -12,7 +12,7 @@ import { errorMessage } from "./_helpers.js";
 export function registerSearchTools(server: McpServer): void {
   server.tool(
     "search",
-    "Search the Obsidian vault using keyword matching. Returns matching notes with context snippets. For meaning-based or fuzzy queries, use semantic_search instead.",
+    "Search the Obsidian vault using keyword matching. Returns matching notes with context snippets. For meaning-based or fuzzy queries, use semantic_search instead. Not available when vault scoping is active — use files_list or semantic_search instead.",
     {
       query: z.string().describe("Search term or phrase to look for."),
       limit: z
@@ -28,7 +28,7 @@ export function registerSearchTools(server: McpServer): void {
           content: [
             {
               type: "text",
-              text: "Full-vault search is not available when vault scoping is active. Use files_list or semantic_search to find notes within the current scope.",
+              text: "Full-vault search is unavailable when vault scoping is active — it uses Obsidian's native vault-wide search, which cannot be restricted to a scope. Use files_list to browse notes in the current scope, or semantic_search for meaning-based queries.",
             },
           ],
           isError: true,

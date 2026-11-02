@@ -27,6 +27,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { BUILD_INFO } from "./build-info.js";
 import { config, setInjectionConfig, setVault } from "./config.js";
 import { runHealthCheck } from "./health.js";
 import { parseIpcMessage } from "./ipc.js";
@@ -130,7 +131,12 @@ async function startHttp(): Promise<void> {
 
       // --- Liveness probe ------------------------------------------------------
       if (req.method === "GET" && url.pathname === "/health") {
-        res.writeHead(200, { "Content-Type": "text/plain" });
+        res.writeHead(200, {
+          "Content-Type": "text/plain",
+          "X-VaultGate-Version": BUILD_INFO.version,
+          "X-VaultGate-Built": BUILD_INFO.built,
+          "X-VaultGate-Commit": BUILD_INFO.commit,
+        });
         res.end("OK");
         return;
       }

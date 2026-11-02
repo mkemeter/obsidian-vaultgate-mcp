@@ -148,6 +148,16 @@ describe("property_search", () => {
     expect(result.content[0].text).toBe("A.md");
   });
 
+  // regression: key-only query returns all files when Obsidian returns error message for absent keys
+  it("key existence check excludes files where property:read returns Error: Property not found", async () => {
+    mockRun
+      .mockResolvedValueOnce("A.md\nB.md")
+      .mockResolvedValueOnce("some-value") // A has property → included
+      .mockResolvedValueOnce('Error: Property "category" not found.'); // B → excluded
+    const result = await invoke(makeServer(), "property_search", { key: "category" });
+    expect(result.content[0].text).toBe("A.md");
+  });
+
   it("missing: true includes file with empty property value", async () => {
     mockRun
       .mockResolvedValueOnce("A.md")
@@ -177,6 +187,15 @@ describe("property_search", () => {
     mockRun
       .mockResolvedValueOnce("A.md")
       .mockResolvedValueOnce("null"); // Obsidian returns "null" for missing key → still missing
+    const result = await invoke(makeServer(), "property_search", { key: "due", missing: true });
+    expect(result.content[0].text).toBe("A.md");
+  });
+
+  // regression: missing:true returns empty when Obsidian returns error message for absent keys
+  it("missing: true includes file where property:read returns Error: Property not found", async () => {
+    mockRun
+      .mockResolvedValueOnce("A.md")
+      .mockResolvedValueOnce('Error: Property "due" not found.'); // Obsidian error for absent key
     const result = await invoke(makeServer(), "property_search", { key: "due", missing: true });
     expect(result.content[0].text).toBe("A.md");
   });

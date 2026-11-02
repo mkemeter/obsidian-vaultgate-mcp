@@ -321,7 +321,7 @@ describe("search scope guard (Pattern D)", () => {
     registerSearchTools(server);
     const result = await invoke(server, "search", { query: "anything" });
     expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain("Full-vault search is not available");
+    expect(result.content[0].text).toContain("scoping is active");
     expect(mockRun).not.toHaveBeenCalled();
   });
 

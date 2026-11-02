@@ -148,8 +148,11 @@ export function registerPropertyTools(server: McpServer): void {
           try {
             const raw = await runObsidian(["property:read", `name=${key}`, `path=${file}`]);
             const propValue = raw.trim();
-            // Obsidian returns the string "null" (not empty string) when a key is absent.
-            const propPresent = propValue !== "" && propValue !== "null";
+            // Obsidian signals a missing key in two ways depending on the version/context:
+            // – empty string (""), – literal string "null", or
+            // – an error message "Error: Property \"<key>\" not found." (exit 0, stdout).
+            const propPresent =
+              propValue !== "" && propValue !== "null" && !propValue.startsWith("Error: Property ");
             if (missing) {
               if (!propPresent) matches.push(file);
             } else if (value !== undefined) {

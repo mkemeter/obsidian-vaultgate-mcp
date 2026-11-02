@@ -299,25 +299,14 @@ export function getActiveScopeAccess(): ScopeAccess {
  * checks — no explicit enabled-guard needed.
  *
  * Rules applied (in order):
- * 1. Conventions files are always **readable** regardless of scope or access
- *    level (the AI must be able to read VaultGate config). Write restrictions
- *    still apply; scope membership still applies to writes.
- * 2. Scope-level `access: none` → all operations denied (absolute).
- * 3. Scope membership: notes from a different scope are denied unless the note's
+ * 1. Scope-level `access: none` → all operations denied (absolute).
+ * 2. Scope membership: notes from a different scope are denied unless the note's
  *    scope has `isolation: shared`. Direct path knowledge does not grant access.
- * 4. Scope-level `access: read` + write operation → denied.
+ * 3. Scope-level `access: read` + write operation → denied.
  *
- * Future note-level access rules slot in after step 4.
+ * Future note-level access rules slot in after step 3.
  */
 export function checkAccess(path: string | undefined, op: "read" | "write"): AccessResult {
-  // Conventions files are always readable — VaultGate config, not notes.
-  // Applies across scope boundaries (root conventions file is injected in all
-  // named scopes when rootHasScope = false). Write restrictions still apply.
-  if (op === "read" && path !== undefined) {
-    const base = path.includes("/") ? path.slice(path.lastIndexOf("/") + 1) : path;
-    if (base === config.contextFileName) return { allowed: true };
-  }
-
   const current = getActiveScope();
   const noteScope = path !== undefined ? resolveNoteScope(path) : current;
   const access = getScopeAccess(noteScope);
@@ -408,9 +397,10 @@ export function discoverScopes(): string[] {
  *
  * Logic:
  * - Scoping disabled → `[config.contextFileName]` (root file only)
- * - Root has no `scope:` frontmatter (global baseline):
- *   - Unscoped or unnamed scope → `[root]`
- *   - Named scope with a conventions file → `[root, scopeFile]`
+ * - Root has no `scope:` frontmatter:
+ *   - Unscoped → `[root]`
+ *   - Named scope with a conventions file → `[scopeFile]` (root is not a global baseline)
+ *   - Named scope without a conventions file → `[]`
  * - Root has `scope:` frontmatter (root is itself a scope zone):
  *   - Active scope has a conventions file → `[scopeFile]`
  *   - Otherwise → `[]` (no conventions injected)
@@ -421,24 +411,15 @@ export function getConventionsPaths(): string[] {
   }
   const scope = getActiveScope();
   if (!rootHasScope) {
-    const paths: string[] = [config.contextFileName];
-    if (scope !== "unscoped") {
-      const scopePath = conventionsPathMap.get(scope);
-      if (scopePath) paths.push(scopePath);
+    if (scope === "unscoped") {
+      return [config.contextFileName];
     }
-    return paths;
+    const scopePath = conventionsPathMap.get(scope);
+    return scopePath ? [scopePath] : [];
   }
   // Root carries a scope: — only inject it when the active scope matches.
   const scopePath = conventionsPathMap.get(scope);
   return scopePath ? [scopePath] : [];
-}
-
-/**
- * Returns `true` when the root conventions file does NOT carry a `scope:`
- * frontmatter key, meaning it acts as a global baseline injected for all scopes.
- */
-export function isRootGlobal(): boolean {
-  return !rootHasScope;
 }
 
 // ---------------------------------------------------------------------------

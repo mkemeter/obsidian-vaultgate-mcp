@@ -446,15 +446,15 @@ describe("scope engine (CLI-based)", () => {
     expect(getConventionsPaths()).toEqual(["VAULTGATE.md"]);
   });
 
-  it("getConventionsPaths returns [root, scopeFile] when root has no scope and named scope active", async () => {
+  // regression: vault_context returned scope error when active scope was a named scope
+  it("getConventionsPaths returns [scopeFile] only when root has no scope: and named scope active", async () => {
     await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" }, "work");
     const { getConventionsPaths } = await import("../../src/scope.js");
-    expect(getConventionsPaths()).toEqual(["VAULTGATE.md", "Work/VAULTGATE.md"]);
+    expect(getConventionsPaths()).toEqual(["Work/VAULTGATE.md"]);
   });
 
-  it("getConventionsPaths returns [rootFile] when named scope has no conventions file", async () => {
-    // initScopeEngine with homeScope="work" but no scope zones found → stays disabled.
-    // Use a different setup: active scope set manually to something with no conventions file.
+  it("getConventionsPaths returns [rootFile] when root has no scope: and active scope is unscoped", async () => {
+    // Named scope-local files exist, but active scope is "unscoped" → root file only.
     await initWithCli(
       {
         "Work/VAULTGATE.md": "---\nscope: work\n---",
@@ -463,22 +463,18 @@ describe("scope engine (CLI-based)", () => {
       "unscoped"
     );
     const { setActiveScope, getConventionsPaths } = await import("../../src/scope.js");
-    // Switch to a scope that has a conventions file path in conventionsPathMap.
-    // To test the "no scope file" case, we test the "unscoped" active scope case instead,
-    // since conventionsPathMap only contains scopes we found.
     setActiveScope("unscoped");
-    // unscoped → no scope file in map → [rootFile] only
     expect(getConventionsPaths()).toEqual(["VAULTGATE.md"]);
   });
 
-  it("getConventionsPaths returns [rootFile] when active scope is not in conventionsPathMap", async () => {
+  it("getConventionsPaths returns [] when active scope is not in conventionsPathMap", async () => {
     // regression: L426 false branch — active scope is a named scope but has no
     // corresponding entry in conventionsPathMap (e.g. set via setActiveScope with
-    // an undiscovered name). Must return [rootFile] without pushing undefined.
+    // an undiscovered name). Must return [] (root is not a global baseline).
     await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" }, "work");
     const { setActiveScope, getConventionsPaths } = await import("../../src/scope.js");
     setActiveScope("undiscovered");
-    expect(getConventionsPaths()).toEqual(["VAULTGATE.md"]);
+    expect(getConventionsPaths()).toEqual([]);
   });
 
   it("getConventionsPaths returns [scopeFile] when root itself has scope: frontmatter and scope matches", async () => {
@@ -493,20 +489,6 @@ describe("scope engine (CLI-based)", () => {
     const { getConventionsPaths } = await import("../../src/scope.js");
     // active scope "unscoped" → no match for "root-scope" → []
     expect(getConventionsPaths()).toEqual([]);
-  });
-
-  // ---- isRootGlobal ----
-
-  it("isRootGlobal returns true when root file has no scope: frontmatter", async () => {
-    await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" });
-    const { isRootGlobal } = await import("../../src/scope.js");
-    expect(isRootGlobal()).toBe(true);
-  });
-
-  it("isRootGlobal returns false when root file carries scope: frontmatter", async () => {
-    await initWithCli({ "VAULTGATE.md": "---\nscope: root-scope\n---" }, "root-scope");
-    const { isRootGlobal } = await import("../../src/scope.js");
-    expect(isRootGlobal()).toBe(false);
   });
 
   // ---- frontmatter scope value parsing (via initScopeEngine behavior) ----
@@ -639,12 +621,16 @@ describe("scope engine (CLI-based)", () => {
       expect(checkAccess("Work/Note.md", "write").allowed).toBe(true);
     });
 
-    it("checkAccess: conventions file is always readable even in none scope", async () => {
+    it("checkAccess: conventions file in none scope is blocked the same as any other file", async () => {
+      // regression: conventions files must not bypass access control — they are
+      // subject to the same scope rules as every other file. VaultGate reads them
+      // internally via runObsidianAdmin (which bypasses checkAccess), so no
+      // special bypass in checkAccess is needed or permitted.
       await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\naccess: none\n---" });
-      const { checkAccess } = await import("../../src/scope.js");
-      // VAULTGATE.md is the contextFileName — read must be allowed
+      const { checkAccess, SCOPE_NO_ACCESS_MESSAGE } = await import("../../src/scope.js");
       const result = checkAccess("Work/VAULTGATE.md", "read");
-      expect(result.allowed).toBe(true);
+      expect(result.allowed).toBe(false);
+      expect((result as { allowed: false; message: string }).message).toBe(SCOPE_NO_ACCESS_MESSAGE);
     });
 
     it("checkAccess: conventions file write is blocked in none scope", async () => {
@@ -678,6 +664,17 @@ describe("scope engine (CLI-based)", () => {
       const result = filterByScope(["Work/Secret.md", "Personal/Note.md", "Root.md"]);
       expect(result).not.toContain("Work/Secret.md");
       expect(result).toContain("Personal/Note.md");
+      expect(result).toContain("Root.md");
+    });
+
+    it("filterByScope excludes conventions file from none scope", async () => {
+      // regression: VAULTGATE.md files must not bypass filterByScope — they are blocked
+      // by access:none the same as any other file in that scope.
+      await initWithCli({ "Secret/VAULTGATE.md": "---\nscope: secret\naccess: none\n---" }, "unscoped");
+      const { filterByScope } = await import("../../src/scope.js");
+      const result = filterByScope(["Secret/VAULTGATE.md", "Secret/note.md", "Root.md"]);
+      expect(result).not.toContain("Secret/VAULTGATE.md");
+      expect(result).not.toContain("Secret/note.md");
       expect(result).toContain("Root.md");
     });
 
@@ -739,7 +736,8 @@ describe("scope engine (CLI-based)", () => {
       expect(checkAccess("RootNote.md", "read").allowed).toBe(true);
     });
 
-    it("checkAccess: conventions file in out-of-scope zone is still readable", async () => {
+    it("checkAccess: conventions file in out-of-scope zone is blocked the same as any other file", async () => {
+      // regression: conventions files must not bypass scope membership checks.
       await initWithCli(
         {
           "Work/VAULTGATE.md": "---\nscope: work\n---",
@@ -747,9 +745,10 @@ describe("scope engine (CLI-based)", () => {
         },
         "work"
       );
-      const { checkAccess } = await import("../../src/scope.js");
-      // Conventions files are VaultGate config — always readable across scope boundaries.
-      expect(checkAccess("Personal/VAULTGATE.md", "read").allowed).toBe(true);
+      const { checkAccess, SCOPE_OUT_OF_SCOPE_MESSAGE } = await import("../../src/scope.js");
+      const result = checkAccess("Personal/VAULTGATE.md", "read");
+      expect(result.allowed).toBe(false);
+      expect((result as { allowed: false; message: string }).message).toBe(SCOPE_OUT_OF_SCOPE_MESSAGE);
     });
 
     it("checkAccess: conventions file write in out-of-scope zone is blocked", async () => {
@@ -761,7 +760,6 @@ describe("scope engine (CLI-based)", () => {
         "work"
       );
       const { checkAccess, SCOPE_OUT_OF_SCOPE_MESSAGE } = await import("../../src/scope.js");
-      // Read exception does not extend to writes — scope membership applies.
       const result = checkAccess("Personal/VAULTGATE.md", "write");
       expect(result.allowed).toBe(false);
       expect((result as { allowed: false; message: string }).message).toBe(SCOPE_OUT_OF_SCOPE_MESSAGE);
