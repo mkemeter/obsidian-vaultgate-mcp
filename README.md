@@ -38,7 +38,7 @@ Ask your AI to read notes, run full-text or semantic search, manage tasks, apply
 <td width="50%">
 
 **🔒 Private by design**
-Note content never leaves your machine. Binds to `127.0.0.1` only — unreachable from any other host on the network.
+Note content never leaves your machine. Binds to `127.0.0.1` only — unreachable from the network. Every operation is mediated by the running Obsidian instance; the AI never touches your files directly.
 
 </td>
 <td width="50%">
@@ -79,8 +79,8 @@ Open any note, search result, or daily note directly in Obsidian. The AI can han
 <tr>
 <td>
 
-**🔐 Obsidian stays in control**
-The AI never touches your files directly. Every operation is mediated by the running Obsidian instance.
+**🛡️ Scope zones**
+Partition your vault into named zones with hard AI access boundaries. Restrict the AI to one zone at a time, make zones read-only, or exclude them permanently — enforced in server code, not by an LLM instruction.
 
 </td>
 <td>
