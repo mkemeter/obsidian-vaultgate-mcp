@@ -28,7 +28,7 @@ export function installAccessGuard(fn: AccessGuard): void {
 
 /**
  * CLI commands that mutate vault state. Used by the access guard to distinguish
- * read operations from write operations for `ro`-access scope enforcement.
+ * read operations from write operations for `read`-access scope enforcement.
  */
 export const CLI_WRITE_COMMANDS: ReadonlySet<string> = new Set([
   "create",

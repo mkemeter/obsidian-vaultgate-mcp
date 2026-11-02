@@ -9,8 +9,8 @@ import { config } from "./config.js";
  * conventions file (e.g. `VAULTGATE.md`) in any subdirectory to declare a
  * scope zone for notes in that directory and below. Optionally add `access:`
  * to control what AI operations are permitted within that scope:
- * - `rw` (default) — full read/write access
- * - `ro` — read-only; write operations are blocked
+ * - `full` (default) — full read/write access
+ * - `read` — read-only; write operations are blocked
  * - `none` — fully excluded; all access is blocked even in `unscoped` mode
  *
  * VaultGate discovers all scope zones automatically at startup by listing vault
@@ -39,7 +39,7 @@ const MAX_SCOPE_NAME_LENGTH = 64;
 // ---------------------------------------------------------------------------
 
 /** Permitted access level for a scope zone. */
-export type ScopeAccess = "rw" | "ro" | "none";
+export type ScopeAccess = "full" | "read" | "none";
 
 /** Discriminated union returned by {@link checkAccess}. */
 export type AccessResult = { allowed: true } | { allowed: false; message: string };
@@ -52,7 +52,7 @@ export type AccessResult = { allowed: true } | { allowed: false; message: string
 let scopeZoneMap: Map<string, string> = new Map();
 /** Maps scope name → vault-relative path of the conventions file that declares it. */
 let conventionsPathMap: Map<string, string> = new Map();
-/** Maps scope name → declared access level (`"rw"` when absent). */
+/** Maps scope name → declared access level (`"full"` when absent). */
 let scopeAccessMap: Map<string, ScopeAccess> = new Map();
 /** True when the vault root conventions file itself carries a `scope:` key. */
 let rootHasScope = false;
@@ -120,27 +120,23 @@ function parseScopeFrontmatter(content: string): string | undefined {
 
 /**
  * Parses the `access:` value from YAML frontmatter.
- * Absent, blank, or unrecognised → `"rw"` (preserves backward compatibility).
+ * Absent, blank, or unrecognised → `"full"`.
  */
 function parseAccessLevel(content: string): ScopeAccess {
   const frontmatterMatch = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(content);
-  if (!frontmatterMatch?.[1]) return "rw";
+  if (!frontmatterMatch?.[1]) return "full";
   const fm = frontmatterMatch[1];
   const accessMatch = /^access:\s*["']?([^"'\r\n]+?)["']?\s*$/m.exec(fm);
-  if (!accessMatch?.[1]) return "rw";
+  if (!accessMatch?.[1]) return "full";
   switch (accessMatch[1].trim().toLowerCase()) {
     case "none":
       return "none";
-    case "ro":
-    case "read-only":
-    case "readonly":
-      return "ro";
-    case "rw":
-    case "read-write":
-    case "readwrite":
-      return "rw";
+    case "read":
+      return "read";
+    case "full":
+      return "full";
     default:
-      return "rw";
+      return "full";
   }
 }
 
@@ -231,17 +227,17 @@ async function buildScopeMapFromCli(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 /**
- * Returns the declared access level for a scope, defaulting to `"rw"` when
+ * Returns the declared access level for a scope, defaulting to `"full"` when
  * the scope has no `access:` declaration. Backward-compatible: vaults without
  * `access:` frontmatter behave identically to before.
  */
 export function getScopeAccess(scope: string): ScopeAccess {
-  return scopeAccessMap.get(scope) ?? "rw";
+  return scopeAccessMap.get(scope) ?? "full";
 }
 
 /**
  * Returns the access level of the currently active scope.
- * Defaults to `"rw"` when no `access:` declaration exists for the active scope.
+ * Defaults to `"full"` when no `access:` declaration exists for the active scope.
  */
 export function getActiveScopeAccess(): ScopeAccess {
   return getScopeAccess(activeScope);
@@ -252,7 +248,7 @@ export function getActiveScopeAccess(): ScopeAccess {
  * live here — callers only need to check the returned {@link AccessResult}.
  *
  * When scoping is not configured (`scopeZoneMap` empty, `activeScope = "unscoped"`),
- * every path resolves to `"unscoped"` with default `"rw"` access and passes all
+ * every path resolves to `"unscoped"` with default `"full"` access and passes all
  * checks — no explicit enabled-guard needed.
  *
  * Rules applied (in order):
@@ -262,7 +258,7 @@ export function getActiveScopeAccess(): ScopeAccess {
  * 2. Scope-level `access: none` → all operations denied (absolute).
  * 3. Scope membership: notes from a different scope are denied — direct path
  *    knowledge does not grant access.
- * 4. Scope-level `access: ro` + write operation → denied.
+ * 4. Scope-level `access: read` + write operation → denied.
  *
  * Future note-level access rules slot in after step 4.
  */
@@ -286,7 +282,7 @@ export function checkAccess(path: string | undefined, op: "read" | "write"): Acc
     return { allowed: false, message: SCOPE_OUT_OF_SCOPE_MESSAGE };
   }
 
-  if (access === "ro" && op === "write")
+  if (access === "read" && op === "write")
     return { allowed: false, message: SCOPE_WRITE_BLOCKED_MESSAGE };
 
   // Future: note-level access rules slot in here

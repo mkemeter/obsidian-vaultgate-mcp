@@ -172,21 +172,21 @@ describe("vault_context_set — frontmatter protection", () => {
   });
 
   it("preserves existing frontmatter when writing new body", async () => {
-    const existing = "---\nscope: work\naccess: ro\n---\n\nOld body";
+    const existing = "---\nscope: work\naccess: read\n---\n\nOld body";
     mockRun.mockResolvedValueOnce(existing); // read existing
     mockRun.mockResolvedValueOnce("");       // write
     await invoke(makeServer(), "vault_context_set", { content: "New body", dryRun: false });
     expect(mockRun).toHaveBeenCalledWith([
       "create",
       "name=VAULTGATE.md",
-      "content=---\nscope: work\naccess: ro\n---\nNew body",
+      "content=---\nscope: work\naccess: read\n---\nNew body",
       "overwrite",
     ]);
   });
 
   it("strips frontmatter from AI-provided content and restores existing frontmatter", async () => {
     const existing = "---\nscope: work\n---\n\nOld body";
-    const aiContent = "---\naccess: rw\n---\n\nNew body";
+    const aiContent = "---\naccess: full\n---\n\nNew body";
     mockRun.mockResolvedValueOnce(existing); // read existing
     mockRun.mockResolvedValueOnce("");       // write
     await invoke(makeServer(), "vault_context_set", { content: aiContent, dryRun: false });

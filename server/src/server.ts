@@ -125,7 +125,7 @@ export async function createServer(iconUrl?: string): Promise<McpServer> {
     if (!isScopingEnabled()) return;
     const notePath = extractNotePath(args);
     const op = isCliWriteCommand(args) ? "write" : "read";
-    // checkAccess(undefined, "read") returns allowed for rw/ro scopes (no-op for list ops);
+    // checkAccess(undefined, "read") returns allowed for full/read scopes (no-op for list ops);
     // only blocks for access:none — Layer 1 (filterByScope) still filters path lists afterward.
     const result = checkAccess(notePath, op);
     if (!result.allowed) throw new Error(result.message);
