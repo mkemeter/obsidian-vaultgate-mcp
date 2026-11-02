@@ -159,4 +159,45 @@ describe("validateConfigPatch", () => {
       );
     });
   });
+
+  describe("homeScopeByVault", () => {
+    it("accepts a valid per-vault scope map", () => {
+      const map = { MyVault: "personal", OtherVault: "work", "": "unscoped" };
+      expect(validateConfigPatch({ homeScopeByVault: map }).homeScopeByVault).toEqual(map);
+    });
+
+    it("accepts an empty object (no entries yet)", () => {
+      expect(validateConfigPatch({ homeScopeByVault: {} }).homeScopeByVault).toEqual({});
+    });
+
+    it("rejects a non-object value", () => {
+      expect(() =>
+        validateConfigPatch({ homeScopeByVault: "bad" as unknown as Record<string, string> })
+      ).toThrow(/Invalid homeScopeByVault/);
+    });
+
+    it("rejects an array", () => {
+      expect(() =>
+        validateConfigPatch({ homeScopeByVault: [] as unknown as Record<string, string> })
+      ).toThrow(/Invalid homeScopeByVault/);
+    });
+
+    it("rejects a map entry with an empty scope value", () => {
+      expect(() => validateConfigPatch({ homeScopeByVault: { MyVault: "" } })).toThrow(
+        /Invalid scope in homeScopeByVault/
+      );
+    });
+
+    it("rejects a map entry with a scope value containing a forward slash", () => {
+      expect(() => validateConfigPatch({ homeScopeByVault: { MyVault: "a/b" } })).toThrow(
+        /Invalid scope in homeScopeByVault/
+      );
+    });
+
+    it("rejects a map entry with a scope value longer than 64 characters", () => {
+      expect(() =>
+        validateConfigPatch({ homeScopeByVault: { MyVault: "a".repeat(65) } })
+      ).toThrow(/Invalid scope in homeScopeByVault/);
+    });
+  });
 });

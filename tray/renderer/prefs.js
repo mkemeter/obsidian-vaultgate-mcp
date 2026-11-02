@@ -59,6 +59,15 @@
   }
   vaultSelect.value = config.vault ?? "";
 
+  // When the user picks a different vault, restore that vault's last-used scope.
+  vaultSelect.addEventListener("change", () => {
+    if (homeScopeSelect.disabled) return;
+    const stored = config.homeScopeByVault?.[vaultSelect.value] ?? "";
+    const normalized = stored === "unscoped" ? "" : stored;
+    const exists = Array.from(homeScopeSelect.options).some((o) => o.value === normalized);
+    homeScopeSelect.value = exists ? normalized : "";
+  });
+
   // Port — always show the saved port; validatePort() will flag any conflict ----
   portInput.value = String(config.port);
   obsidianInput.value =
@@ -77,7 +86,8 @@
       opt.textContent = scope;
       homeScopeSelect.appendChild(opt);
     }
-    homeScopeSelect.value = config.homeScope === "unscoped" ? "" : (config.homeScope || "");
+    const savedScope = config.homeScopeByVault?.[vaultSelect.value] ?? config.homeScope;
+    homeScopeSelect.value = savedScope === "unscoped" ? "" : (savedScope || "");
   } else {
     homeScopeSelect.disabled = true;
     if (homeScopeHint) homeScopeHint.hidden = false;
@@ -208,14 +218,18 @@
     const port = Number.parseInt(portInput.value, 10);
     const injectIntervalSecs = Number.parseInt(injectIntervalInput.value, 10);
     const homeScopeValue = homeScopeSelect.value.trim();
+    const homeScopeNormalized = homeScopeValue || "unscoped";
+    const selectedVault = vaultSelect.value;
+    const homeScopeByVault = { ...(config.homeScopeByVault ?? {}), [selectedVault]: homeScopeNormalized };
     const patch = {
-      vault: vaultSelect.value,
+      vault: selectedVault,
       port: Number.isFinite(port) ? port : config.port,
       obsidianPath: obsidianInput.value,
       contextFileName: contextFileInput.value.trim() || "VAULTGATE.md",
       injectConventions: injectConventionsInput.checked,
       injectIntervalSecs: Number.isFinite(injectIntervalSecs) ? injectIntervalSecs : 30,
-      homeScope: homeScopeValue || "unscoped",
+      homeScope: homeScopeNormalized,
+      homeScopeByVault,
       scopeSwitchingEnabled: scopeSwitchingInput.checked,
       noUri: noUriInput.checked,
     };

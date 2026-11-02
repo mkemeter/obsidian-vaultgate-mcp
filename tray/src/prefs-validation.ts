@@ -79,6 +79,28 @@ export function validateConfigPatch(patch: Partial<VaultGateConfig>): Partial<Va
       throw new Error("Invalid noUri value — must be a boolean.");
     }
   }
+  if (patch.homeScopeByVault !== undefined) {
+    if (
+      typeof patch.homeScopeByVault !== "object" ||
+      patch.homeScopeByVault === null ||
+      Array.isArray(patch.homeScopeByVault)
+    ) {
+      throw new Error("Invalid homeScopeByVault — must be a plain object.");
+    }
+    for (const scope of Object.values(patch.homeScopeByVault)) {
+      if (
+        typeof scope !== "string" ||
+        scope.trim().length === 0 ||
+        scope.length > 64 ||
+        scope.includes("/") ||
+        scope.includes("\\")
+      ) {
+        throw new Error(
+          "Invalid scope in homeScopeByVault — must be a non-empty string up to 64 characters with no path separators."
+        );
+      }
+    }
+  }
 
   const normalized: Partial<VaultGateConfig> = { ...patch };
   if (patch.contextFileName !== undefined) {

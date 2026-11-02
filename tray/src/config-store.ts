@@ -68,6 +68,13 @@ export interface VaultGateConfig {
    * leave this unset. Requires a server restart to take effect.
    */
   noUri: boolean;
+  /**
+   * Per-vault home scope map. Keys are vault names (empty string = active vault).
+   * Values are scope names or `"unscoped"`. Takes precedence over `homeScope`
+   * for the matching vault. Written on every prefs save so switching vaults
+   * restores the scope that was last active for that vault.
+   */
+  homeScopeByVault?: Record<string, string>;
 }
 
 /** A vault registered in Obsidian's `obsidian.json`. */
@@ -119,6 +126,16 @@ export function saveConfig(patch: Partial<VaultGateConfig>): void {
 /** Returns true if the user has saved any config (i.e. not first-run). */
 export function hasConfig(): boolean {
   return fs.existsSync(configPath());
+}
+
+/**
+ * Returns the home scope for a given vault name.
+ *
+ * Looks up `cfg.homeScopeByVault[vault]` first (per-vault memory), falling
+ * back to the flat `cfg.homeScope` for configs that predate per-vault storage.
+ */
+export function getHomeScopeForVault(cfg: VaultGateConfig, vault: string): string {
+  return cfg.homeScopeByVault?.[vault] ?? cfg.homeScope;
 }
 
 /**

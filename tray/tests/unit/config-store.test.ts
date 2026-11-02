@@ -214,6 +214,45 @@ describe("detectObsidianPath", () => {
 });
 
 // ---------------------------------------------------------------------------
+// getHomeScopeForVault
+// ---------------------------------------------------------------------------
+
+describe("getHomeScopeForVault", () => {
+  it("falls back to homeScope when no per-vault map is present", async () => {
+    const { getHomeScopeForVault, loadConfig } = await import("../../src/config-store.js");
+    const cfg = loadConfig(); // defaults: homeScope="unscoped", no homeScopeByVault
+    expect(getHomeScopeForVault(cfg, "MyVault")).toBe("unscoped");
+  });
+
+  it("returns the per-vault scope when the vault key exists", async () => {
+    const { getHomeScopeForVault, saveConfig, loadConfig } = await import(
+      "../../src/config-store.js"
+    );
+    saveConfig({ homeScope: "unscoped", homeScopeByVault: { MyVault: "personal" } });
+    const cfg = loadConfig();
+    expect(getHomeScopeForVault(cfg, "MyVault")).toBe("personal");
+  });
+
+  it("falls back to homeScope for a vault not in the map", async () => {
+    const { getHomeScopeForVault, saveConfig, loadConfig } = await import(
+      "../../src/config-store.js"
+    );
+    saveConfig({ homeScope: "work", homeScopeByVault: { MyVault: "personal" } });
+    const cfg = loadConfig();
+    expect(getHomeScopeForVault(cfg, "OtherVault")).toBe("work");
+  });
+
+  it("uses empty string key for the active-vault slot", async () => {
+    const { getHomeScopeForVault, saveConfig, loadConfig } = await import(
+      "../../src/config-store.js"
+    );
+    saveConfig({ homeScope: "unscoped", homeScopeByVault: { "": "ai" } });
+    const cfg = loadConfig();
+    expect(getHomeScopeForVault(cfg, "")).toBe("ai");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // getRegisteredVaults
 // ---------------------------------------------------------------------------
 
