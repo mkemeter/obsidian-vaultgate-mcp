@@ -132,6 +132,30 @@
         border: 1px solid var(--border);
         border-radius: 6px;
       }
+      select {
+        -webkit-appearance: none;
+        appearance: none;
+        padding-right: 28px;
+        cursor: pointer;
+      }
+      .select-wrap {
+        position: relative;
+      }
+      .select-wrap::after {
+        content: "▾";
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1;
+        pointer-events: none;
+      }
+      .select-wrap:has(select:disabled) {
+        opacity: 0.5;
+        cursor: default;
+      }
       input[type="text"]:focus,
       input[type="number"]:focus,
       select:focus {
@@ -242,7 +266,7 @@
     <!-- Server tab -->
     <div class="tab-panel active" id="tab-server">
       <label for="vault">Vault</label>
-      <select id="vault"></select>
+      <div class="select-wrap"><select id="vault"></select></div>
 
       <label for="port">Local server port</label>
       <input type="number" id="port" min="1024" max="65535" />
@@ -293,9 +317,9 @@
       <p class="section-hint">Server-enforced folder access control. Add a <code style="font-family: monospace; font-size: 11px">scope:</code> key to any <code style="font-family: monospace; font-size: 11px">VAULTGATE.md</code> (or your configured conventions file) in a subfolder to define a scope zone — no vault path required.</p>
 
       <label for="home-scope">Home scope</label>
-      <select id="home-scope" disabled>
+      <div class="select-wrap"><select id="home-scope" disabled>
         <option value="">unscoped</option>
-      </select>
+      </select></div>
       <p class="section-hint" id="home-scope-hint" hidden>
         No scope zones found. Add a <code style="font-family: monospace; font-size: 11px">scope:</code> key to a conventions file in a subfolder to define scope zones.
       </p>
