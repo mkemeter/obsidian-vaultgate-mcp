@@ -424,7 +424,7 @@ A scope zone is declared by placing a `VAULTGATE.md` (or your [configured conven
 
 ```
 vault/
-├── VAULTGATE.md                ← root conventions, no scope: key → global baseline
+├── VAULTGATE.md                ← root conventions (unscoped zone)
 ├── Inbox/
 │   └── Todo.md                 ← unscoped zone
 ├── Work/
@@ -518,11 +518,10 @@ VaultGate discovers scope zones automatically at startup via the Obsidian CLI �
 
 For every read or write on a note path, VaultGate applies these rules in order. They are not instructions to the model — the model has no way to override them:
 
-1. **Conventions files are always readable.** `VAULTGATE.md` is readable across scope boundaries so VaultGate can load context. Writes still follow normal rules.
-2. **`access: none` is absolute.** A note in a `none` zone is blocked regardless of the active scope and regardless of how the path was obtained.
-3. **Scope membership is enforced.** Notes are only accessible when their zone matches the active scope — unless the zone has `isolation: shared`, in which case its notes are visible from any active scope. Knowing a path does not bypass this — `files_read("Work/Secret.md")` is subject to the same check as `files_list`.
-4. **`access: read` blocks writes.** Reads from a read-only zone succeed; create, append, and update operations are blocked.
-5. **Conventions file frontmatter is protected.** `vault_context_set` cannot overwrite `scope:` or `access:` keys — these must be edited manually in Obsidian.
+1. **`access: none` is absolute.** A note in a `none` zone is blocked regardless of the active scope and regardless of how the path was obtained.
+2. **Scope membership is enforced.** Notes are only accessible when their zone matches the active scope — unless the zone has `isolation: shared`, in which case its notes are visible from any active scope. Knowing a path does not bypass this — `files_read("Work/Secret.md")` is subject to the same check as `files_list`.
+3. **`access: read` blocks writes.** Reads from a read-only zone succeed; create, append, and update operations are blocked.
+4. **Conventions file frontmatter is protected.** `vault_context_set` cannot overwrite `scope:` or `access:` keys — these must be edited manually in Obsidian.
 
 #### Common patterns
 
@@ -570,8 +569,8 @@ access: none
 
 When a subfolder's conventions file carries a `scope:` key, VaultGate adjusts what it injects at session start:
 
-- **Root `VAULTGATE.md` without `scope:`** — always injected as the global baseline, with the active scope's conventions file appended on top.
-- **Root `VAULTGATE.md` with `scope:`** — the root is itself a scope zone. Only the matching scope's file is injected; there is no global baseline.
+- **Root `VAULTGATE.md` without `scope:`** — it is the unscoped zone's own conventions file, injected only when `unscoped` is the active scope. When a named scope is active, only that scope's conventions file is injected.
+- **Root `VAULTGATE.md` with `scope:`** — the root is itself a scope zone. Only the matching scope's file is injected.
 
 The AI receives the relevant conventions at the start of each session without extra prompting.
 
@@ -702,7 +701,7 @@ The Task Scheduler task is configured to stop on battery by default. To fix: ope
 
 ## Tray Companion App
 
-A menu-bar app that wraps the same VaultGate MCP server core in a native macOS GUI — no terminal needed. It exposes the [same 34 + 5 tools](#available-tools) as the headless package, and adds a layer of GUI conveniences on top:
+A menu-bar app that wraps the same VaultGate MCP server core in a native macOS GUI — no terminal needed. It exposes the [same 35 + 5 tools](#available-tools) as the headless package, and adds a layer of GUI conveniences on top:
 
 <div align="center">
 

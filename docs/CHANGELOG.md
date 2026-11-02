@@ -9,7 +9,7 @@ Both distributions — the headless npm package (`server/`) and the Electron tra
 (`tray/`) — share a single version line. Each release entry groups changes by distribution.
 A section may be absent if that distribution had no changes in the release.
 
-## [Unreleased]
+## [0.4.0] — 2026-11-02
 
 ### Server
 
@@ -21,10 +21,10 @@ A section may be absent if that distribution had no changes in the release.
 - **Vault scopes** — partition your vault into named zones enforced in server code. Add a `scope:` key to the YAML frontmatter of any conventions file (e.g. `VAULTGATE.md`) in a subfolder to declare a scope zone — no filesystem path required. VaultGate discovers scope zones automatically at startup via the Obsidian CLI. Notes outside the active scope are invisible to the AI: they disappear from file listings, reads, full-text search, and semantic search. Set `OBSIDIAN_SCOPE=<name>` to start in a named scope. Defaults to `unscoped` — the zone for notes with no ancestor scope declaration. In vaults with no scope zones, `unscoped` means all notes and the behaviour is identical to before scopes existed.
 - **`vault_scope` tool** — shows the current scope, home scope, and all available scopes in the vault. Registered when at least one scope zone is discovered.
 - **`vault_scope_set` tool** — switches the active scope for the current session. Registered only when `VAULTGATE_SCOPE_SWITCHING=true` (opt-in).
-- **Scope-local conventions** — when a subdirectory's conventions file carries a `scope:` key, VaultGate appends it after the root conventions file at session start. The root file is injected as a global baseline unless it also carries a `scope:` key (making it a scope zone itself).
+- **Scope-local conventions** — when a subdirectory's conventions file carries a `scope:` key, VaultGate injects it as the active scope's conventions at session start. When the root file has no `scope:` key, it is the unscoped zone's own conventions file and is injected only when `unscoped` is active — not as a cross-scope global baseline. When the root file carries a `scope:` key it is itself a scope zone, and only the matching scope's file is injected.
 - **Three new env vars**: `OBSIDIAN_SCOPE`, `VAULTGATE_SCOPE_SWITCHING`, `OBSIDIAN_DAILY_NOTES_PATH`.
 - **`VAULTGATE_NO_URI`** — set to `true` to skip registering `note_open`, `search_open`, and `daily_open`. Useful in server or background deployments (pm2, launchd, shared machines) where launching `obsidian://` URIs would steal focus or disrupt other users. URI tools are enabled by default; this is an expert opt-out only.
-- **Scope-level AI access control** — declare `access: read` (read-only) or `access: none` (fully excluded) in a scope's conventions file frontmatter. `read` allows reads but blocks all writes; `none` is an absolute block — notes become invisible to the AI even in `unscoped` mode. Enforced at two layers: a central `checkAccess()` decision function in scope resolution and a `runObsidian` guard installed at server startup. New tools are protected automatically. Conventions files remain readable in all access modes.
+- **Scope-level AI access control** — declare `access: read` (read-only) or `access: none` (fully excluded) in a scope's conventions file frontmatter. `read` allows reads but blocks all writes; `none` is an absolute block — notes become invisible to the AI even in `unscoped` mode. Enforced at two layers: a central `checkAccess()` decision function in scope resolution and a `runObsidian` guard installed at server startup. New tools are protected automatically. Conventions files are subject to the same scope and access rules as every other note.
 - **Frontmatter protection in `vault_context_set`** — the tool now strips any YAML frontmatter the AI includes in the `content` parameter and restores the existing frontmatter from the file before writing. Conventions file frontmatter (`scope:`, `access:`, and any custom properties) can only be changed manually, never by the AI.
 
 #### Changed
