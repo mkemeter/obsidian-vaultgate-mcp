@@ -23,6 +23,8 @@ A section may be absent if that distribution had no changes in the release.
 - **Scope-local conventions** — when a subdirectory's conventions file carries a `scope:` key, VaultGate appends it after the root conventions file at session start. The root file is injected as a global baseline unless it also carries a `scope:` key (making it a scope zone itself).
 - **Three new env vars**: `OBSIDIAN_SCOPE`, `VAULTGATE_SCOPE_SWITCHING`, `OBSIDIAN_DAILY_NOTES_PATH`.
 - **`VAULTGATE_NO_URI`** — set to `true` to skip registering `note_open`, `search_open`, and `daily_open`. Useful in server or background deployments (pm2, launchd, shared machines) where launching `obsidian://` URIs would steal focus or disrupt other users. URI tools are enabled by default; this is an expert opt-out only.
+- **Scope-level AI access control** — declare `access: ro` (read-only) or `access: none` (fully excluded) in a scope's conventions file frontmatter. `ro` allows reads but blocks all writes; `none` is an absolute block — notes become invisible to the AI even in `unscoped` mode. Enforced at two layers: a central `checkAccess()` decision function in scope resolution and a `runObsidian` guard installed at server startup. New tools are protected automatically. Conventions files remain readable in all access modes.
+- **Frontmatter protection in `vault_context_set`** — the tool now strips any YAML frontmatter the AI includes in the `content` parameter and restores the existing frontmatter from the file before writing. Conventions file frontmatter (`scope:`, `access:`, and any custom properties) can only be changed manually, never by the AI.
 
 #### Changed
 

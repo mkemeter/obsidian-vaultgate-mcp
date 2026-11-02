@@ -2835,3 +2835,76 @@ describe("resolveIndexCacheDir", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// regression: stale index entries with access:none not filtered from results
+// ---------------------------------------------------------------------------
+// When a scope's access level changes to `none` while the index already has
+// entries for those notes, the secondary scope-equality guard in semanticQuery
+// does not fire (scope still matches). The checkAccess guard added at the same
+// point catches them.
+describe("semanticQuery access guard — stale access:none entries filtered", () => {
+  it("omits a note from results when checkAccess returns not-allowed for it", async () => {
+    vi.resetModules();
+
+    const uniqueVault = `__test_access_guard_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+    // Mutable flag: allow all notes during indexing, block note-b.md during search.
+    let blockedPath: string | undefined;
+
+    vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+    vi.doMock("../../../src/config.js", () => ({
+      config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+    }));
+    vi.doMock("@huggingface/transformers", () => ({
+      pipeline: vi.fn().mockResolvedValue(
+        vi.fn().mockImplementation(() =>
+          Promise.resolve({ tolist: () => [FAKE_VEC_A] })
+        )
+      ),
+    }));
+    // Mock scope.ts so scoping is enabled but all notes pass filterByScope.
+    // checkAccess blocks the note we want to test the guard against.
+    vi.doMock("../../../src/scope.js", () => ({
+      isScopingEnabled: () => true,
+      getActiveScope: () => "work",
+      filterByScope: (paths: string[]) => paths,
+      resolveNoteScope: () => "work",
+      checkAccess: (path: string | undefined, _op: string) => {
+        if (path === blockedPath) return { allowed: false, message: "no access" };
+        return { allowed: true };
+      },
+      isPathBlocked: () => false,
+      SCOPE_BLOCKED_MESSAGE: "Scope blocked.",
+    }));
+
+    const { runObsidian } = await import("../../../src/cli.js");
+    vi.mocked(runObsidian).mockImplementation(async (args: string[]) => {
+      if (args.includes("list")) return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
+
+    const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
+    const server = new McpServer({ name: "test", version: "0.0.0" });
+    const semantic = await import("../../../src/tools/semantic.js");
+    semantic.registerSemanticTools(server);
+
+    // Wait for index to be ready with both notes indexed (blockedPath still undefined).
+    await waitForReady(semantic.getIndexStateForTesting);
+
+    // Simulate access level changing to `none` for note-b.md after indexing.
+    blockedPath = "note-b.md";
+
+    vi.mocked(runObsidian).mockImplementation(async (args: string[]) => {
+      if (args.includes("list")) return FILE_LIST; // note-b still in list → not pruned by sync
+      return NOTE_A_CONTENT;
+    });
+
+    const result = await callTool(server, "semantic_search", { query: "note content", min_score: 0 });
+    expect(result.isError).toBeFalsy();
+    // note-b.md must not appear — blocked by the checkAccess guard in semanticQuery.
+    expect(result.content[0].text).not.toContain("note-b.md");
+    // note-a.md is still accessible.
+    expect(result.content[0].text).toContain("note-a.md");
+  });
+});

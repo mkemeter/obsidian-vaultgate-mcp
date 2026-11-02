@@ -426,24 +426,32 @@ Vault scopes let you partition your vault into named zones and restrict VaultGat
    OBSIDIAN_SCOPE="work" obsidian-vaultgate-mcp
    ```
 
-2. Add a `scope:` key to the YAML frontmatter of the conventions file (default `VAULTGATE.md`) in each folder you want to name as a scope:
+2. Add a `scope:` key to the YAML frontmatter of the conventions file (default `VAULTGATE.md`) in each folder you want to name as a scope. You can also add an `access:` key to control what the AI is allowed to do within that scope:
+
+   | `access:` value | Effect |
+   |---|---|
+   | `rw` (default) | Full read and write access. Same behaviour as today if the key is absent. |
+   | `ro` | Read-only. The AI can read and search notes, but all writes are blocked. |
+   | `none` | No AI access. Notes are invisible in file listings, reads, and search — even in `unscoped` mode. `vault_scope_set` to this scope is also blocked. |
 
    ```markdown
    ---
    scope: work
+   access: ro
    ---
 
    # Work context
-   These notes cover active work projects.
+   These notes cover active work projects. Read-only for AI.
    ```
 
    ```markdown
    ---
    scope: personal
+   access: none
    ---
 
    # Personal context
-   Private journal and personal notes.
+   Private journal — AI cannot see these notes at all.
    ```
 
    VaultGate discovers scope zones at startup by listing vault files via the Obsidian CLI — no filesystem path is required. The nearest-ancestor file with a `scope:` key determines a note's scope. Notes with no scoped ancestor belong to the built-in `"unscoped"` zone (full vault access).
@@ -521,7 +529,7 @@ Every write tool defaults to `dryRun: true` — the AI shows a preview of the in
 | `dev_screenshot` | Capture a screenshot of the Obsidian window |
 | `dev_mobile` | Toggle mobile viewport emulation |
 | `eval` ⚠️ | Execute arbitrary JavaScript in the Obsidian renderer — review carefully before approving |
-| `vault_context_set` | Create or update `VAULTGATE.md` — the vault conventions file read by AI assistants at session start |
+| `vault_context_set` | Create or update `VAULTGATE.md` — the vault conventions file read by AI assistants at session start. Any YAML frontmatter in the submitted content is stripped; existing frontmatter in the file is always preserved unchanged (frontmatter can only be edited manually) |
 
 > [!NOTE]
 > **templates_list / templates_apply** require the built-in **Templates** core plugin with a folder configured in its settings. If your vault uses the **Templater** community plugin instead (or the core plugin is disabled), these tools will return `Error: No template folder configured`. This is a configuration dependency, not a bug.

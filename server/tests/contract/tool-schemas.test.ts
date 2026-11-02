@@ -20,7 +20,13 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 
-vi.mock("../../src/cli.js", () => ({ runObsidian: vi.fn().mockResolvedValue("") }));
+vi.mock("../../src/cli.js", () => ({
+  runObsidian: vi.fn().mockResolvedValue(""),
+  runObsidianAdmin: vi.fn().mockResolvedValue(""),
+  installAccessGuard: vi.fn(),
+  extractNotePath: vi.fn(),
+  isCliWriteCommand: vi.fn(),
+}));
 
 import { createServer } from "../../src/server.js";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";

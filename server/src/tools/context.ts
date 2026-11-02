@@ -207,17 +207,46 @@ export function registerContextTools(server: McpServer): void {
       "templates_list to catalogue templates, tags to see the tag taxonomy, and property_read " +
       "on a few representative notes to understand frontmatter conventions.\n\n" +
       "IMPORTANT: Always call with dryRun=true first, show the user the preview, " +
-      "and ask for explicit confirmation before calling with dryRun=false.",
+      "and ask for explicit confirmation before calling with dryRun=false.\n\n" +
+      "NOTE: Any YAML frontmatter in the content you provide is ignored — existing frontmatter " +
+      "in the file is always preserved unchanged. Frontmatter can only be edited manually.",
     {
-      content: z.string().describe("Full Markdown content to write to the vault conventions file."),
+      content: z
+        .string()
+        .describe(
+          "Markdown body to write to the vault conventions file. " +
+            "Do not include YAML frontmatter — it is stripped automatically and existing " +
+            "frontmatter is preserved."
+        ),
       dryRun: dryRunSchema,
     },
     async ({ content, dryRun }) => {
-      const args = ["create", `name=${config.contextFileName}`, `content=${content}`, "overwrite"];
+      // Strip any frontmatter the AI may have included — it is managed manually only.
+      const body = extractBody(content).replace(/^\n+/, "");
 
       if (dryRun) {
+        const args = ["create", `name=${config.contextFileName}`, `content=${body}`, "overwrite"];
         return { content: [{ type: "text", text: dryRunPreview(args) }] };
       }
+
+      // Read the existing file to extract and preserve its frontmatter block.
+      // Runs only on actual writes, not on dryRun previews.
+      let preservedFrontmatter = "";
+      try {
+        const existing = await runObsidian(["read", `path=${config.contextFileName}`]);
+        const fm = /^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.exec(existing);
+        if (fm) preservedFrontmatter = fm[0];
+      } catch {
+        // File doesn't exist yet or is unreadable — no frontmatter to preserve.
+      }
+
+      const finalContent = preservedFrontmatter ? `${preservedFrontmatter}${body}` : body;
+      const args = [
+        "create",
+        `name=${config.contextFileName}`,
+        `content=${finalContent}`,
+        "overwrite",
+      ];
 
       try {
         await runObsidian(args);

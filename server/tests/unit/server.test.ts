@@ -28,7 +28,13 @@ vi.mock("node:fs", async () => {
   };
 });
 
-vi.mock("../../src/cli.js", () => ({ runObsidian: vi.fn().mockResolvedValue("") }));
+vi.mock("../../src/cli.js", () => ({
+  runObsidian: vi.fn().mockResolvedValue(""),
+  runObsidianAdmin: vi.fn().mockResolvedValue(""),
+  installAccessGuard: vi.fn(),
+  extractNotePath: vi.fn(),
+  isCliWriteCommand: vi.fn(),
+}));
 
 // Make the dynamic import of semantic tools fail so semanticModule stays undefined.
 // This exercises the `if (semanticModule)` false branch at server.ts line 154.

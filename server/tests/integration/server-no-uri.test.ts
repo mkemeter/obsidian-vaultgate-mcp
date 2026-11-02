@@ -24,7 +24,13 @@ async function listTools(): Promise<string[]> {
 
 describe("VAULTGATE_NO_URI tool registration", () => {
   it("registers URI tools by default (VAULTGATE_NO_URI not set)", async () => {
-    vi.doMock("../../src/cli.js", () => ({ runObsidian: vi.fn().mockResolvedValue("") }));
+    vi.doMock("../../src/cli.js", () => ({
+      runObsidian: vi.fn().mockResolvedValue(""),
+      runObsidianAdmin: vi.fn().mockResolvedValue(""),
+      installAccessGuard: vi.fn(),
+      extractNotePath: vi.fn(),
+      isCliWriteCommand: vi.fn(),
+    }));
     const names = await listTools();
     expect(names).toContain("note_open");
     expect(names).toContain("search_open");
@@ -32,7 +38,13 @@ describe("VAULTGATE_NO_URI tool registration", () => {
   });
 
   it("does not register URI tools when VAULTGATE_NO_URI=true", async () => {
-    vi.doMock("../../src/cli.js", () => ({ runObsidian: vi.fn().mockResolvedValue("") }));
+    vi.doMock("../../src/cli.js", () => ({
+      runObsidian: vi.fn().mockResolvedValue(""),
+      runObsidianAdmin: vi.fn().mockResolvedValue(""),
+      installAccessGuard: vi.fn(),
+      extractNotePath: vi.fn(),
+      isCliWriteCommand: vi.fn(),
+    }));
     process.env.VAULTGATE_NO_URI = "true";
     const names = await listTools();
     expect(names).not.toContain("note_open");
@@ -41,7 +53,13 @@ describe("VAULTGATE_NO_URI tool registration", () => {
   });
 
   it("tool count is BASE_TOOL_COUNT when VAULTGATE_NO_URI=true", async () => {
-    vi.doMock("../../src/cli.js", () => ({ runObsidian: vi.fn().mockResolvedValue("") }));
+    vi.doMock("../../src/cli.js", () => ({
+      runObsidian: vi.fn().mockResolvedValue(""),
+      runObsidianAdmin: vi.fn().mockResolvedValue(""),
+      installAccessGuard: vi.fn(),
+      extractNotePath: vi.fn(),
+      isCliWriteCommand: vi.fn(),
+    }));
     process.env.VAULTGATE_NO_URI = "true";
     const { createServer, BASE_TOOL_COUNT, SEMANTIC_TOOL_COUNT } = await import(
       "../../src/server.js"
@@ -57,7 +75,13 @@ describe("VAULTGATE_NO_URI tool registration", () => {
   });
 
   it("registers URI tools when VAULTGATE_NO_URI=false", async () => {
-    vi.doMock("../../src/cli.js", () => ({ runObsidian: vi.fn().mockResolvedValue("") }));
+    vi.doMock("../../src/cli.js", () => ({
+      runObsidian: vi.fn().mockResolvedValue(""),
+      runObsidianAdmin: vi.fn().mockResolvedValue(""),
+      installAccessGuard: vi.fn(),
+      extractNotePath: vi.fn(),
+      isCliWriteCommand: vi.fn(),
+    }));
     process.env.VAULTGATE_NO_URI = "false";
     const names = await listTools();
     expect(names).toContain("note_open");

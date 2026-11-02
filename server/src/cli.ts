@@ -4,24 +4,72 @@ import { config } from "./config.js";
 
 const execFileAsync = promisify(execFile);
 
+// ---------------------------------------------------------------------------
+// Access guard — installed from server.ts after scope engine initialises
+// ---------------------------------------------------------------------------
+
+/** Async-ready callback type for the access guard. */
+type AccessGuard = (args: string[]) => Promise<void> | void;
+
+let _accessGuard: AccessGuard | undefined;
+
 /**
- * Executes an Obsidian CLI command and returns its stdout.
- *
- * Uses `execFile` (not `exec`) to prevent shell injection — args are passed
- * as an array and are never interpolated into a shell string. This means
- * special characters in note names, content, or vault names are safe.
- *
- * If `config.vault` is set, prepends `vault="<name>"` as the first argument,
- * targeting that specific vault as documented in the Obsidian CLI spec.
- *
- * @param args  CLI arguments excluding the binary name.
- *              Example: `["search", "query=hello world", "limit=10"]`
- * @returns     Trimmed stdout string from the CLI process.
- * @throws      Error whose message contains the stderr output if the
- *              process exits with a non-zero code, or if the binary
- *              cannot be found.
+ * Installs the access guard callback. Called once from `createServer()` after
+ * `initScopeEngine()` completes. The guard fires at the start of every
+ * `runObsidian()` call (but NOT `runObsidianAdmin()`).
  */
-export async function runObsidian(args: string[]): Promise<string> {
+export function installAccessGuard(fn: AccessGuard): void {
+  _accessGuard = fn;
+}
+
+// ---------------------------------------------------------------------------
+// Write-command classification and path extraction
+// ---------------------------------------------------------------------------
+
+/**
+ * CLI commands that mutate vault state. Used by the access guard to distinguish
+ * read operations from write operations for `ro`-access scope enforcement.
+ */
+export const CLI_WRITE_COMMANDS: ReadonlySet<string> = new Set([
+  "create",
+  "append",
+  "prepend",
+  "delete",
+  "daily:append",
+  "property:set",
+  "eval",
+  "plugin:reload",
+  "dev:screenshot",
+  "dev:mobile",
+]);
+
+/**
+ * Returns `true` when the CLI args represent a write (mutating) operation.
+ * Covers both the simple `command` form and the `["templates", "apply", ...]`
+ * compound form.
+ */
+export function isCliWriteCommand(args: string[]): boolean {
+  if (args[0] === "templates" && args[1] === "apply") return true;
+  return CLI_WRITE_COMMANDS.has(args[0] ?? "");
+}
+
+/**
+ * Extracts the vault-relative note path from CLI args, if present.
+ * Returns `undefined` for list/discovery operations that carry no path.
+ */
+export function extractNotePath(args: string[]): string | undefined {
+  const pathArg = args.find((a) => a.startsWith("path="));
+  if (pathArg !== undefined) return pathArg.slice(5);
+  const nameArg = args.find((a) => a.startsWith("name="));
+  if (nameArg !== undefined) return nameArg.slice(5);
+  return undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Internal implementation (shared by runObsidian and runObsidianAdmin)
+// ---------------------------------------------------------------------------
+
+async function runObsidianRaw(args: string[]): Promise<string> {
   // Prepend vault targeting if configured. Must be the first argument
   // per the Obsidian CLI spec: `obsidian vault="My Vault" <command> ...`
   const fullArgs = config.vault ? [`vault=${config.vault}`, ...args] : [...args];
@@ -84,4 +132,46 @@ export async function runObsidian(args: string[]): Promise<string> {
         `  running: Settings → General → Command line interface → Register CLI.`
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+/**
+ * Executes an Obsidian CLI command and returns its stdout.
+ *
+ * Runs the access guard (if installed) before executing. The guard may throw
+ * to block the operation — callers must handle the error.
+ *
+ * Uses `execFile` (not `exec`) to prevent shell injection — args are passed
+ * as an array and are never interpolated into a shell string. This means
+ * special characters in note names, content, or vault names are safe.
+ *
+ * If `config.vault` is set, prepends `vault="<name>"` as the first argument,
+ * targeting that specific vault as documented in the Obsidian CLI spec.
+ *
+ * @param args  CLI arguments excluding the binary name.
+ *              Example: `["search", "query=hello world", "limit=10"]`
+ * @returns     Trimmed stdout string from the CLI process.
+ * @throws      Error whose message contains the stderr output if the
+ *              process exits with a non-zero code, or if the binary
+ *              cannot be found.
+ */
+export async function runObsidian(args: string[]): Promise<string> {
+  if (_accessGuard !== undefined) await _accessGuard(args);
+  return runObsidianRaw(args);
+}
+
+/**
+ * Executes an Obsidian CLI command without running the access guard.
+ *
+ * **Infrastructure-only — never use from `tools/`; bypasses the access guard.**
+ *
+ * Used exclusively by `scope.ts` for vault discovery operations
+ * (`buildScopeMapFromCli`) that must run regardless of scope access levels.
+ * All user-facing tool calls must go through `runObsidian`.
+ */
+export async function runObsidianAdmin(args: string[]): Promise<string> {
+  return runObsidianRaw(args);
 }

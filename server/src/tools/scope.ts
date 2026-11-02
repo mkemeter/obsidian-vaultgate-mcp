@@ -4,6 +4,7 @@ import {
   discoverScopes,
   getActiveScope,
   getHomeScope,
+  getScopeAccess,
   isScopeSwitchingEnabled,
   setActiveScope,
 } from "../scope.js";
@@ -65,6 +66,17 @@ export function registerScopeTools(server: McpServer): void {
               {
                 type: "text",
                 text: `Unknown scope "${scope}". Available scopes: ${available.join(", ")}.`,
+              },
+            ],
+            isError: true,
+          };
+        }
+        if (getScopeAccess(scope) === "none") {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Cannot switch to "${scope}" — this scope has no AI access configured.`,
               },
             ],
             isError: true,

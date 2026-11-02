@@ -14,7 +14,13 @@ import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 // Mock the health check so tests don't need the obsidian binary on PATH.
 vi.mock("../../src/health.js", () => ({ runHealthCheck: vi.fn() }));
 // Mock cli.js so tool calls don't spawn real processes.
-vi.mock("../../src/cli.js", () => ({ runObsidian: vi.fn().mockResolvedValue("") }));
+vi.mock("../../src/cli.js", () => ({
+  runObsidian: vi.fn().mockResolvedValue(""),
+  runObsidianAdmin: vi.fn().mockResolvedValue(""),
+  installAccessGuard: vi.fn(),
+  extractNotePath: vi.fn(),
+  isCliWriteCommand: vi.fn(),
+}));
 
 // ---------------------------------------------------------------------------
 // Inline the HTTP server logic from index.ts so tests can control the port

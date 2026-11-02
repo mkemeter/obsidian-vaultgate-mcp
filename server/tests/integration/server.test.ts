@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createServer, BASE_TOOL_COUNT, URI_TOOL_COUNT, SEMANTIC_TOOL_COUNT, getFaviconIco } from "../../src/server.js";
 
-vi.mock("../../src/cli.js", () => ({ runObsidian: vi.fn().mockResolvedValue("") }));
+vi.mock("../../src/cli.js", () => ({
+  runObsidian: vi.fn().mockResolvedValue(""),
+  runObsidianAdmin: vi.fn().mockResolvedValue(""),
+  installAccessGuard: vi.fn(),
+  extractNotePath: vi.fn(),
+  isCliWriteCommand: vi.fn(),
+}));
 
 describe("server tool registration", () => {
   it("registers all expected tools", async () => {

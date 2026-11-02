@@ -37,6 +37,7 @@ import { z } from "zod";
 import { runObsidian } from "../cli.js";
 import { config } from "../config.js";
 import {
+  checkAccess,
   filterByScope,
   getActiveScope,
   isPathBlocked,
@@ -839,6 +840,10 @@ async function semanticQuery(
     // Secondary scope guard: primary enforcement is listVaultPaths() scoping the build,
     // but entries indexed before scoping was enabled may carry a stale scope.
     if (isScopingEnabled() && entry.scope !== getActiveScope()) continue;
+    // Access guard for stale index entries: if a scope's access level was changed
+    // to `none` after the entry was embedded, the scope guard above still passes.
+    // checkAccess re-evaluates the live policy so blocked notes are never returned.
+    if (isScopingEnabled() && !checkAccess(p, "read").allowed) continue;
     let bestScore = 0;
     let bestHeading = "";
     for (const chunk of entry.chunks) {

@@ -65,7 +65,18 @@ export function registerTagTools(server: McpServer): void {
       const args = ["backlinks", ...buildFileArgs(file, path)];
       try {
         const output = await runObsidian(args);
-        return { content: [{ type: "text", text: output }] };
+        // Filter the backlink results: remove any note paths that belong to
+        // blocked scopes (e.g. access: none). Non-path lines (headers, counts)
+        // are passed through unchanged.
+        const filtered = output
+          .split("\n")
+          .filter((line) => {
+            const t = line.trim();
+            return !t.endsWith(".md") || !isPathBlocked(t);
+          })
+          .join("\n")
+          .trim();
+        return { content: [{ type: "text", text: filtered }] };
       } catch (error) {
         return {
           content: [{ type: "text", text: errorMessage(error) }],
