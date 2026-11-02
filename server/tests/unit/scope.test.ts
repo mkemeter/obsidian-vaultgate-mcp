@@ -525,16 +525,18 @@ describe("scope engine (CLI-based)", () => {
 
     it("checkAccess: none scope blocks reads", async () => {
       await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\naccess: none\n---" });
-      const { checkAccess } = await import("../../src/scope.js");
+      const { checkAccess, SCOPE_NO_ACCESS_MESSAGE } = await import("../../src/scope.js");
       const result = checkAccess("Work/Note.md", "read");
       expect(result.allowed).toBe(false);
+      expect((result as { allowed: false; message: string }).message).toBe(SCOPE_NO_ACCESS_MESSAGE);
     });
 
     it("checkAccess: none scope blocks writes", async () => {
       await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\naccess: none\n---" });
-      const { checkAccess } = await import("../../src/scope.js");
+      const { checkAccess, SCOPE_NO_ACCESS_MESSAGE } = await import("../../src/scope.js");
       const result = checkAccess("Work/Note.md", "write");
       expect(result.allowed).toBe(false);
+      expect((result as { allowed: false; message: string }).message).toBe(SCOPE_NO_ACCESS_MESSAGE);
     });
 
     it("checkAccess: ro scope allows reads", async () => {
@@ -546,9 +548,10 @@ describe("scope engine (CLI-based)", () => {
 
     it("checkAccess: ro scope blocks writes", async () => {
       await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\naccess: ro\n---" }, "work");
-      const { checkAccess } = await import("../../src/scope.js");
+      const { checkAccess, SCOPE_WRITE_BLOCKED_MESSAGE } = await import("../../src/scope.js");
       const result = checkAccess("Work/Note.md", "write");
       expect(result.allowed).toBe(false);
+      expect((result as { allowed: false; message: string }).message).toBe(SCOPE_WRITE_BLOCKED_MESSAGE);
     });
 
     it("checkAccess: rw scope allows reads and writes", async () => {
@@ -568,17 +571,19 @@ describe("scope engine (CLI-based)", () => {
 
     it("checkAccess: conventions file write is blocked in none scope", async () => {
       await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\naccess: none\n---" });
-      const { checkAccess } = await import("../../src/scope.js");
+      const { checkAccess, SCOPE_NO_ACCESS_MESSAGE } = await import("../../src/scope.js");
       const result = checkAccess("Work/VAULTGATE.md", "write");
       expect(result.allowed).toBe(false);
+      expect((result as { allowed: false; message: string }).message).toBe(SCOPE_NO_ACCESS_MESSAGE);
     });
 
     it("checkAccess: none scope is absolute — blocks even in unscoped mode", async () => {
       // Active scope is unscoped, but Work has access: none
       await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\naccess: none\n---" }, "unscoped");
-      const { checkAccess } = await import("../../src/scope.js");
+      const { checkAccess, SCOPE_NO_ACCESS_MESSAGE } = await import("../../src/scope.js");
       const result = checkAccess("Work/Note.md", "read");
       expect(result.allowed).toBe(false);
+      expect((result as { allowed: false; message: string }).message).toBe(SCOPE_NO_ACCESS_MESSAGE);
     });
 
     it("isNoteInScope returns false for none-scope note even in unscoped mode", async () => {
