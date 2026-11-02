@@ -105,9 +105,7 @@ describe("vault_context_set", () => {
   });
 
   it("returns dry-run preview without calling CLI when dryRun=true", async () => {
-    // Guard fetch fires first; mockRun returns "" for the submarine read, then the dry-run
-    // result. Use mockResolvedValueOnce so the second call (dry-run has no CLI call) is separate.
-    // Actually vault_context_set dry-run doesn't call CLI at all — the guard fires first.
+    // dryRun=true: handler makes no CLI calls; submarine fires and fetches conventions.
     mockRun.mockResolvedValueOnce("# Conventions"); // submarine fetch
     const result = await invoke(makeServer(), "vault_context_set", {
       content: "# My Conventions",
@@ -121,7 +119,7 @@ describe("vault_context_set", () => {
   });
 
   it("calls CLI with correct args and returns success when dryRun=false", async () => {
-    mockRun.mockResolvedValueOnce("# Conventions"); // submarine fetch
+    mockRun.mockResolvedValueOnce("");              // read existing (no frontmatter)
     mockRun.mockResolvedValueOnce("");              // vault_context_set write
     const result = await invoke(makeServer(), "vault_context_set", {
       content: "# My Conventions",
@@ -140,7 +138,7 @@ describe("vault_context_set", () => {
 
   it("writes to the configured filename when contextFileName is customised", async () => {
     config.contextFileName = "CLAUDE.md";
-    mockRun.mockResolvedValueOnce("# Conventions"); // submarine fetch
+    mockRun.mockResolvedValueOnce("");              // read existing (no frontmatter)
     mockRun.mockResolvedValueOnce("");              // vault_context_set write
     await invoke(makeServer(), "vault_context_set", {
       content: "# My Conventions",
@@ -155,14 +153,91 @@ describe("vault_context_set", () => {
   });
 
   it("returns isError=true when CLI fails on dryRun=false", async () => {
-    // Handler runs first (write errors → isError:true), then guard sees isError and skips submarine.
-    mockRun.mockRejectedValueOnce(new Error("vault write failed"));
+    mockRun.mockResolvedValueOnce("");              // read existing succeeds
+    mockRun.mockRejectedValueOnce(new Error("vault write failed")); // write fails
+    // Guard sees isError and skips submarine injection.
     const result = await invoke(makeServer(), "vault_context_set", {
       content: "# My Conventions",
       dryRun: false,
     });
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("vault write failed");
+  });
+});
+
+describe("vault_context_set — frontmatter protection", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    config.contextFileName = "VAULTGATE.md";
+  });
+
+  it("preserves existing frontmatter when writing new body", async () => {
+    const existing = "---\nscope: work\naccess: read\n---\n\nOld body";
+    mockRun.mockResolvedValueOnce(existing); // read existing
+    mockRun.mockResolvedValueOnce("");       // write
+    await invoke(makeServer(), "vault_context_set", { content: "New body", dryRun: false });
+    expect(mockRun).toHaveBeenCalledWith([
+      "create",
+      "name=VAULTGATE.md",
+      "content=---\nscope: work\naccess: read\n---\nNew body",
+      "overwrite",
+    ]);
+  });
+
+  it("strips frontmatter from AI-provided content and restores existing frontmatter", async () => {
+    const existing = "---\nscope: work\n---\n\nOld body";
+    const aiContent = "---\naccess: full\n---\n\nNew body";
+    mockRun.mockResolvedValueOnce(existing); // read existing
+    mockRun.mockResolvedValueOnce("");       // write
+    await invoke(makeServer(), "vault_context_set", { content: aiContent, dryRun: false });
+    expect(mockRun).toHaveBeenCalledWith([
+      "create",
+      "name=VAULTGATE.md",
+      // existing frontmatter preserved, AI-provided frontmatter stripped
+      "content=---\nscope: work\n---\nNew body",
+      "overwrite",
+    ]);
+  });
+
+  it("strips AI-provided frontmatter when existing file has none", async () => {
+    mockRun.mockResolvedValueOnce("Old body"); // read existing (no frontmatter)
+    mockRun.mockResolvedValueOnce("");         // write
+    await invoke(makeServer(), "vault_context_set", {
+      content: "---\nsome: thing\n---\n\nNew body",
+      dryRun: false,
+    });
+    expect(mockRun).toHaveBeenCalledWith([
+      "create",
+      "name=VAULTGATE.md",
+      "content=New body",
+      "overwrite",
+    ]);
+  });
+
+  it("proceeds without frontmatter when existing file cannot be read (new file)", async () => {
+    mockRun.mockRejectedValueOnce(new Error("File not found")); // read fails
+    mockRun.mockResolvedValueOnce("");                          // write
+    await invoke(makeServer(), "vault_context_set", { content: "New body", dryRun: false });
+    expect(mockRun).toHaveBeenCalledWith([
+      "create",
+      "name=VAULTGATE.md",
+      "content=New body",
+      "overwrite",
+    ]);
+  });
+
+  it("dryRun makes no read call and previews body without frontmatter", async () => {
+    mockRun.mockResolvedValueOnce("# Conventions"); // only call: submarine
+    const result = await invoke(makeServer(), "vault_context_set", {
+      content: "---\nsome: thing\n---\n\nNew body",
+      dryRun: true,
+    });
+    // Submarine fetch is the only runObsidian call — no read-existing for dryRun
+    const writeCalls = mockRun.mock.calls.filter((args) => args[0][0] === "create");
+    expect(writeCalls).toHaveLength(0);
+    // Preview shows body content (frontmatter stripped)
+    expect(result.content[0].text).toContain("New body");
+    expect(result.content[0].text).not.toContain("some: thing");
   });
 });
 
@@ -270,7 +345,8 @@ describe("installContextGuard — submarine behaviour", () => {
   });
 
   it("does not decorate isError results", async () => {
-    mockRun.mockRejectedValueOnce(new Error("crash"));
+    mockRun.mockResolvedValueOnce("");              // read existing succeeds
+    mockRun.mockRejectedValueOnce(new Error("crash")); // write fails → isError
     const server = makeServer();
     const result = await invoke(server, "vault_context_set", { content: "x", dryRun: false });
     expect(result.isError).toBe(true);

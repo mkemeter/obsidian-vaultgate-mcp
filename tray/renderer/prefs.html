@@ -293,7 +293,12 @@
       <p class="section-hint">Server-enforced folder access control. Add a <code style="font-family: monospace; font-size: 11px">scope:</code> key to any <code style="font-family: monospace; font-size: 11px">VAULTGATE.md</code> (or your configured conventions file) in a subfolder to define a scope zone — no vault path required.</p>
 
       <label for="home-scope">Home scope</label>
-      <input type="text" id="home-scope" placeholder="unscoped" />
+      <select id="home-scope" disabled>
+        <option value="">unscoped</option>
+      </select>
+      <p class="section-hint" id="home-scope-hint" hidden>
+        No scope zones found. Add a <code style="font-family: monospace; font-size: 11px">scope:</code> key to a conventions file in a subfolder to define scope zones.
+      </p>
       <div class="field-error" id="home-scope-error"></div>
 
       <div class="checkbox">

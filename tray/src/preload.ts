@@ -19,6 +19,7 @@ interface PrefsBridge {
   isAutostartEnabled: () => Promise<boolean>;
   setAutostart: (enabled: boolean) => Promise<void>;
   getServerState: () => Promise<string>;
+  listScopes: () => Promise<{ scopes: string[]; enabled: boolean }>;
   close: () => void;
 }
 
@@ -33,6 +34,7 @@ const bridge: PrefsBridge = {
   isAutostartEnabled: () => ipcRenderer.invoke("prefs:isAutostartEnabled"),
   setAutostart: (enabled) => ipcRenderer.invoke("prefs:setAutostart", enabled),
   getServerState: () => ipcRenderer.invoke("prefs:getServerState"),
+  listScopes: () => ipcRenderer.invoke("prefs:listScopes"),
   close: () => ipcRenderer.send("prefs:close"),
 };
 

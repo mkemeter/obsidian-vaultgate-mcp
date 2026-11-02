@@ -6,9 +6,16 @@ vi.mock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
 vi.mock("../../../src/config.js", () => ({
   config: { vault: undefined, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
 }));
+vi.mock("../../../src/scope.js", () => ({
+  isPathBlocked: vi.fn(() => false),
+  SCOPE_BLOCKED_MESSAGE: "This note is not accessible in the current scope.",
+}));
 
 const { runObsidian } = await import("../../../src/cli.js");
 const mockRun = vi.mocked(runObsidian);
+
+const scopeModule = await import("../../../src/scope.js");
+const mockIsPathBlocked = vi.mocked(scopeModule.isPathBlocked);
 
 function invoke(server: McpServer, name: string, args: Record<string, unknown>) {
   // @ts-ignore
@@ -59,6 +66,44 @@ describe("backlinks", () => {
     mockRun.mockRejectedValue(new Error("vault error"));
     const result = await invoke(makeServer(), "backlinks", { file: "x" });
     expect(result.isError).toBe(true);
+  });
+});
+
+describe("backlinks scope filtering", () => {
+  beforeEach(() => vi.resetAllMocks());
+
+  it("filters out .md paths from blocked scopes in backlinks output", async () => {
+    mockRun.mockResolvedValue("allowed/Note.md\nblocked/Secret.md\nother/Free.md");
+    mockIsPathBlocked.mockImplementation((p) => p === "blocked/Secret.md");
+    const result = await invoke(makeServer(), "backlinks", { file: "MyNote" });
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toContain("allowed/Note.md");
+    expect(result.content[0].text).not.toContain("blocked/Secret.md");
+    expect(result.content[0].text).toContain("other/Free.md");
+  });
+
+  it("passes non-.md lines (headers, counts) through unchanged", async () => {
+    mockRun.mockResolvedValue("## Backlinks\nallowed/Note.md");
+    const result = await invoke(makeServer(), "backlinks", { file: "MyNote" });
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toContain("## Backlinks");
+    expect(result.content[0].text).toContain("allowed/Note.md");
+  });
+
+  it("preserves non-path lines even when some .md paths are filtered", async () => {
+    mockRun.mockResolvedValue("## Backlinks\nallowed/Note.md\nblocked/Secret.md");
+    mockIsPathBlocked.mockImplementation((p) => p === "blocked/Secret.md");
+    const result = await invoke(makeServer(), "backlinks", { file: "MyNote" });
+    expect(result.content[0].text).toContain("## Backlinks");
+    expect(result.content[0].text).toContain("allowed/Note.md");
+    expect(result.content[0].text).not.toContain("blocked/Secret.md");
+  });
+
+  it("returns isError when the target note itself is in a blocked scope", async () => {
+    mockIsPathBlocked.mockImplementation((p) => p === "blocked/Target.md");
+    const result = await invoke(makeServer(), "backlinks", { path: "blocked/Target.md" });
+    expect(result.isError).toBe(true);
+    expect(mockRun).not.toHaveBeenCalled();
   });
 });
 

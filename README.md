@@ -38,7 +38,7 @@ Ask your AI to read notes, run full-text or semantic search, manage tasks, apply
 <td width="50%">
 
 **🔒 Private by design**
-Note content never leaves your machine. Binds to `127.0.0.1` only — unreachable from any other host on the network.
+Note content never leaves your machine. Binds to `127.0.0.1` only — unreachable from the network. Every operation is mediated by the running Obsidian instance; the AI never touches your files directly.
 
 </td>
 <td width="50%">
@@ -79,8 +79,8 @@ Open any note, search result, or daily note directly in Obsidian. The AI can han
 <tr>
 <td>
 
-**🔐 Obsidian stays in control**
-The AI never touches your files directly. Every operation is mediated by the running Obsidian instance.
+**🛡️ Scope zones**
+Partition your vault into named zones with hard AI access boundaries. Restrict the AI to one zone at a time, make zones read-only, or exclude them permanently — enforced in server code, not by an LLM instruction.
 
 </td>
 <td>
@@ -407,63 +407,179 @@ All configuration via environment variables. None are required for single-vault 
 | `VAULTGATE_INJECT_CONVENTIONS` | `true` | Set to `false` to disable automatic injection of vault conventions into tool results. When enabled, conventions are merged into the first tool result of each new conversation. Configurable in the tray Preferences dialog. |
 | `VAULTGATE_INJECT_INTERVAL` | `30` | How often (seconds) to re-inject vault conventions. Acts as a conversation-boundary detector: tool calls within a single thread happen seconds apart, so conventions are delivered exactly once at the start of each new conversation thread. Valid range: 1–3600. Configurable in the tray Preferences dialog. |
 | `VAULTGATE_MODEL_CACHE_DIR` | _(bundled/default cache)_ | Points the semantic-search embedding model at a pre-populated HuggingFace cache directory and disables remote downloads. For offline/air-gapped setups; normally set automatically by the tray. |
-| `OBSIDIAN_SCOPE` | `unscoped` | Starting scope when vault scoping is active. Notes outside this scope are invisible to the AI. Use `unscoped` to start in the built-in root zone (full vault access). |
+| `OBSIDIAN_SCOPE` | `unscoped` | Starting scope when vault scoping is active. Notes outside this scope are invisible to the AI. `unscoped` gives access to notes that have no ancestor scope zone declared. In vaults without any scope declarations this is all notes — behaviour is identical to before scopes existed. |
 | `VAULTGATE_SCOPE_SWITCHING` | `false` | Set to `true` to expose the `vault_scope_set` tool and let the AI switch scopes on request. When `false`, the scope is fixed for the session. |
 | `OBSIDIAN_DAILY_NOTES_PATH` | _(unset)_ | Vault-relative folder for daily notes (e.g. `Daily Notes`). When set and scoping is active, scope is enforced on daily note tools. |
 | `VAULTGATE_NO_URI` | `false` | Set to `true` to skip registering `note_open`, `search_open`, and `daily_open`. Useful in server or background deployments where launching `obsidian://` URIs would steal focus or disrupt other users. URI tools are enabled by default. |
 
 ### Vault scopes
 
-Vault scopes let you partition your vault into named zones and restrict VaultGate to one zone at a time. Notes outside the active scope are invisible to the AI — they do not appear in file listings, reads, search results, or semantic search. This is enforced in server code, not by an LLM instruction.
+Vault scopes let you partition your vault into named zones and control exactly what the AI can see and do in each zone. Notes outside the active scope are invisible to all tools — file listings, reads, search, backlinks, and semantic search. Within a zone, you can additionally restrict the AI to read-only access or exclude the zone entirely. All of this is enforced in server code, not by an LLM instruction: the AI has no mechanism to step outside the active scope.
 
-**When to use:** vaults mixing personal and work content, shared machines, or any situation where you want hard boundaries between areas of your vault.
+**When to use:** vaults that mix personal and work content, shared machines, read-only reference collections, or anything you want permanently hidden from AI.
+
+#### How scope zones work
+
+A scope zone is declared by placing a `VAULTGATE.md` (or your [configured conventions file](#configuration)) with a `scope:` frontmatter key inside a folder. Every note in that folder and its subfolders belongs to that scope. Notes with no scoped ancestor belong to the built-in `unscoped` zone.
+
+```
+vault/
+├── VAULTGATE.md                ← root conventions, no scope: key → global baseline
+├── Inbox/
+│   └── Todo.md                 ← unscoped zone
+├── Work/
+│   ├── VAULTGATE.md            ← scope: work, access: full
+│   └── Projects/
+│       └── Alpha.md            ← work zone (nearest ancestor rule)
+└── Personal/
+    ├── VAULTGATE.md            ← scope: personal, access: none
+    └── Journal.md              ← permanently hidden — no scope can reach this
+```
+
+**Nearest ancestor rule.** `Work/Projects/Alpha.md` belongs to `work` because `Work/VAULTGATE.md` is its nearest-ancestor conventions file. `Inbox/Todo.md` has no scoped ancestor — it belongs to `unscoped`.
+
+**The unscoped zone.** Notes with no ancestor scope declaration live in the `unscoped` zone. In a vault with no scope zones at all (no `scope:` frontmatter anywhere), every note is unscoped — behaviour is identical to before scopes existed. Once you declare scope zones, `unscoped` is the zone for root-level and unclassified notes, and like any other zone it is only visible when it is the active scope.
+
+#### Access levels
+
+Each zone can declare an `access:` level in its conventions file frontmatter. This is an upper bound on what the AI can do within that zone — enforced regardless of which scope is active:
+
+| `access:` | Reads | Writes | When another scope is active |
+|---|---|---|---|
+| `full` (default) | ✓ | ✓ | Hidden (out-of-scope) |
+| `read` | ✓ | ✗ | Hidden (out-of-scope) |
+| `none` | ✗ | ✗ | **Always hidden — even in unscoped mode** |
+
+`access: none` is an absolute block. Unlike `full` and `read` zones (which are simply hidden when a different scope is active), `none` zones are invisible in every session regardless of the active scope. This is the right choice for private journals, confidential projects, or anything you never want the AI to see. Switching to a `none`-access scope via `vault_scope_set` is also blocked.
+
+#### Isolation levels
+
+By default every zone is **strict**: its notes are visible only when it is the active scope. Declare `isolation: shared` to make a zone's notes visible from any active scope while still enforcing the zone's `access:` level:
+
+| `isolation:` | Notes visible when | `access:` still enforced? |
+|---|---|---|
+| `strict` (default) | Only when this zone is the active scope | Yes |
+| `shared` | From any active scope | Yes — always |
+
+`access: none` always overrides isolation. A zone with `isolation: shared` and `access: none` is permanently invisible regardless of the active scope.
+
+**Typical use case:** a shared reference library that should always be readable, no matter which project scope is active:
+
+```markdown
+---
+scope: reference
+access: read
+isolation: shared
+---
+
+# Reference library
+Shared glossary, templates, and style guides. Readable from any scope, never writable.
+```
 
 #### Setting up scopes
 
-1. Choose a starting scope via the `OBSIDIAN_SCOPE` env var (optional — defaults to `unscoped`, which gives full vault access):
+**Step 1.** Add a `VAULTGATE.md` with `scope:` frontmatter to each folder you want to name as a zone. Add an optional `access:` key:
 
-   ```bash
-   OBSIDIAN_SCOPE="work" obsidian-vaultgate-mcp
-   ```
+```markdown
+---
+scope: work
+access: full
+---
 
-2. Add a `scope:` key to the YAML frontmatter of the conventions file (default `VAULTGATE.md`) in each folder you want to name as a scope:
+# Work context
+Active projects and tasks. Full read and write access.
+```
 
-   ```markdown
-   ---
-   scope: work
-   ---
+```markdown
+---
+scope: personal
+access: none
+---
 
-   # Work context
-   These notes cover active work projects.
-   ```
+# Personal context
+Private journal — permanently hidden from AI.
+```
 
-   ```markdown
-   ---
-   scope: personal
-   ---
+**Step 2.** Set your starting scope via `OBSIDIAN_SCOPE` (defaults to `unscoped`):
 
-   # Personal context
-   Private journal and personal notes.
-   ```
+```bash
+OBSIDIAN_SCOPE="work" obsidian-vaultgate-mcp
+```
 
-   VaultGate discovers scope zones at startup by listing vault files via the Obsidian CLI — no filesystem path is required. The nearest-ancestor file with a `scope:` key determines a note's scope. Notes with no scoped ancestor belong to the built-in `"unscoped"` zone (full vault access).
+**Step 3.** Optional: let the AI switch scopes during a session (off by default):
 
-3. To let the AI switch scopes when the user asks, add `VAULTGATE_SCOPE_SWITCHING=true` — this exposes the `vault_scope_set` tool. Without it the scope is fixed for the session.
+```bash
+VAULTGATE_SCOPE_SWITCHING=true obsidian-vaultgate-mcp
+```
+
+VaultGate discovers scope zones automatically at startup via the Obsidian CLI — no filesystem path required. Restart the server (or use "Refresh scope map" in the tray Preferences) after adding or changing `scope:` frontmatter.
+
+#### Access rules — the guarantee
+
+For every read or write on a note path, VaultGate applies these rules in order. They are not instructions to the model — the model has no way to override them:
+
+1. **Conventions files are always readable.** `VAULTGATE.md` is readable across scope boundaries so VaultGate can load context. Writes still follow normal rules.
+2. **`access: none` is absolute.** A note in a `none` zone is blocked regardless of the active scope and regardless of how the path was obtained.
+3. **Scope membership is enforced.** Notes are only accessible when their zone matches the active scope — unless the zone has `isolation: shared`, in which case its notes are visible from any active scope. Knowing a path does not bypass this — `files_read("Work/Secret.md")` is subject to the same check as `files_list`.
+4. **`access: read` blocks writes.** Reads from a read-only zone succeed; create, append, and update operations are blocked.
+5. **Conventions file frontmatter is protected.** `vault_context_set` cannot overwrite `scope:` or `access:` keys — these must be edited manually in Obsidian.
+
+#### Common patterns
+
+**Work / personal split**
+
+Two zones; start in one; optionally switch at runtime:
+
+```
+Work/VAULTGATE.md       scope: work,     access: full
+Personal/VAULTGATE.md   scope: personal, access: full
+```
+
+```bash
+OBSIDIAN_SCOPE=work VAULTGATE_SCOPE_SWITCHING=true obsidian-vaultgate-mcp
+```
+
+Notes in the vault root (without a zone declaration) belong to `unscoped` and are not visible in either named scope. Put shared notes (inbox, references) inside a zone if you want the AI to see them.
+
+**Read-only reference**
+
+Notes the AI can search and read from any active scope, but never modify:
+
+```markdown
+---
+scope: reference
+access: read
+isolation: shared
+---
+```
+
+Without `isolation: shared`, the reference zone would only be visible when `reference` is the active scope.
+
+**Permanent exclusion**
+
+A private folder that is completely invisible in every session:
+
+```markdown
+---
+scope: private
+access: none
+---
+```
 
 #### Conventions per scope
 
-When a subdirectory's conventions file carries a `scope:` key, VaultGate appends it after the root conventions file at session start:
+When a subfolder's conventions file carries a `scope:` key, VaultGate adjusts what it injects at session start:
 
-- **Root conventions file without `scope:`** — always injected as the global baseline for every scope, with the active scope's conventions file appended on top.
-- **Root conventions file with `scope:`** — the root is itself a scope zone. Only the matching scope's file is injected; there is no global baseline.
+- **Root `VAULTGATE.md` without `scope:`** — always injected as the global baseline, with the active scope's conventions file appended on top.
+- **Root `VAULTGATE.md` with `scope:`** — the root is itself a scope zone. Only the matching scope's file is injected; there is no global baseline.
 
-The AI receives the relevant conventions at the start of each session without any extra prompting.
+The AI receives the relevant conventions at the start of each session without extra prompting.
 
 #### Known limitations
 
 - The scope is a server-process singleton: if multiple AI clients connect to the same server, a scope switch by one affects all.
 - `tags` and `unresolved` expose vault-wide metadata — scope is not enforced for these metadata-only tools.
-- The scope map is built at startup. After adding or editing a `scope:` frontmatter key, restart the server (or use the "Refresh scope map" control in the tray Preferences).
+- The scope map is built at startup. After adding or editing `scope:` frontmatter, restart the server (or use "Refresh scope map" in the tray Preferences).
 
 ### Available tools
 
@@ -521,7 +637,7 @@ Every write tool defaults to `dryRun: true` — the AI shows a preview of the in
 | `dev_screenshot` | Capture a screenshot of the Obsidian window |
 | `dev_mobile` | Toggle mobile viewport emulation |
 | `eval` ⚠️ | Execute arbitrary JavaScript in the Obsidian renderer — review carefully before approving |
-| `vault_context_set` | Create or update `VAULTGATE.md` — the vault conventions file read by AI assistants at session start |
+| `vault_context_set` | Create or update `VAULTGATE.md` — the vault conventions file read by AI assistants at session start. Any YAML frontmatter in the submitted content is stripped; existing frontmatter in the file is always preserved unchanged (frontmatter can only be edited manually) |
 
 > [!NOTE]
 > **templates_list / templates_apply** require the built-in **Templates** core plugin with a folder configured in its settings. If your vault uses the **Templater** community plugin instead (or the core plugin is disabled), these tools will return `Error: No template folder configured`. This is a configuration dependency, not a bug.

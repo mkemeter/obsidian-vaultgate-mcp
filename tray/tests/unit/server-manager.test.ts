@@ -143,6 +143,11 @@ describe("getState / getLogPath / getIndexState (initial values)", () => {
     const m = await import("../../src/server-manager.js");
     expect(m.getIndexState()).toEqual({ type: "state", state: "idle" });
   });
+
+  it("starts with empty scope state", async () => {
+    const m = await import("../../src/server-manager.js");
+    expect(m.getScopeState()).toEqual({ scopes: [], enabled: false });
+  });
 });
 
 describe("start() — pre-flight failures (no fork)", () => {

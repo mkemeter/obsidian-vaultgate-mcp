@@ -7,10 +7,16 @@ import {
   LATEST_PROTOCOL_VERSION,
   SUPPORTED_PROTOCOL_VERSIONS,
 } from "@modelcontextprotocol/sdk/types.js";
-import { runObsidian } from "./cli.js";
+import { extractNotePath, installAccessGuard, isCliWriteCommand, runObsidian } from "./cli.js";
 import { config } from "./config.js";
 import { resolveInterpolations, setClientName } from "./interpolate.js";
-import { extractBody, getConventionsPaths, initScopeEngine, isScopingEnabled } from "./scope.js";
+import {
+  checkAccess,
+  extractBody,
+  getConventionsPaths,
+  initScopeEngine,
+  isScopingEnabled,
+} from "./scope.js";
 import { installContextGuard, registerContextTools } from "./tools/context.js";
 import { registerDailyTools } from "./tools/daily.js";
 import { registerDevTools } from "./tools/dev.js";
@@ -112,6 +118,19 @@ export async function createServer(iconUrl?: string): Promise<McpServer> {
   // when tools are first called. Self-enables only when scope zones are found
   // via CLI discovery — vaults without scope frontmatter behave as before.
   await initScopeEngine(config.homeScope, config.scopeSwitchingEnabled);
+
+  // Central access guard — fires before every runObsidian() call so all tools
+  // are automatically protected by scope access levels without per-tool changes.
+  installAccessGuard(async (args) => {
+    if (!isScopingEnabled()) return;
+    const notePath = extractNotePath(args);
+    const op = isCliWriteCommand(args) ? "write" : "read";
+    // checkAccess(undefined, "read") returns allowed for full/read scopes (no-op for list ops);
+    // only blocks for access:none — Layer 1 (filterByScope) still filters path lists afterward.
+    const result = checkAccess(notePath, op);
+    if (!result.allowed) throw new Error(result.message);
+  });
+
   if (isScopingEnabled() && !config.dailyNotesPath) {
     console.error(
       "[VaultGate] OBSIDIAN_DAILY_NOTES_PATH not set — daily note tools will not enforce scope. " +

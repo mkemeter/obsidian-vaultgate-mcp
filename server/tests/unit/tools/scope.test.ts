@@ -8,6 +8,7 @@ vi.mock("../../../src/scope.js", () => ({
   discoverScopes: vi.fn(() => ["ai", "private", "unscoped"]),
   isScopeSwitchingEnabled: vi.fn(() => false),
   setActiveScope: vi.fn(),
+  getScopeAccess: vi.fn(() => "full"),
 }));
 
 const {
@@ -16,6 +17,7 @@ const {
   discoverScopes,
   isScopeSwitchingEnabled,
   setActiveScope,
+  getScopeAccess,
 } = await import("../../../src/scope.js");
 
 const mockGetActiveScope = vi.mocked(getActiveScope);
@@ -23,6 +25,7 @@ const mockGetHomeScope = vi.mocked(getHomeScope);
 const mockDiscoverScopes = vi.mocked(discoverScopes);
 const mockIsScopeSwitchingEnabled = vi.mocked(isScopeSwitchingEnabled);
 const mockSetActiveScope = vi.mocked(setActiveScope);
+const mockGetScopeAccess = vi.mocked(getScopeAccess);
 
 const { registerScopeTools } = await import("../../../src/tools/scope.js");
 
@@ -156,6 +159,18 @@ describe("vault_scope_set", () => {
 
     expect(result.isError).toBeFalsy();
     expect(mockSetActiveScope).toHaveBeenCalledWith("ai");
+  });
+
+  it("returns isError when target scope has access: none", async () => {
+    mockDiscoverScopes.mockReturnValue(["ai", "private", "unscoped"]);
+    mockGetScopeAccess.mockImplementation((s: string) => (s === "private" ? "none" : "full"));
+    const server = makeServer(true);
+
+    const result = await callTool(server, "vault_scope_set", { scope: "private" });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/no AI access/);
+    expect(mockSetActiveScope).not.toHaveBeenCalled();
   });
 });
 

@@ -30,7 +30,13 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { config, setInjectionConfig, setVault } from "./config.js";
 import { runHealthCheck } from "./health.js";
 import { parseIpcMessage } from "./ipc.js";
-import { isScopingEnabled, rebuildScopeMap, resetToHomeScope, setActiveScope } from "./scope.js";
+import {
+  discoverScopes,
+  isScopingEnabled,
+  rebuildScopeMap,
+  resetToHomeScope,
+  setActiveScope,
+} from "./scope.js";
 import { createServer, getFaviconIco, getIconDataUri, getIconSvg } from "./server.js";
 
 /** Origin values permitted for HTTP requests (DNS rebinding protection). */
@@ -73,6 +79,13 @@ async function startHttp(): Promise<void> {
   // The instance is consumed by the first /mcp or /sse session; subsequent
   // sessions each get a fresh server (each session is independent).
   let defaultServer: McpServer | null = await createServer(iconUrl);
+
+  // Push initial scope state to tray (no-op outside the tray utility process).
+  (
+    process as unknown as { parentPort?: { postMessage: (m: unknown) => void } }
+  ).parentPort?.postMessage({
+    __vaultgate_scope__: { scopes: discoverScopes(), enabled: isScopingEnabled() },
+  });
 
   const httpServer = http.createServer(
     async (req: http.IncomingMessage, res: http.ServerResponse) => {
@@ -302,7 +315,10 @@ async function startHttp(): Promise<void> {
   // semantic index so it re-embeds the new vault.
   const parentPort = (
     process as unknown as {
-      parentPort?: { on: (event: string, listener: (event: { data: unknown }) => void) => void };
+      parentPort?: {
+        postMessage: (m: unknown) => void;
+        on: (event: string, listener: (event: { data: unknown }) => void) => void;
+      };
     }
   ).parentPort;
   if (parentPort) {
@@ -321,9 +337,15 @@ async function startHttp(): Promise<void> {
           setVault(patch.vault || undefined);
           if (isScopingEnabled()) {
             resetToHomeScope();
-            rebuildScopeMap().catch((err) =>
-              console.error(`[VaultGate] IPC vault-change scope rebuild failed: ${err}`)
-            );
+            rebuildScopeMap()
+              .then(() =>
+                parentPort.postMessage({
+                  __vaultgate_scope__: { scopes: discoverScopes(), enabled: isScopingEnabled() },
+                })
+              )
+              .catch((err) =>
+                console.error(`[VaultGate] IPC vault-change scope rebuild failed: ${err}`)
+              );
           }
           // Reset the semantic index so it rebuilds for the new vault.
           // Dynamic import avoids loading the heavy ML stack at startup when

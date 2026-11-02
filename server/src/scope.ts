@@ -1,4 +1,4 @@
-import { runObsidian } from "./cli.js";
+import { runObsidianAdmin } from "./cli.js";
 import { config } from "./config.js";
 
 /**
@@ -7,9 +7,20 @@ import { config } from "./config.js";
  *
  * Configuration: add a `scope:` key to the YAML frontmatter of the vault
  * conventions file (e.g. `VAULTGATE.md`) in any subdirectory to declare a
- * scope zone for notes in that directory and below. VaultGate discovers all
- * scope zones automatically at startup by listing vault files via the CLI —
- * no filesystem access is ever performed.
+ * scope zone for notes in that directory and below. Optionally add `access:`
+ * and `isolation:` to control what AI operations are permitted:
+ *
+ * `access:` (default `full`):
+ * - `full` — full read/write access
+ * - `read` — read-only; write operations are blocked
+ * - `none` — fully excluded; all access is blocked regardless of isolation
+ *
+ * `isolation:` (default `strict`):
+ * - `strict` — zone is only visible when it is the active scope
+ * - `shared` — zone is visible from any active scope; `access:` still enforced
+ *
+ * VaultGate discovers all scope zones automatically at startup by listing vault
+ * files via the CLI — no filesystem access is ever performed.
  *
  * Root conventions file behaviour:
  * - WITHOUT `scope:` frontmatter → always injected as the global baseline.
@@ -19,14 +30,29 @@ import { config } from "./config.js";
  *   It is only injected when the active scope matches; not globally.
  *
  * Core invariant: notes from different scopes never appear in the same tool
- * result. Enforced here in server code, not by LLM instructions.
+ * result unless the note's scope has `isolation: shared`. Enforced here in
+ * server code, not by LLM instructions.
  *
  * CLI-only invariant: all vault access goes exclusively through runObsidian().
  * Direct filesystem reads/writes on vault content are forbidden in this module.
+ * Internal discovery calls use runObsidianAdmin() to bypass the access guard.
  */
 
 /** Maximum length (characters) for a scope name. Longer values are discarded. */
 const MAX_SCOPE_NAME_LENGTH = 64;
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+/** Permitted access level for a scope zone. */
+export type ScopeAccess = "full" | "read" | "none";
+
+/** Isolation level for a scope zone. */
+export type ScopeIsolation = "strict" | "shared";
+
+/** Discriminated union returned by {@link checkAccess}. */
+export type AccessResult = { allowed: true } | { allowed: false; message: string };
 
 // ---------------------------------------------------------------------------
 // Module state
@@ -36,12 +62,33 @@ const MAX_SCOPE_NAME_LENGTH = 64;
 let scopeZoneMap: Map<string, string> = new Map();
 /** Maps scope name → vault-relative path of the conventions file that declares it. */
 let conventionsPathMap: Map<string, string> = new Map();
+/** Maps scope name → declared access level (`"full"` when absent). */
+let scopeAccessMap: Map<string, ScopeAccess> = new Map();
+/** Maps scope name → declared isolation level (`"strict"` when absent). */
+let scopeIsolationMap: Map<string, ScopeIsolation> = new Map();
 /** True when the vault root conventions file itself carries a `scope:` key. */
 let rootHasScope = false;
 let homeScope = "unscoped";
 let activeScope = "unscoped";
 let scopeSwitchingEnabled = false;
 let enabled = false;
+
+// ---------------------------------------------------------------------------
+// Error messages
+// ---------------------------------------------------------------------------
+
+/** Standard error message returned when a note path is blocked by scope enforcement. */
+export const SCOPE_BLOCKED_MESSAGE = "This note is not accessible in the current scope.";
+
+/** Error message returned when a write operation is blocked by a read-only scope. */
+export const SCOPE_WRITE_BLOCKED_MESSAGE =
+  "This scope is read-only — write operations are not permitted.";
+
+/** Error message returned when any access is blocked by a no-access scope. */
+export const SCOPE_NO_ACCESS_MESSAGE = "This scope has no AI access — all operations are blocked.";
+
+/** Error message returned when a note is outside the active scope. */
+export const SCOPE_OUT_OF_SCOPE_MESSAGE = "This note is outside the active scope.";
 
 // ---------------------------------------------------------------------------
 // Path helpers
@@ -83,13 +130,57 @@ function parseScopeFrontmatter(content: string): string | undefined {
   return raw;
 }
 
+/**
+ * Parses the `access:` value from YAML frontmatter.
+ * Absent, blank, or unrecognised → `"full"`.
+ */
+function parseAccessLevel(content: string): ScopeAccess {
+  const frontmatterMatch = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(content);
+  if (!frontmatterMatch?.[1]) return "full";
+  const fm = frontmatterMatch[1];
+  const accessMatch = /^access:\s*["']?([^"'\r\n]+?)["']?\s*$/m.exec(fm);
+  if (!accessMatch?.[1]) return "full";
+  switch (accessMatch[1].trim().toLowerCase()) {
+    case "none":
+      return "none";
+    case "read":
+      return "read";
+    case "full":
+      return "full";
+    default:
+      return "full";
+  }
+}
+
+/**
+ * Parses the `isolation:` value from YAML frontmatter.
+ * Absent, blank, or unrecognised → `"strict"`.
+ */
+function parseIsolationLevel(content: string): ScopeIsolation {
+  const frontmatterMatch = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(content);
+  if (!frontmatterMatch?.[1]) return "strict";
+  const fm = frontmatterMatch[1];
+  const isolationMatch = /^isolation:\s*["']?([^"'\r\n]+?)["']?\s*$/m.exec(fm);
+  if (!isolationMatch?.[1]) return "strict";
+  switch (isolationMatch[1].trim().toLowerCase()) {
+    case "shared":
+      return "shared";
+    default:
+      return "strict";
+  }
+}
+
 // ---------------------------------------------------------------------------
 // CLI-based scope map builder
 // ---------------------------------------------------------------------------
 
 /**
  * Discovers scope zones by listing vault files via the CLI, reading each
- * conventions file, and parsing YAML frontmatter for `scope:` declarations.
+ * conventions file, and parsing YAML frontmatter for `scope:` and `access:`
+ * declarations.
+ *
+ * Uses `runObsidianAdmin` (bypasses the access guard) so discovery always
+ * succeeds even when scope zones have `access: none`.
  *
  * Only files whose basename matches `config.contextFileName` are examined.
  * Atomically replaces module state on success; throws on CLI failure so the
@@ -100,7 +191,7 @@ async function buildScopeMapFromCli(): Promise<void> {
 
   let fileList: string;
   try {
-    fileList = await runObsidian(["files", "list"]);
+    fileList = await runObsidianAdmin(["files", "list"]);
   } catch (err) {
     throw new Error(`Failed to list vault files: ${err}`);
   }
@@ -116,6 +207,8 @@ async function buildScopeMapFromCli(): Promise<void> {
   });
 
   const newZoneMap: Map<string, string> = new Map();
+  const newAccessMap: Map<string, ScopeAccess> = new Map();
+  const newIsolationMap: Map<string, ScopeIsolation> = new Map();
   // Tracks the shortest-path file per scope name for the conventionsPathMap.
   const scopeShortestDir = new Map<string, { dir: string; filePath: string }>();
   let newRootHasScope = false;
@@ -123,7 +216,7 @@ async function buildScopeMapFromCli(): Promise<void> {
   for (const filePath of conventionsFiles) {
     let content: string;
     try {
-      content = await runObsidian(["read", `path=${filePath}`]);
+      content = await runObsidianAdmin(["read", `path=${filePath}`]);
     } catch {
       continue;
     }
@@ -134,6 +227,12 @@ async function buildScopeMapFromCli(): Promise<void> {
     const dirRaw = filePath.includes("/") ? filePath.slice(0, filePath.lastIndexOf("/")) : "";
     const dir = normalizePath(dirRaw);
     newZoneMap.set(dir, scope);
+
+    const access = parseAccessLevel(content);
+    newAccessMap.set(scope, access);
+
+    const isolation = parseIsolationLevel(content);
+    newIsolationMap.set(scope, isolation);
 
     const existing = scopeShortestDir.get(scope);
     if (!existing || dir.length < existing.dir.length) {
@@ -153,7 +252,91 @@ async function buildScopeMapFromCli(): Promise<void> {
   // Atomic replacement — only reaches here if files:list succeeded.
   scopeZoneMap = newZoneMap;
   conventionsPathMap = newConventionsMap;
+  scopeAccessMap = newAccessMap;
+  scopeIsolationMap = newIsolationMap;
   rootHasScope = newRootHasScope;
+}
+
+// ---------------------------------------------------------------------------
+// Access control
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns the declared access level for a scope, defaulting to `"full"` when
+ * the scope has no `access:` declaration. Backward-compatible: vaults without
+ * `access:` frontmatter behave identically to before.
+ */
+export function getScopeAccess(scope: string): ScopeAccess {
+  return scopeAccessMap.get(scope) ?? "full";
+}
+
+/**
+ * Returns the declared isolation level for a scope, defaulting to `"strict"`
+ * when the scope has no `isolation:` declaration. Backward-compatible: existing
+ * scopes without `isolation:` frontmatter behave identically to before.
+ */
+export function getScopeIsolation(scope: string): ScopeIsolation {
+  return scopeIsolationMap.get(scope) ?? "strict";
+}
+
+/**
+ * Returns the access level of the currently active scope.
+ * Defaults to `"full"` when no `access:` declaration exists for the active scope.
+ */
+export function getActiveScopeAccess(): ScopeAccess {
+  return getScopeAccess(activeScope);
+}
+
+/**
+ * Central access-policy decision point. All current and future access rules
+ * live here — callers only need to check the returned {@link AccessResult}.
+ *
+ * When scoping is not configured (`scopeZoneMap` empty, `activeScope = "unscoped"`),
+ * every path resolves to `"unscoped"` with default `"full"` access and passes all
+ * checks — no explicit enabled-guard needed.
+ *
+ * Rules applied (in order):
+ * 1. Conventions files are always **readable** regardless of scope or access
+ *    level (the AI must be able to read VaultGate config). Write restrictions
+ *    still apply; scope membership still applies to writes.
+ * 2. Scope-level `access: none` → all operations denied (absolute).
+ * 3. Scope membership: notes from a different scope are denied unless the note's
+ *    scope has `isolation: shared`. Direct path knowledge does not grant access.
+ * 4. Scope-level `access: read` + write operation → denied.
+ *
+ * Future note-level access rules slot in after step 4.
+ */
+export function checkAccess(path: string | undefined, op: "read" | "write"): AccessResult {
+  // Conventions files are always readable — VaultGate config, not notes.
+  // Applies across scope boundaries (root conventions file is injected in all
+  // named scopes when rootHasScope = false). Write restrictions still apply.
+  if (op === "read" && path !== undefined) {
+    const base = path.includes("/") ? path.slice(path.lastIndexOf("/") + 1) : path;
+    if (base === config.contextFileName) return { allowed: true };
+  }
+
+  const noteScope = path !== undefined ? resolveNoteScope(path) : activeScope;
+  const access = getScopeAccess(noteScope);
+
+  // `none` is absolute.
+  if (access === "none") return { allowed: false, message: SCOPE_NO_ACCESS_MESSAGE };
+
+  // Scope membership: knowing a path does not grant access to another scope.
+  // Shared-isolation scopes skip this check — their notes are visible from any
+  // active scope. `access: none` (step 2) always fires first and cannot be bypassed.
+  if (
+    path !== undefined &&
+    noteScope !== activeScope &&
+    getScopeIsolation(noteScope) === "strict"
+  ) {
+    return { allowed: false, message: SCOPE_OUT_OF_SCOPE_MESSAGE };
+  }
+
+  if (access === "read" && op === "write")
+    return { allowed: false, message: SCOPE_WRITE_BLOCKED_MESSAGE };
+
+  // Future: note-level access rules slot in here
+  return { allowed: true };
 }
 
 // ---------------------------------------------------------------------------
@@ -179,22 +362,18 @@ export function resolveNoteScope(notePath: string): string {
 }
 
 /**
- * Returns `true` when the note belongs to the currently active scope.
- * Always returns `true` when scoping is disabled or the active scope is
- * `"unscoped"` (which grants full vault access).
+ * Returns `true` when the note is accessible in the current session state.
+ * Delegates entirely to {@link checkAccess} — access level and scope membership
+ * are both enforced there, keeping the two in sync automatically.
  */
 export function isNoteInScope(notePath: string): boolean {
-  if (!enabled || activeScope === "unscoped") return true;
-  return resolveNoteScope(notePath) === activeScope;
+  return checkAccess(notePath, "read").allowed;
 }
-
-/** Standard error message returned when a note path is blocked by scope enforcement. */
-export const SCOPE_BLOCKED_MESSAGE = "This note is not accessible in the current scope.";
 
 /**
  * Returns `true` when the given note path must be blocked from all AI-visible
- * operations: when scoping is enabled and the note's scope does not match the
- * active scope. Notes are always accessible in the `"unscoped"` state.
+ * operations — when the note's scope does not match the active scope, or the
+ * note's scope has `access: none`.
  *
  * Passing `undefined` (the active Obsidian file — unknown to VaultGate) always
  * returns `false`, allowing the call to proceed.
@@ -205,13 +384,10 @@ export function isPathBlocked(notePath: string | undefined): boolean {
 }
 
 /**
- * Filters an array of vault-relative paths to those belonging to the active scope.
- * Returns the full array unchanged when scoping is disabled or the active scope is
- * `"unscoped"` (full vault access).
+ * Filters an array of vault-relative paths to those accessible in the active scope.
  */
 export function filterByScope(paths: string[]): string[] {
-  if (!enabled || activeScope === "unscoped") return paths;
-  return paths.filter((p) => resolveNoteScope(p) === activeScope);
+  return paths.filter((p) => isNoteInScope(p));
 }
 
 /**
@@ -337,6 +513,13 @@ export async function initScopeEngine(initialScope: string, switching: boolean):
   }
 
   enabled = true;
+
+  if (getScopeAccess(homeScope) === "none") {
+    console.error(
+      `[VaultGate] Warning: home scope "${homeScope}" has access: none — all tool calls will be blocked until scope is switched.`
+    );
+  }
+
   console.error(
     `[VaultGate] Vault scoping enabled. Home scope: "${homeScope}". Discovered scopes: ${discoverScopes().join(", ")}.`
   );

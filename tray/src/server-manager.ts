@@ -50,6 +50,12 @@ export interface IndexProgressEvent {
   error?: string;
 }
 
+/** Scope state pushed from the server after startup and vault changes. */
+export interface ScopeState {
+  scopes: string[];
+  enabled: boolean;
+}
+
 /** Public events emitted by the manager. */
 interface ServerManagerEvents {
   state: (state: ServerState) => void;
@@ -67,6 +73,7 @@ const LOG_RETAIN_FILES = 3;
 let child: UtilityProcess | undefined;
 let state: ServerState = "idle";
 let latestIndex: IndexProgressEvent = { type: "state", state: "idle" };
+let latestScope: ScopeState = { scopes: [], enabled: false };
 let rapidCrashCount = 0;
 let lastStartedAt = 0;
 let restartTimer: NodeJS.Timeout | undefined;
@@ -295,6 +302,10 @@ export async function start(): Promise<void> {
       // not clobbered by per-note "progress" events which carry no `state` field.
       latestIndex = { ...latestIndex, ...ev };
       emitter.emit("indexProgress", ev);
+    } else if (msg && typeof msg === "object" && "__vaultgate_scope__" in msg) {
+      const ev = (msg as { __vaultgate_scope__: ScopeState }).__vaultgate_scope__;
+      log(`IPC recv __vaultgate_scope__: enabled=${ev.enabled}, scopes=[${ev.scopes.join(",")}]`);
+      latestScope = ev;
     } else {
       log(`IPC recv: unrecognized message shape (type=${typeof msg})`);
     }
@@ -372,6 +383,7 @@ export async function stop(): Promise<void> {
   // Reset the cached index state so the tray menu does not show stale "ready"
   // data after the server process is replaced with a new one.
   latestIndex = { type: "state", state: "idle" };
+  latestScope = { scopes: [], enabled: false };
   const proc = child;
   try {
     proc.kill();
@@ -408,6 +420,11 @@ export function getState(): ServerState {
 /** Returns the most recent indexing progress event seen from the server. */
 export function getIndexState(): IndexProgressEvent {
   return latestIndex;
+}
+
+/** Returns the latest scope state pushed by the server. */
+export function getScopeState(): ScopeState {
+  return latestScope;
 }
 
 /** Subscribe to manager events. Returns an unsubscribe function. */
