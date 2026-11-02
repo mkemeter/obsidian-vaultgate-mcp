@@ -148,8 +148,10 @@ export function registerPropertyTools(server: McpServer): void {
           try {
             const raw = await runObsidian(["property:read", `name=${key}`, `path=${file}`]);
             const propValue = raw.trim();
+            // Obsidian returns the string "null" (not empty string) when a key is absent.
+            const propPresent = propValue !== "" && propValue !== "null";
             if (missing) {
-              if (!propValue) matches.push(file);
+              if (!propPresent) matches.push(file);
             } else if (value !== undefined) {
               if (propValue === value) matches.push(file);
             } else if (before !== undefined || after !== undefined) {
@@ -159,7 +161,7 @@ export function registerPropertyTools(server: McpServer): void {
               if (after !== undefined && d <= new Date(after)) continue;
               matches.push(file);
             } else {
-              if (propValue) matches.push(file);
+              if (propPresent) matches.push(file);
             }
           } catch {
             if (missing) matches.push(file);

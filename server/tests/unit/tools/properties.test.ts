@@ -138,6 +138,16 @@ describe("property_search", () => {
     expect(result.content[0].text).toBe("A.md");
   });
 
+  // regression: key-only query returns all files when Obsidian returns "null" for absent keys
+  it("key existence check excludes files where property:read returns literal string null", async () => {
+    mockRun
+      .mockResolvedValueOnce("A.md\nB.md")
+      .mockResolvedValueOnce("some-value") // A has property → included
+      .mockResolvedValueOnce("null"); // B: Obsidian returns "null" for missing key → excluded
+    const result = await invoke(makeServer(), "property_search", { key: "category" });
+    expect(result.content[0].text).toBe("A.md");
+  });
+
   it("missing: true includes file with empty property value", async () => {
     mockRun
       .mockResolvedValueOnce("A.md")
@@ -160,6 +170,15 @@ describe("property_search", () => {
       .mockResolvedValueOnce("Alice");
     const result = await invoke(makeServer(), "property_search", { key: "assignee", missing: true });
     expect(result.content[0].text).toBe("");
+  });
+
+  // regression: missing:true returns empty when Obsidian returns "null" for absent keys
+  it("missing: true includes file where property:read returns literal string null", async () => {
+    mockRun
+      .mockResolvedValueOnce("A.md")
+      .mockResolvedValueOnce("null"); // Obsidian returns "null" for missing key → still missing
+    const result = await invoke(makeServer(), "property_search", { key: "due", missing: true });
+    expect(result.content[0].text).toBe("A.md");
   });
 
   it("before filter includes earlier dates and excludes later dates", async () => {
