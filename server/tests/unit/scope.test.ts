@@ -353,6 +353,20 @@ describe("scope engine (CLI-based)", () => {
     expect(discoverScopes()).toContain("personal");
   });
 
+  it("rebuildScopeMap updates access levels when frontmatter changes", async () => {
+    await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" });
+    // Simulate access level being updated in the conventions file
+    const { runObsidianAdmin } = await import("../../src/cli.js");
+    vi.mocked(runObsidianAdmin).mockImplementation(async (args: string[]) => {
+      if (args[0] === "files" && args[1] === "list") return "Work/VAULTGATE.md";
+      if (args[0] === "read") return "---\nscope: work\naccess: ro\n---";
+      throw new Error("unexpected");
+    });
+    const { rebuildScopeMap, getScopeAccess } = await import("../../src/scope.js");
+    await rebuildScopeMap();
+    expect(getScopeAccess("work")).toBe("ro");
+  });
+
   // ---- getConventionsPaths ----
 
   it("getConventionsPaths returns [contextFileName] when scoping is disabled", async () => {
@@ -638,9 +652,10 @@ describe("scope engine (CLI-based)", () => {
         },
         "work"
       );
-      const { checkAccess } = await import("../../src/scope.js");
+      const { checkAccess, SCOPE_OUT_OF_SCOPE_MESSAGE } = await import("../../src/scope.js");
       const result = checkAccess("Personal/Note.md", "write");
       expect(result.allowed).toBe(false);
+      expect((result as { allowed: false; message: string }).message).toBe(SCOPE_OUT_OF_SCOPE_MESSAGE);
     });
 
     it("checkAccess: unscoped mode blocks notes from named scope zones", async () => {
@@ -681,10 +696,11 @@ describe("scope engine (CLI-based)", () => {
         },
         "work"
       );
-      const { checkAccess } = await import("../../src/scope.js");
+      const { checkAccess, SCOPE_OUT_OF_SCOPE_MESSAGE } = await import("../../src/scope.js");
       // Read exception does not extend to writes — scope membership applies.
       const result = checkAccess("Personal/VAULTGATE.md", "write");
       expect(result.allowed).toBe(false);
+      expect((result as { allowed: false; message: string }).message).toBe(SCOPE_OUT_OF_SCOPE_MESSAGE);
     });
 
     it("isNoteInScope returns false for out-of-scope notes when a named scope is active", async () => {
@@ -713,6 +729,62 @@ describe("scope engine (CLI-based)", () => {
       expect(result).toContain("Work/Note.md");
       expect(result).not.toContain("Personal/Note.md");
       expect(result).toContain("Work/Sub/File.md");
+    });
+
+    it("checkAccess: conventions file write is blocked in ro scope", async () => {
+      // The read exemption for conventions files does not extend to writes.
+      await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\naccess: ro\n---" }, "work");
+      const { checkAccess, SCOPE_WRITE_BLOCKED_MESSAGE } = await import("../../src/scope.js");
+      const result = checkAccess("Work/VAULTGATE.md", "write");
+      expect(result.allowed).toBe(false);
+      expect((result as { allowed: false; message: string }).message).toBe(SCOPE_WRITE_BLOCKED_MESSAGE);
+    });
+
+    it("checkAccess: pathless read is allowed in ro scope", async () => {
+      // ro blocks writes but not reads — pathless reads must pass through.
+      await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\naccess: ro\n---" }, "work");
+      const { checkAccess } = await import("../../src/scope.js");
+      expect(checkAccess(undefined, "read").allowed).toBe(true);
+    });
+
+    it("checkAccess: pathless read is blocked when active scope has access: none", async () => {
+      // access:none is absolute — even pathless reads (list ops, daily:get) are blocked.
+      // The guard now calls checkAccess(undefined, "read") for all ops, not just writes.
+      await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\naccess: none\n---" }, "unscoped");
+      const { checkAccess, setActiveScope, SCOPE_NO_ACCESS_MESSAGE } = await import(
+        "../../src/scope.js"
+      );
+      setActiveScope("work");
+      const result = checkAccess(undefined, "read");
+      expect(result.allowed).toBe(false);
+      expect((result as { allowed: false; message: string }).message).toBe(SCOPE_NO_ACCESS_MESSAGE);
+    });
+
+    it("checkAccess: pathless write is blocked when active scope is read-only", async () => {
+      // Tools that write without a specific path (e.g. daily:append) must respect ro.
+      await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\naccess: ro\n---" }, "work");
+      const { checkAccess, SCOPE_WRITE_BLOCKED_MESSAGE } = await import("../../src/scope.js");
+      const result = checkAccess(undefined, "write");
+      expect(result.allowed).toBe(false);
+      expect((result as { allowed: false; message: string }).message).toBe(SCOPE_WRITE_BLOCKED_MESSAGE);
+    });
+
+    it("checkAccess: pathless write is blocked when active scope has access: none", async () => {
+      // Even pathless writes are denied by absolute none access.
+      await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\naccess: none\n---" }, "unscoped");
+      const { checkAccess, setActiveScope, SCOPE_NO_ACCESS_MESSAGE } = await import(
+        "../../src/scope.js"
+      );
+      setActiveScope("work");
+      const result = checkAccess(undefined, "write");
+      expect(result.allowed).toBe(false);
+      expect((result as { allowed: false; message: string }).message).toBe(SCOPE_NO_ACCESS_MESSAGE);
+    });
+
+    it("filterByScope returns empty array for empty input", async () => {
+      await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" }, "work");
+      const { filterByScope } = await import("../../src/scope.js");
+      expect(filterByScope([])).toEqual([]);
     });
   });
 
