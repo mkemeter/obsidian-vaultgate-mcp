@@ -144,6 +144,14 @@ describe("scope engine (CLI-based)", () => {
     expect(isScopingEnabled()).toBe(false);
   });
 
+  it("isScopingEnabled stays false when frontmatter has no scope: key", async () => {
+    // regression: L127 — parseScopeFrontmatter must return undefined when
+    // frontmatter is present but contains no `scope:` key.
+    await initWithCli({ "Work/VAULTGATE.md": "---\naccess: read\n---\n# No scope declared" });
+    const { isScopingEnabled } = await import("../../src/scope.js");
+    expect(isScopingEnabled()).toBe(false);
+  });
+
   it("isScopingEnabled returns true when at least one scope zone is found", async () => {
     await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---\n# Work" });
     const { isScopingEnabled } = await import("../../src/scope.js");
@@ -156,6 +164,42 @@ describe("scope engine (CLI-based)", () => {
     const { initScopeEngine, isScopingEnabled } = await import("../../src/scope.js");
     await initScopeEngine("unscoped", false);
     expect(isScopingEnabled()).toBe(false);
+  });
+
+  it("initScopeEngine logs a warning when home scope has access: none", async () => {
+    // regression: L518 — the startup warning must fire without throwing.
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    await initWithCli(
+      { "Work/VAULTGATE.md": "---\nscope: work\naccess: none\n---" },
+      "work"
+    );
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('home scope "work" has access: none')
+    );
+    consoleSpy.mockRestore();
+  });
+
+  it("buildScopeMapFromCli skips a conventions file that cannot be read", async () => {
+    // regression: L221 — when files:list succeeds but a specific file read throws,
+    // the loop must continue and still discover the other scope zones.
+    const { runObsidianAdmin } = await import("../../src/cli.js");
+    vi.mocked(runObsidianAdmin).mockImplementation(async (args: string[]) => {
+      if (args[0] === "files" && args[1] === "list")
+        return "Broken/VAULTGATE.md\nWork/VAULTGATE.md";
+      if (args[0] === "read") {
+        const p = args.find((a) => a.startsWith("path="))?.slice(5);
+        if (p === "Broken/VAULTGATE.md") throw new Error("file read failed");
+        if (p === "Work/VAULTGATE.md") return "---\nscope: work\n---";
+        throw new Error("unexpected");
+      }
+      throw new Error("unexpected");
+    });
+    const { initScopeEngine, isScopingEnabled, discoverScopes } = await import("../../src/scope.js");
+    await initScopeEngine("unscoped", false);
+    // Broken file is silently skipped; Work zone is still discovered.
+    expect(isScopingEnabled()).toBe(true);
+    expect(discoverScopes()).toContain("work");
+    expect(discoverScopes()).not.toContain("Broken");
   });
 
   it("regression: buildScopeMapFromCli uses ['files', 'list'] not ['files:list']", async () => {
@@ -324,6 +368,14 @@ describe("scope engine (CLI-based)", () => {
     expect(getHomeScope()).toBe("work");
   });
 
+  it("initScopeEngine defaults homeScope to 'unscoped' when initialScope is empty string", async () => {
+    // regression: L498 — the `|| "unscoped"` fallback fires when initialScope is "".
+    await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" }, "");
+    const { getHomeScope, getActiveScope } = await import("../../src/scope.js");
+    expect(getHomeScope()).toBe("unscoped");
+    expect(getActiveScope()).toBe("unscoped");
+  });
+
   // ---- rebuildScopeMap ----
 
   it("rebuildScopeMap is a no-op when scoping is disabled", async () => {
@@ -331,6 +383,20 @@ describe("scope engine (CLI-based)", () => {
     expect(isScopingEnabled()).toBe(false);
     await rebuildScopeMap();
     expect(isScopingEnabled()).toBe(false);
+  });
+
+  it("rebuildScopeMap logs and swallows error when CLI fails", async () => {
+    // regression: the catch branch at the end of rebuildScopeMap must not throw.
+    await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" });
+    const { runObsidianAdmin } = await import("../../src/cli.js");
+    vi.mocked(runObsidianAdmin).mockRejectedValue(new Error("CLI unavailable"));
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { rebuildScopeMap, discoverScopes } = await import("../../src/scope.js");
+    await expect(rebuildScopeMap()).resolves.toBeUndefined();
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Scope map rebuild failed"));
+    // Scoping stays enabled with the previous map intact.
+    expect(discoverScopes()).toContain("work");
+    consoleSpy.mockRestore();
   });
 
   it("rebuildScopeMap re-scans CLI and updates discovered scopes", async () => {
@@ -402,6 +468,16 @@ describe("scope engine (CLI-based)", () => {
     // since conventionsPathMap only contains scopes we found.
     setActiveScope("unscoped");
     // unscoped → no scope file in map → [rootFile] only
+    expect(getConventionsPaths()).toEqual(["VAULTGATE.md"]);
+  });
+
+  it("getConventionsPaths returns [rootFile] when active scope is not in conventionsPathMap", async () => {
+    // regression: L426 false branch — active scope is a named scope but has no
+    // corresponding entry in conventionsPathMap (e.g. set via setActiveScope with
+    // an undiscovered name). Must return [rootFile] without pushing undefined.
+    await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" }, "work");
+    const { setActiveScope, getConventionsPaths } = await import("../../src/scope.js");
+    setActiveScope("undiscovered");
     expect(getConventionsPaths()).toEqual(["VAULTGATE.md"]);
   });
 
@@ -773,6 +849,154 @@ describe("scope engine (CLI-based)", () => {
       await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" }, "work");
       const { filterByScope } = await import("../../src/scope.js");
       expect(filterByScope([])).toEqual([]);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Scope isolation levels
+  // ---------------------------------------------------------------------------
+
+  describe("scope isolation levels", () => {
+    it("getScopeIsolation defaults to 'strict' for an undeclared scope", async () => {
+      await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" });
+      const { getScopeIsolation } = await import("../../src/scope.js");
+      expect(getScopeIsolation("work")).toBe("strict");
+      expect(getScopeIsolation("nonexistent")).toBe("strict");
+    });
+
+    it("getScopeIsolation returns 'shared' when isolation: shared declared", async () => {
+      await initWithCli({ "Ref/VAULTGATE.md": "---\nscope: reference\nisolation: shared\n---" });
+      const { getScopeIsolation } = await import("../../src/scope.js");
+      expect(getScopeIsolation("reference")).toBe("shared");
+    });
+
+    it("getScopeIsolation returns 'strict' when isolation: strict declared", async () => {
+      await initWithCli({
+        "Work/VAULTGATE.md": "---\nscope: work\nisolation: strict\n---",
+      });
+      const { getScopeIsolation } = await import("../../src/scope.js");
+      expect(getScopeIsolation("work")).toBe("strict");
+    });
+
+    it("getScopeIsolation returns 'strict' for unrecognised isolation value", async () => {
+      await initWithCli({
+        "Work/VAULTGATE.md": "---\nscope: work\nisolation: semi-open\n---",
+      });
+      const { getScopeIsolation } = await import("../../src/scope.js");
+      expect(getScopeIsolation("work")).toBe("strict");
+    });
+
+    it("checkAccess: shared-scope note is readable when a different scope is active", async () => {
+      await initWithCli(
+        {
+          "Work/VAULTGATE.md": "---\nscope: work\n---",
+          "Ref/VAULTGATE.md": "---\nscope: reference\nisolation: shared\n---",
+        },
+        "work"
+      );
+      const { checkAccess } = await import("../../src/scope.js");
+      expect(checkAccess("Ref/Glossary.md", "read").allowed).toBe(true);
+    });
+
+    it("checkAccess: shared-scope note is writable (access: full) when a different scope is active", async () => {
+      await initWithCli(
+        {
+          "Work/VAULTGATE.md": "---\nscope: work\n---",
+          "Ref/VAULTGATE.md": "---\nscope: reference\nisolation: shared\naccess: full\n---",
+        },
+        "work"
+      );
+      const { checkAccess } = await import("../../src/scope.js");
+      expect(checkAccess("Ref/Note.md", "write").allowed).toBe(true);
+    });
+
+    it("checkAccess: shared + access: read → read allowed, write blocked from any scope", async () => {
+      await initWithCli(
+        {
+          "Work/VAULTGATE.md": "---\nscope: work\n---",
+          "Ref/VAULTGATE.md": "---\nscope: reference\nisolation: shared\naccess: read\n---",
+        },
+        "work"
+      );
+      const { checkAccess, SCOPE_WRITE_BLOCKED_MESSAGE } = await import("../../src/scope.js");
+      expect(checkAccess("Ref/Glossary.md", "read").allowed).toBe(true);
+      const writeResult = checkAccess("Ref/Glossary.md", "write");
+      expect(writeResult.allowed).toBe(false);
+      expect((writeResult as { allowed: false; message: string }).message).toBe(
+        SCOPE_WRITE_BLOCKED_MESSAGE
+      );
+    });
+
+    it("checkAccess: shared + access: none → always blocked (none overrides isolation)", async () => {
+      // regression guard: access: none must fire before the isolation check
+      await initWithCli(
+        {
+          "Work/VAULTGATE.md": "---\nscope: work\n---",
+          "Secret/VAULTGATE.md": "---\nscope: secret\nisolation: shared\naccess: none\n---",
+        },
+        "work"
+      );
+      const { checkAccess, SCOPE_NO_ACCESS_MESSAGE } = await import("../../src/scope.js");
+      const result = checkAccess("Secret/Note.md", "read");
+      expect(result.allowed).toBe(false);
+      expect((result as { allowed: false; message: string }).message).toBe(SCOPE_NO_ACCESS_MESSAGE);
+    });
+
+    it("isNoteInScope returns true for shared-scope notes from another active scope", async () => {
+      await initWithCli(
+        {
+          "Work/VAULTGATE.md": "---\nscope: work\n---",
+          "Ref/VAULTGATE.md": "---\nscope: reference\nisolation: shared\n---",
+        },
+        "work"
+      );
+      const { isNoteInScope } = await import("../../src/scope.js");
+      expect(isNoteInScope("Ref/Glossary.md")).toBe(true);
+    });
+
+    it("filterByScope includes shared-scope notes alongside active-scope notes", async () => {
+      await initWithCli(
+        {
+          "Work/VAULTGATE.md": "---\nscope: work\n---",
+          "Ref/VAULTGATE.md": "---\nscope: reference\nisolation: shared\n---",
+          "Personal/VAULTGATE.md": "---\nscope: personal\n---",
+        },
+        "work"
+      );
+      const { filterByScope } = await import("../../src/scope.js");
+      const result = filterByScope(["Work/Note.md", "Ref/Glossary.md", "Personal/Diary.md"]);
+      expect(result).toContain("Work/Note.md");
+      expect(result).toContain("Ref/Glossary.md");
+      expect(result).not.toContain("Personal/Diary.md");
+    });
+
+    it("filterByScope: shared + access: none → excluded (none always wins)", async () => {
+      // regression guard: none overrides isolation at the filterByScope level too
+      await initWithCli(
+        {
+          "Work/VAULTGATE.md": "---\nscope: work\n---",
+          "Secret/VAULTGATE.md": "---\nscope: secret\nisolation: shared\naccess: none\n---",
+        },
+        "work"
+      );
+      const { filterByScope } = await import("../../src/scope.js");
+      const result = filterByScope(["Work/Note.md", "Secret/Classified.md"]);
+      expect(result).toContain("Work/Note.md");
+      expect(result).not.toContain("Secret/Classified.md");
+    });
+
+    it("rebuildScopeMap updates isolation levels when frontmatter changes", async () => {
+      await initWithCli({ "Ref/VAULTGATE.md": "---\nscope: reference\n---" });
+      // Simulate isolation being added in the conventions file
+      const { runObsidianAdmin } = await import("../../src/cli.js");
+      vi.mocked(runObsidianAdmin).mockImplementation(async (args: string[]) => {
+        if (args[0] === "files" && args[1] === "list") return "Ref/VAULTGATE.md";
+        if (args[0] === "read") return "---\nscope: reference\nisolation: shared\n---";
+        throw new Error("unexpected");
+      });
+      const { rebuildScopeMap, getScopeIsolation } = await import("../../src/scope.js");
+      await rebuildScopeMap();
+      expect(getScopeIsolation("reference")).toBe("shared");
     });
   });
 

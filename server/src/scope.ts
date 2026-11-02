@@ -8,10 +8,16 @@ import { config } from "./config.js";
  * Configuration: add a `scope:` key to the YAML frontmatter of the vault
  * conventions file (e.g. `VAULTGATE.md`) in any subdirectory to declare a
  * scope zone for notes in that directory and below. Optionally add `access:`
- * to control what AI operations are permitted within that scope:
- * - `full` (default) — full read/write access
+ * and `isolation:` to control what AI operations are permitted:
+ *
+ * `access:` (default `full`):
+ * - `full` — full read/write access
  * - `read` — read-only; write operations are blocked
- * - `none` — fully excluded; all access is blocked even in `unscoped` mode
+ * - `none` — fully excluded; all access is blocked regardless of isolation
+ *
+ * `isolation:` (default `strict`):
+ * - `strict` — zone is only visible when it is the active scope
+ * - `shared` — zone is visible from any active scope; `access:` still enforced
  *
  * VaultGate discovers all scope zones automatically at startup by listing vault
  * files via the CLI — no filesystem access is ever performed.
@@ -24,7 +30,8 @@ import { config } from "./config.js";
  *   It is only injected when the active scope matches; not globally.
  *
  * Core invariant: notes from different scopes never appear in the same tool
- * result. Enforced here in server code, not by LLM instructions.
+ * result unless the note's scope has `isolation: shared`. Enforced here in
+ * server code, not by LLM instructions.
  *
  * CLI-only invariant: all vault access goes exclusively through runObsidian().
  * Direct filesystem reads/writes on vault content are forbidden in this module.
@@ -41,6 +48,9 @@ const MAX_SCOPE_NAME_LENGTH = 64;
 /** Permitted access level for a scope zone. */
 export type ScopeAccess = "full" | "read" | "none";
 
+/** Isolation level for a scope zone. */
+export type ScopeIsolation = "strict" | "shared";
+
 /** Discriminated union returned by {@link checkAccess}. */
 export type AccessResult = { allowed: true } | { allowed: false; message: string };
 
@@ -54,6 +64,8 @@ let scopeZoneMap: Map<string, string> = new Map();
 let conventionsPathMap: Map<string, string> = new Map();
 /** Maps scope name → declared access level (`"full"` when absent). */
 let scopeAccessMap: Map<string, ScopeAccess> = new Map();
+/** Maps scope name → declared isolation level (`"strict"` when absent). */
+let scopeIsolationMap: Map<string, ScopeIsolation> = new Map();
 /** True when the vault root conventions file itself carries a `scope:` key. */
 let rootHasScope = false;
 let homeScope = "unscoped";
@@ -140,6 +152,24 @@ function parseAccessLevel(content: string): ScopeAccess {
   }
 }
 
+/**
+ * Parses the `isolation:` value from YAML frontmatter.
+ * Absent, blank, or unrecognised → `"strict"`.
+ */
+function parseIsolationLevel(content: string): ScopeIsolation {
+  const frontmatterMatch = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(content);
+  if (!frontmatterMatch?.[1]) return "strict";
+  const fm = frontmatterMatch[1];
+  const isolationMatch = /^isolation:\s*["']?([^"'\r\n]+?)["']?\s*$/m.exec(fm);
+  if (!isolationMatch?.[1]) return "strict";
+  switch (isolationMatch[1].trim().toLowerCase()) {
+    case "shared":
+      return "shared";
+    default:
+      return "strict";
+  }
+}
+
 // ---------------------------------------------------------------------------
 // CLI-based scope map builder
 // ---------------------------------------------------------------------------
@@ -178,6 +208,7 @@ async function buildScopeMapFromCli(): Promise<void> {
 
   const newZoneMap: Map<string, string> = new Map();
   const newAccessMap: Map<string, ScopeAccess> = new Map();
+  const newIsolationMap: Map<string, ScopeIsolation> = new Map();
   // Tracks the shortest-path file per scope name for the conventionsPathMap.
   const scopeShortestDir = new Map<string, { dir: string; filePath: string }>();
   let newRootHasScope = false;
@@ -200,6 +231,9 @@ async function buildScopeMapFromCli(): Promise<void> {
     const access = parseAccessLevel(content);
     newAccessMap.set(scope, access);
 
+    const isolation = parseIsolationLevel(content);
+    newIsolationMap.set(scope, isolation);
+
     const existing = scopeShortestDir.get(scope);
     if (!existing || dir.length < existing.dir.length) {
       scopeShortestDir.set(scope, { dir, filePath });
@@ -219,6 +253,7 @@ async function buildScopeMapFromCli(): Promise<void> {
   scopeZoneMap = newZoneMap;
   conventionsPathMap = newConventionsMap;
   scopeAccessMap = newAccessMap;
+  scopeIsolationMap = newIsolationMap;
   rootHasScope = newRootHasScope;
 }
 
@@ -233,6 +268,15 @@ async function buildScopeMapFromCli(): Promise<void> {
  */
 export function getScopeAccess(scope: string): ScopeAccess {
   return scopeAccessMap.get(scope) ?? "full";
+}
+
+/**
+ * Returns the declared isolation level for a scope, defaulting to `"strict"`
+ * when the scope has no `isolation:` declaration. Backward-compatible: existing
+ * scopes without `isolation:` frontmatter behave identically to before.
+ */
+export function getScopeIsolation(scope: string): ScopeIsolation {
+  return scopeIsolationMap.get(scope) ?? "strict";
 }
 
 /**
@@ -256,8 +300,8 @@ export function getActiveScopeAccess(): ScopeAccess {
  *    level (the AI must be able to read VaultGate config). Write restrictions
  *    still apply; scope membership still applies to writes.
  * 2. Scope-level `access: none` → all operations denied (absolute).
- * 3. Scope membership: notes from a different scope are denied — direct path
- *    knowledge does not grant access.
+ * 3. Scope membership: notes from a different scope are denied unless the note's
+ *    scope has `isolation: shared`. Direct path knowledge does not grant access.
  * 4. Scope-level `access: read` + write operation → denied.
  *
  * Future note-level access rules slot in after step 4.
@@ -278,7 +322,13 @@ export function checkAccess(path: string | undefined, op: "read" | "write"): Acc
   if (access === "none") return { allowed: false, message: SCOPE_NO_ACCESS_MESSAGE };
 
   // Scope membership: knowing a path does not grant access to another scope.
-  if (path !== undefined && noteScope !== activeScope) {
+  // Shared-isolation scopes skip this check — their notes are visible from any
+  // active scope. `access: none` (step 2) always fires first and cannot be bypassed.
+  if (
+    path !== undefined &&
+    noteScope !== activeScope &&
+    getScopeIsolation(noteScope) === "strict"
+  ) {
     return { allowed: false, message: SCOPE_OUT_OF_SCOPE_MESSAGE };
   }
 

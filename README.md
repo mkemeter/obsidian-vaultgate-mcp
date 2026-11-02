@@ -452,6 +452,30 @@ Each zone can declare an `access:` level in its conventions file frontmatter. Th
 
 `access: none` is an absolute block. Unlike `full` and `read` zones (which are simply hidden when a different scope is active), `none` zones are invisible in every session regardless of the active scope. This is the right choice for private journals, confidential projects, or anything you never want the AI to see. Switching to a `none`-access scope via `vault_scope_set` is also blocked.
 
+#### Isolation levels
+
+By default every zone is **strict**: its notes are visible only when it is the active scope. Declare `isolation: shared` to make a zone's notes visible from any active scope while still enforcing the zone's `access:` level:
+
+| `isolation:` | Notes visible when | `access:` still enforced? |
+|---|---|---|
+| `strict` (default) | Only when this zone is the active scope | Yes |
+| `shared` | From any active scope | Yes — always |
+
+`access: none` always overrides isolation. A zone with `isolation: shared` and `access: none` is permanently invisible regardless of the active scope.
+
+**Typical use case:** a shared reference library that should always be readable, no matter which project scope is active:
+
+```markdown
+---
+scope: reference
+access: read
+isolation: shared
+---
+
+# Reference library
+Shared glossary, templates, and style guides. Readable from any scope, never writable.
+```
+
 #### Setting up scopes
 
 **Step 1.** Add a `VAULTGATE.md` with `scope:` frontmatter to each folder you want to name as a zone. Add an optional `access:` key:
@@ -496,7 +520,7 @@ For every read or write on a note path, VaultGate applies these rules in order. 
 
 1. **Conventions files are always readable.** `VAULTGATE.md` is readable across scope boundaries so VaultGate can load context. Writes still follow normal rules.
 2. **`access: none` is absolute.** A note in a `none` zone is blocked regardless of the active scope and regardless of how the path was obtained.
-3. **Scope membership is enforced.** Notes are only accessible when their zone matches the active scope. Knowing a path does not bypass this — `files_read("Work/Secret.md")` is subject to the same check as `files_list`.
+3. **Scope membership is enforced.** Notes are only accessible when their zone matches the active scope — unless the zone has `isolation: shared`, in which case its notes are visible from any active scope. Knowing a path does not bypass this — `files_read("Work/Secret.md")` is subject to the same check as `files_list`.
 4. **`access: read` blocks writes.** Reads from a read-only zone succeed; create, append, and update operations are blocked.
 5. **Conventions file frontmatter is protected.** `vault_context_set` cannot overwrite `scope:` or `access:` keys — these must be edited manually in Obsidian.
 
@@ -519,14 +543,17 @@ Notes in the vault root (without a zone declaration) belong to `unscoped` and ar
 
 **Read-only reference**
 
-Notes the AI can search and read but never modify:
+Notes the AI can search and read from any active scope, but never modify:
 
 ```markdown
 ---
 scope: reference
 access: read
+isolation: shared
 ---
 ```
+
+Without `isolation: shared`, the reference zone would only be visible when `reference` is the active scope.
 
 **Permanent exclusion**
 

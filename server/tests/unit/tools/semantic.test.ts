@@ -2867,7 +2867,6 @@ describe("semanticQuery access guard — stale access:none entries filtered", ()
     // checkAccess blocks the note we want to test the guard against.
     vi.doMock("../../../src/scope.js", () => ({
       isScopingEnabled: () => true,
-      getActiveScope: () => "work",
       filterByScope: (paths: string[]) => paths,
       resolveNoteScope: () => "work",
       checkAccess: (path: string | undefined, _op: string) => {
@@ -2905,6 +2904,65 @@ describe("semanticQuery access guard — stale access:none entries filtered", ()
     // note-b.md must not appear — blocked by the checkAccess guard in semanticQuery.
     expect(result.content[0].text).not.toContain("note-b.md");
     // note-a.md is still accessible.
+    expect(result.content[0].text).toContain("note-a.md");
+  });
+});
+
+// regression: shared-isolation scopes must appear in semantic search results even
+// when a different scope is active. The old `entry.scope !== getActiveScope()` guard
+// in semanticQuery would silently filter them out. checkAccess now handles all scope
+// policy centrally, so shared-scope notes pass through when their access level permits.
+describe("semanticQuery shared-isolation scope — notes appear from another active scope", () => {
+  it("returns results from a shared-scope note when a different scope is active", async () => {
+    vi.resetModules();
+
+    const uniqueVault = `__test_shared_isolation_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+    vi.doMock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
+    vi.doMock("../../../src/config.js", () => ({
+      config: { vault: uniqueVault, cliBin: "obsidian", port: 3001, host: "127.0.0.1" },
+    }));
+    vi.doMock("@huggingface/transformers", () => ({
+      pipeline: vi.fn().mockResolvedValue(
+        vi.fn().mockImplementation(() =>
+          Promise.resolve({ tolist: () => [FAKE_VEC_A] })
+        )
+      ),
+    }));
+    // note-a.md is in "reference" (isolation: shared), note-b.md is in "work" (strict).
+    // Active scope is "work". With the old guard (entry.scope !== getActiveScope()),
+    // note-a.md would have been filtered out. With checkAccess, it is allowed.
+    vi.doMock("../../../src/scope.js", () => ({
+      isScopingEnabled: () => true,
+      filterByScope: (paths: string[]) => paths,
+      resolveNoteScope: (p: string) => (p === "note-a.md" ? "reference" : "work"),
+      checkAccess: (path: string | undefined, _op: string) => {
+        // "reference" is isolation: shared — visible from "work"
+        // "work" is the active scope — always visible
+        if (path === "note-b.md") return { allowed: true }; // own scope
+        if (path === "note-a.md") return { allowed: true }; // shared scope
+        return { allowed: true };
+      },
+      isPathBlocked: () => false,
+      SCOPE_BLOCKED_MESSAGE: "Scope blocked.",
+    }));
+
+    const { runObsidian } = await import("../../../src/cli.js");
+    vi.mocked(runObsidian).mockImplementation(async (args: string[]) => {
+      if (args.includes("list")) return FILE_LIST;
+      return NOTE_A_CONTENT;
+    });
+
+    const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
+    const server = new McpServer({ name: "test", version: "0.0.0" });
+    const semantic = await import("../../../src/tools/semantic.js");
+    semantic.registerSemanticTools(server);
+
+    await waitForReady(semantic.getIndexStateForTesting);
+
+    const result = await callTool(server, "semantic_search", { query: "note content", min_score: 0 });
+    expect(result.isError).toBeFalsy();
+    // shared-scope note-a.md must appear — checkAccess allows it
     expect(result.content[0].text).toContain("note-a.md");
   });
 });
