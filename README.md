@@ -463,7 +463,8 @@ access: full
 ---
 
 # Work context
-Active projects and tasks. Full read and write access.```
+Active projects and tasks. Full read and write access.
+```
 
 ```markdown
 ---
