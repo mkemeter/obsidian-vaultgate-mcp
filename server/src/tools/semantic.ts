@@ -89,7 +89,7 @@ let isReHashing = false;
  * save time), and from clobbering the new build's state/`liveIndex`.
  */
 let buildGeneration = 0;
-// @huggingface/transformers v3 pipeline overloads produce a union too complex for ReturnType<>; narrow to actual usage.
+// @huggingface/transformers v4 pipeline overloads produce a union too complex for ReturnType<>; narrow to actual usage.
 type EmbedderFn = (
   texts: string[],
   opts: { pooling: string; normalize: boolean }
@@ -112,7 +112,7 @@ let emptyListRetries = 0;
 const MAX_EMPTY_LIST_RETRIES = 3;
 
 const MODEL_ID = "Xenova/all-MiniLM-L6-v2";
-const INDEX_VERSION = 5;
+const INDEX_VERSION = 6;
 const CHUNK_SIZE = 2000;
 const REHASH_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 h
 const DEFAULT_TOP_N = 10;

@@ -31,6 +31,7 @@ A section may be absent if that distribution had no changes in the release.
 
 - **`unscoped` is now a strict scope zone** — notes from named scope zones are no longer visible when the active scope is `unscoped`. In a vault without any scope declarations, `unscoped` means all notes (behaviour unchanged). In vaults with scope zones, `unscoped` is the zone for root-level and unclassified notes only.
 - **Upgraded semantic-search library from `@xenova/transformers` v2 to `@huggingface/transformers` v3** — package rename only; the embedding model (`Xenova/all-MiniLM-L6-v2`, Apache-2.0, Microsoft Research) and the public API are unchanged. Existing semantic index caches are automatically rebuilt on first startup after the upgrade (`INDEX_VERSION` bumped from 4 to 5 to guard against subtle float differences between ONNX runtime versions).
+- **Upgraded `@huggingface/transformers` from v3 to v4** — the embedding model (`Xenova/all-MiniLM-L6-v2`) and the public API (`pipeline`, `env.cacheDir`, `tolist()`) are unchanged. `INDEX_VERSION` bumped from 5 to 6 to force a cache rebuild on first startup after the upgrade, consistent with the precedent set for the v2→v3 transition.
 
 #### Fixed
 
