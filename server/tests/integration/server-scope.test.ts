@@ -145,3 +145,30 @@ describe("vault_scope_set access control", () => {
     expect(getActiveScope()).not.toBe("work");
   });
 });
+
+describe("vault_scope_set session isolation", () => {
+  it("switching scope in session A does not change getActiveScope in session B context", async () => {
+    process.env.VAULTGATE_SCOPE_SWITCHING = "true";
+    vi.doMock("../../src/cli.js", () =>
+      makeCliMock("Work/VAULTGATE.md", {
+        "Work/VAULTGATE.md": "---\nscope: work\n---\n# Work",
+      })
+    );
+    const { createServer } = await import("../../src/server.js");
+    const { registerSession, runWithSession, getActiveScope } = await import(
+      "../../src/scope.js"
+    );
+    await createServer();
+
+    registerSession("sid-a");
+    registerSession("sid-b");
+
+    // Switch session A to "work" via the vault_scope_set tool.
+    const serverA = await createServer();
+    await runWithSession("sid-a", () => invokeTool(serverA, "vault_scope_set", { scope: "work" }));
+
+    // Session A sees "work"; session B is unaffected.
+    expect(runWithSession("sid-a", () => getActiveScope())).toBe("work");
+    expect(runWithSession("sid-b", () => getActiveScope())).toBe("unscoped");
+  });
+});

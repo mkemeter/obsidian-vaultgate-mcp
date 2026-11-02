@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { runObsidianAdmin } from "./cli.js";
 import { config } from "./config.js";
 
@@ -69,7 +70,9 @@ let scopeIsolationMap: Map<string, ScopeIsolation> = new Map();
 /** True when the vault root conventions file itself carries a `scope:` key. */
 let rootHasScope = false;
 let homeScope = "unscoped";
-let activeScope = "unscoped";
+let _defaultScope = "unscoped"; // active scope for stdio mode / no-session context
+const _sessionStorage = new AsyncLocalStorage<string>();
+const _activeScopeBySession = new Map<string, string>();
 let scopeSwitchingEnabled = false;
 let enabled = false;
 
@@ -284,7 +287,7 @@ export function getScopeIsolation(scope: string): ScopeIsolation {
  * Defaults to `"full"` when no `access:` declaration exists for the active scope.
  */
 export function getActiveScopeAccess(): ScopeAccess {
-  return getScopeAccess(activeScope);
+  return getScopeAccess(getActiveScope());
 }
 
 /**
@@ -315,7 +318,8 @@ export function checkAccess(path: string | undefined, op: "read" | "write"): Acc
     if (base === config.contextFileName) return { allowed: true };
   }
 
-  const noteScope = path !== undefined ? resolveNoteScope(path) : activeScope;
+  const current = getActiveScope();
+  const noteScope = path !== undefined ? resolveNoteScope(path) : current;
   const access = getScopeAccess(noteScope);
 
   // `none` is absolute.
@@ -324,11 +328,7 @@ export function checkAccess(path: string | undefined, op: "read" | "write"): Acc
   // Scope membership: knowing a path does not grant access to another scope.
   // Shared-isolation scopes skip this check — their notes are visible from any
   // active scope. `access: none` (step 2) always fires first and cannot be bypassed.
-  if (
-    path !== undefined &&
-    noteScope !== activeScope &&
-    getScopeIsolation(noteScope) === "strict"
-  ) {
+  if (path !== undefined && noteScope !== current && getScopeIsolation(noteScope) === "strict") {
     return { allowed: false, message: SCOPE_OUT_OF_SCOPE_MESSAGE };
   }
 
@@ -419,16 +419,17 @@ export function getConventionsPaths(): string[] {
   if (!enabled) {
     return [config.contextFileName];
   }
+  const scope = getActiveScope();
   if (!rootHasScope) {
     const paths: string[] = [config.contextFileName];
-    if (activeScope !== "unscoped") {
-      const scopePath = conventionsPathMap.get(activeScope);
+    if (scope !== "unscoped") {
+      const scopePath = conventionsPathMap.get(scope);
       if (scopePath) paths.push(scopePath);
     }
     return paths;
   }
   // Root carries a scope: — only inject it when the active scope matches.
-  const scopePath = conventionsPathMap.get(activeScope);
+  const scopePath = conventionsPathMap.get(scope);
   return scopePath ? [scopePath] : [];
 }
 
@@ -449,9 +450,11 @@ export function isScopingEnabled(): boolean {
   return enabled;
 }
 
-/** Returns the currently active scope name. */
+/** Returns the currently active scope for the current session context. */
 export function getActiveScope(): string {
-  return activeScope;
+  const sid = _sessionStorage.getStore();
+  if (!sid) return _defaultScope;
+  return _activeScopeBySession.get(sid) ?? homeScope;
 }
 
 /** Returns the home (startup) scope name. */
@@ -459,17 +462,44 @@ export function getHomeScope(): string {
   return homeScope;
 }
 
+/** Called when an HTTP session opens. Initialises the session to homeScope. */
+export function registerSession(sessionId: string): void {
+  _activeScopeBySession.set(sessionId, homeScope);
+}
+
+/** Called when an HTTP session closes. Prevents Map growth. */
+export function unregisterSession(sessionId: string): void {
+  _activeScopeBySession.delete(sessionId);
+}
+
+/** Runs fn inside the given session's async context. */
+export function runWithSession<T>(sessionId: string, fn: () => T): T {
+  return _sessionStorage.run(sessionId, fn);
+}
+
 /**
  * Changes the active scope for the current session.
  * Does not validate against `discoverScopes()` — callers must validate.
  */
 export function setActiveScope(scope: string): void {
-  activeScope = scope;
+  const sid = _sessionStorage.getStore();
+  if (!sid) {
+    // stdio mode or tray IPC: update the no-session default and all registered sessions
+    _defaultScope = scope;
+    for (const id of _activeScopeBySession.keys()) {
+      _activeScopeBySession.set(id, scope);
+    }
+    return;
+  }
+  _activeScopeBySession.set(sid, scope);
 }
 
-/** Resets the active scope to the configured home scope. */
+/** Resets all sessions to the configured home scope. */
 export function resetToHomeScope(): void {
-  activeScope = homeScope;
+  _defaultScope = homeScope;
+  for (const id of _activeScopeBySession.keys()) {
+    _activeScopeBySession.set(id, homeScope);
+  }
 }
 
 /** Returns `true` when the LLM-facing `vault_scope_set` tool is enabled. */
@@ -496,7 +526,7 @@ export function isScopeSwitchingEnabled(): boolean {
  */
 export async function initScopeEngine(initialScope: string, switching: boolean): Promise<void> {
   homeScope = initialScope || "unscoped";
-  activeScope = homeScope;
+  _defaultScope = homeScope;
   scopeSwitchingEnabled = switching;
 
   try {

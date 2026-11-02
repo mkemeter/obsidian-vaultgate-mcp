@@ -34,8 +34,11 @@ import {
   discoverScopes,
   isScopingEnabled,
   rebuildScopeMap,
+  registerSession,
   resetToHomeScope,
+  runWithSession,
   setActiveScope,
+  unregisterSession,
 } from "./scope.js";
 import { createServer, getFaviconIco, getIconDataUri, getIconSvg } from "./server.js";
 
@@ -165,7 +168,7 @@ async function startHttp(): Promise<void> {
       // --- Streamable HTTP (modern MCP transport) ------------------------------
       if (req.method === "POST" && url.pathname === "/mcp") {
         const sessionId = req.headers["mcp-session-id"] as string | undefined;
-        let transport = sessionId ? mcpSessions.get(sessionId) : undefined;
+        const transport = sessionId ? mcpSessions.get(sessionId) : undefined;
 
         if (!transport) {
           if (sessionId) {
@@ -190,8 +193,11 @@ async function startHttp(): Promise<void> {
           // the background index that has already been warming up is not wasted.
           const server = defaultServer ?? (await createServer(iconUrl));
           defaultServer = null; // consumed — future sessions each get a fresh instance
-          transport = new StreamableHTTPServerTransport({
-            sessionIdGenerator: () => randomUUID(),
+          // Pre-generate the session ID so we can register it before handleRequest
+          // runs (tool handlers inside the initialize flow need the session context).
+          const provisionalId = randomUUID();
+          const newTransport = new StreamableHTTPServerTransport({
+            sessionIdGenerator: () => provisionalId,
             enableDnsRebindingProtection: true,
             allowedHosts: [`127.0.0.1:${config.port}`, `localhost:${config.port}`],
             allowedOrigins: [
@@ -203,16 +209,25 @@ async function startHttp(): Promise<void> {
               `http://[::1]:${config.port}`,
             ],
           });
-          await server.connect(transport);
-          await transport.handleRequest(req, res);
-          const newSessionId = transport.sessionId;
+          await server.connect(newTransport);
+          registerSession(provisionalId);
+          await runWithSession(provisionalId, () => newTransport.handleRequest(req, res));
+          const newSessionId = newTransport.sessionId;
           if (newSessionId) {
-            mcpSessions.set(newSessionId, transport);
-            transport.onclose = () => mcpSessions.delete(newSessionId);
+            mcpSessions.set(newSessionId, newTransport);
+            newTransport.onclose = () => {
+              unregisterSession(newSessionId);
+              mcpSessions.delete(newSessionId);
+            };
+          } else {
+            unregisterSession(provisionalId);
           }
         } else {
-          // Existing session — reuse the transport.
-          await transport.handleRequest(req, res);
+          // Existing session. Both sessionId and transport are non-null here:
+          // transport was looked up from mcpSessions using sessionId.
+          const existingId = sessionId as string;
+          const existingTransport = transport;
+          await runWithSession(existingId, () => existingTransport.handleRequest(req, res));
         }
         return;
       }
@@ -234,6 +249,7 @@ async function startHttp(): Promise<void> {
           return;
         }
 
+        unregisterSession(sessionId);
         mcpSessions.delete(sessionId);
         await transport.close();
         res.writeHead(200);
@@ -254,10 +270,13 @@ async function startHttp(): Promise<void> {
         const server = defaultServer ?? (await createServer(iconUrl));
         defaultServer = null; // consumed
         const transport = new SSEServerTransport("/messages", res);
-        sseSessions.set(transport.sessionId, transport);
+        const sseId = transport.sessionId;
+        registerSession(sseId);
+        sseSessions.set(sseId, transport);
 
         res.on("close", () => {
-          sseSessions.delete(transport.sessionId);
+          unregisterSession(sseId);
+          sseSessions.delete(sseId);
         });
 
         await server.connect(transport);
@@ -274,7 +293,7 @@ async function startHttp(): Promise<void> {
           return;
         }
 
-        await transport.handlePostMessage(req, res);
+        await runWithSession(sessionId, () => transport.handlePostMessage(req, res));
         return;
       }
 

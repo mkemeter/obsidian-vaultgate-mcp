@@ -1040,4 +1040,64 @@ describe("scope engine (CLI-based)", () => {
       expect(getActiveScopeAccess()).toBe("full");
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Per-session activeScope isolation — AsyncLocalStorage-backed scope Map
+  // ---------------------------------------------------------------------------
+
+  describe("per-session activeScope isolation", () => {
+    it("two sessions have independent scopes", async () => {
+      await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" });
+      const { registerSession, runWithSession, setActiveScope, getActiveScope } = await import(
+        "../../src/scope.js"
+      );
+      registerSession("session-a");
+      registerSession("session-b");
+      // Session A switches to "work".
+      runWithSession("session-a", () => setActiveScope("work"));
+      // Session A sees "work"; session B still sees homeScope ("unscoped").
+      expect(runWithSession("session-a", () => getActiveScope())).toBe("work");
+      expect(runWithSession("session-b", () => getActiveScope())).toBe("unscoped");
+    });
+
+    it("getActiveScope outside runWithSession returns homeScope, not a switched session scope", async () => {
+      await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" });
+      const { registerSession, runWithSession, setActiveScope, getActiveScope } = await import(
+        "../../src/scope.js"
+      );
+      registerSession("session-a");
+      runWithSession("session-a", () => setActiveScope("work"));
+      // No session context here — should return homeScope, not "work".
+      expect(getActiveScope()).toBe("unscoped");
+    });
+
+    it("resetToHomeScope resets all registered sessions", async () => {
+      await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" });
+      const { registerSession, runWithSession, setActiveScope, getActiveScope, resetToHomeScope } =
+        await import("../../src/scope.js");
+      registerSession("session-a");
+      registerSession("session-b");
+      runWithSession("session-a", () => setActiveScope("work"));
+      runWithSession("session-b", () => setActiveScope("work"));
+
+      resetToHomeScope();
+
+      expect(runWithSession("session-a", () => getActiveScope())).toBe("unscoped");
+      expect(runWithSession("session-b", () => getActiveScope())).toBe("unscoped");
+    });
+
+    // regression: scope state was a single global variable shared across all sessions
+    it("unregisterSession removes entry; getActiveScope falls back to homeScope", async () => {
+      await initWithCli({ "Work/VAULTGATE.md": "---\nscope: work\n---" });
+      const { registerSession, runWithSession, setActiveScope, getActiveScope, unregisterSession } =
+        await import("../../src/scope.js");
+      registerSession("session-x");
+      runWithSession("session-x", () => setActiveScope("work"));
+      expect(runWithSession("session-x", () => getActiveScope())).toBe("work");
+
+      unregisterSession("session-x");
+      // Map entry deleted → falls back to homeScope.
+      expect(runWithSession("session-x", () => getActiveScope())).toBe("unscoped");
+    });
+  });
 });

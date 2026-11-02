@@ -53,7 +53,6 @@ export function registerScopeTools(server: McpServer): void {
       "Switch the active vault scope. " +
         "Call ONLY when the user explicitly requests to work in a different scope — " +
         "do NOT switch scopes automatically or in response to access errors. " +
-        "Note: the switch affects all active sessions sharing this server process. " +
         "The scope resets to the home scope when the server restarts.",
       {
         scope: z.string().describe("Target scope name. Must be one of the available scopes."),
