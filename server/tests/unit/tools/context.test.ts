@@ -20,6 +20,18 @@ vi.mock("../../../src/config.js", () => ({
   },
 }));
 
+// Allows per-test override of getConventionsPaths(); null → falls back to the real implementation.
+// Must start with "mock" to avoid Vitest hoisting TDZ issues.
+let mockConventionsPathsOverride: (() => string[]) | null = null;
+
+vi.mock("../../../src/scope.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../src/scope.js")>();
+  return {
+    ...actual,
+    getConventionsPaths: () => mockConventionsPathsOverride?.() ?? actual.getConventionsPaths(),
+  };
+});
+
 const { runObsidian } = await import("../../../src/cli.js");
 const mockRun = vi.mocked(runObsidian);
 const { config } = await import("../../../src/config.js");
@@ -46,6 +58,11 @@ function listTools(server: McpServer) {
     {}
   );
 }
+
+// Reset scope mock override before every test so existing tests see the real implementation.
+beforeEach(() => {
+  mockConventionsPathsOverride = null;
+});
 
 describe("NOT_FOUND_MESSAGE content", () => {
   it("contains all required guidance sections", () => {
@@ -95,6 +112,25 @@ describe("vault_context", () => {
     const result = await invoke(makeServer(), "vault_context", {});
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("obsidian process crashed");
+  });
+
+  it("returns not-found message when conventionsPaths is empty (scoped)", async () => {
+    mockConventionsPathsOverride = () => [];
+    const result = await invoke(makeServer(), "vault_context", {});
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toBe(NOT_FOUND_MESSAGE);
+    expect(mockRun).not.toHaveBeenCalled();
+  });
+
+  it("reads and joins multiple conventions files with a divider", async () => {
+    mockConventionsPathsOverride = () => ["VAULTGATE.md", "SCOPE.md"];
+    mockRun
+      .mockResolvedValueOnce("# Global Conventions")
+      .mockResolvedValueOnce("# Scope Conventions");
+    const result = await invoke(makeServer(), "vault_context", {});
+    expect(result.content[0].text).toContain("# Global Conventions");
+    expect(result.content[0].text).toContain("\n\n---\n\n");
+    expect(result.content[0].text).toContain("# Scope Conventions");
   });
 });
 
@@ -162,6 +198,18 @@ describe("vault_context_set", () => {
     });
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("vault write failed");
+  });
+
+  it("vault_context_set description pins required instruction substrings", async () => {
+    // Pin StringLiteral mutants on vault_context_set description lines 205-212.
+    const result = await listTools(makeServer());
+    const tool = result.tools.find((t: { name: string }) => t.name === "vault_context_set");
+    expect(tool.description).toContain("Create or update the vault conventions file");
+    expect(tool.description).toContain("analyse the vault");
+    expect(tool.description).toContain("Always call with dryRun=true first");
+    expect(tool.description).toContain("ask for explicit confirmation");
+    expect(tool.description).toContain("existing frontmatter");
+    expect(tool.description).toContain("is always preserved unchanged");
   });
 });
 
@@ -510,6 +558,74 @@ describe("installContextGuard — submarine behaviour", () => {
     expect(result.content).toHaveLength(2);
     expect(result.content[0].text).toContain(CONVENTIONS_ENVELOPE_PREFIX);
     expect(result.content[1].type).toBe("image");
+  });
+
+  it("skips injection and updates TTL when conventionsPaths is empty", async () => {
+    const server = makeServer();
+    mockConventionsPathsOverride = () => [];
+    const result1 = await invoke(server, "vault_context_set", { content: "x", dryRun: true });
+    expect(result1.content[0].text).not.toContain(CONVENTIONS_ENVELOPE_PREFIX);
+    expect(mockRun).not.toHaveBeenCalled();
+    // TTL was updated by the empty-paths path — next call within TTL skips injection.
+    mockConventionsPathsOverride = null;
+    const result2 = await invoke(server, "vault_context_set", { content: "x", dryRun: true });
+    expect(result2.content[0].text).not.toContain(CONVENTIONS_ENVELOPE_PREFIX);
+    expect(mockRun).not.toHaveBeenCalled();
+  });
+
+  it("injects from multiple conventions files joined with a divider", async () => {
+    const server = makeServer();
+    mockConventionsPathsOverride = () => ["VAULTGATE.md", "SCOPE.md"];
+    mockRun
+      .mockResolvedValueOnce("# Global Conventions")
+      .mockResolvedValueOnce("# Scope Conventions");
+    const result = await invoke(server, "vault_context_set", { content: "x", dryRun: true });
+    const text = result.content[0].text;
+    expect(text).toContain(CONVENTIONS_ENVELOPE_PREFIX);
+    expect(text).toContain("# Global Conventions");
+    expect(text).toContain("\n\n---\n\n");
+    expect(text).toContain("# Scope Conventions");
+  });
+
+  it("skips a secondary file silently when it fails to read", async () => {
+    const server = makeServer();
+    mockConventionsPathsOverride = () => ["VAULTGATE.md", "SCOPE.md"];
+    mockRun
+      .mockResolvedValueOnce("# Global Conventions")        // primary succeeds
+      .mockRejectedValueOnce(new Error("File not found: SCOPE.md")); // secondary fails
+    const result = await invoke(server, "vault_context_set", { content: "x", dryRun: true });
+    const text = result.content[0].text;
+    // Injection still happens with just primary content; secondary failure is silent.
+    expect(text).toContain(CONVENTIONS_ENVELOPE_PREFIX);
+    expect(text).toContain("# Global Conventions");
+  });
+
+  it("outer catch: updates TTL and returns result when getConventionsPaths throws not-found", async () => {
+    const server = makeServer();
+    mockConventionsPathsOverride = () => {
+      throw new Error("not found: VAULTGATE.md");
+    };
+    const result1 = await invoke(server, "vault_context_set", { content: "x", dryRun: true });
+    expect(result1.content[0].text).not.toContain(CONVENTIONS_ENVELOPE_PREFIX);
+    // TTL was updated (not-found is accepted) — next call within TTL skips injection.
+    mockConventionsPathsOverride = null;
+    const result2 = await invoke(server, "vault_context_set", { content: "x", dryRun: true });
+    expect(result2.content[0].text).not.toContain(CONVENTIONS_ENVELOPE_PREFIX);
+    expect(mockRun).not.toHaveBeenCalled();
+  });
+
+  it("outer catch: does NOT update TTL when getConventionsPaths throws transient error", async () => {
+    const server = makeServer();
+    mockConventionsPathsOverride = () => {
+      throw new Error("connection refused");
+    };
+    const result1 = await invoke(server, "vault_context_set", { content: "x", dryRun: true });
+    expect(result1.content[0].text).not.toContain(CONVENTIONS_ENVELOPE_PREFIX);
+    // TTL NOT updated — next call retries immediately.
+    mockConventionsPathsOverride = null;
+    mockRun.mockResolvedValueOnce("# Conventions");
+    const result2 = await invoke(server, "vault_context_set", { content: "x", dryRun: true });
+    expect(result2.content[0].text).toContain(CONVENTIONS_ENVELOPE_PREFIX);
   });
 });
 

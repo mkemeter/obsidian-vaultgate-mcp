@@ -86,7 +86,7 @@ export function installContextGuard(server: McpServer): void {
 
       const now = Date.now();
       const ttlMs = config.injectIntervalSecs * 1000;
-      if (!config.injectConventions || now - lastInjectedAt < ttlMs || result?.isError) {
+      if (!config.injectConventions || now - lastInjectedAt < ttlMs || result.isError) {
         return result;
       }
 
