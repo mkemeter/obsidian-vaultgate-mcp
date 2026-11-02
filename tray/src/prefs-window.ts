@@ -92,6 +92,7 @@ export function registerPrefsIpc(): void {
   ipcMain.handle("prefs:isAutostartEnabled", () => isAutostartEnabled());
   ipcMain.handle("prefs:setAutostart", (_event, enabled: boolean) => setAutostart(enabled));
   ipcMain.handle("prefs:getServerState", () => serverManager.getState());
+  ipcMain.handle("prefs:listScopes", () => serverManager.getScopeState());
   ipcMain.handle("prefs:refreshScopeMap", () =>
     serverManager.sendControlCommand("refresh_scope_map")
   );
