@@ -144,7 +144,7 @@ VaultGate ships in two distributions that share the same MCP server core. Pick o
 | **Bundle size** | ~6 MB + lazy model | ~200 MB DMG |
 
 > [!NOTE]
-> Requires **Obsidian 1.8.9 or later** on all paths. The npm package additionally requires **Node.js 18+**.
+> Requires **Obsidian 1.8.9 or later** on all paths. The npm package requires **Node.js 18+** — Windows users can use the one-click installer below, which installs Node.js automatically.
 
 ### Before you start
 
@@ -270,6 +270,14 @@ The reference distribution — runs on macOS, Linux, and Windows with no GUI. Id
 
 ### Install
 
+#### Windows (one-click installer)
+
+No Node.js required. Download [`install.bat`](https://github.com/mkemeter/obsidian-vaultgate-mcp/blob/main/server/deploy/install.bat) and [`install.ps1`](https://github.com/mkemeter/obsidian-vaultgate-mcp/blob/main/server/deploy/install.ps1) from the repository into the same folder, then double-click `install.bat`. It installs Node.js and Git if needed, installs the npm package, and registers VaultGate to start at login — no terminal required. Once done, skip ahead to [Connect your AI client](#connect-your-ai-client).
+
+> Already have Node.js? You can skip the one-click installer and follow the standard path below.
+
+#### macOS / Linux / Windows with Node.js
+
 ```bash
 npm install -g obsidian-vaultgate-mcp
 ```
@@ -356,6 +364,9 @@ Claude Code manages the process lifecycle via stdio — no separate startup need
 > Replace the path with your actual install location. The standard per-user NSIS install lands at `%LOCALAPPDATA%\Programs\Obsidian\Obsidian.exe`.
 
 ### Auto-start at login
+
+> [!NOTE]
+> **Windows users who ran `install.bat`:** auto-start is already configured — skip this step.
 
 ```bash
 obsidian-vaultgate-mcp-install
