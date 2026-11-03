@@ -38,7 +38,7 @@ Ask your AI to read notes, run full-text or semantic search, manage tasks, apply
 <td width="50%">
 
 **🔒 Private by design**
-Note content never leaves your machine. Binds to `127.0.0.1` only — unreachable from the network. Every operation is mediated by the running Obsidian instance; the AI never touches your files directly.
+No external connections. Binds to `127.0.0.1` only — unreachable from the network.
 
 </td>
 <td width="50%">
