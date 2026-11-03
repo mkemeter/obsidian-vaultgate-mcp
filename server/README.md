@@ -4,7 +4,7 @@
 
 # VaultGate
 
-**Your Obsidian vault, accessible to any AI assistant — locally, privately, with no plugins.**
+**Your Obsidian vault, with controlled access for any AI assistant — locally, privately, with no plugins.**
 
 [![npm version](https://img.shields.io/npm/v/obsidian-vaultgate-mcp)](https://www.npmjs.com/package/obsidian-vaultgate-mcp)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
@@ -15,7 +15,7 @@
 
 </div>
 
-VaultGate is a local [Model Context Protocol](https://modelcontextprotocol.io) server that bridges any MCP-compatible AI client with your Obsidian vault — built on Obsidian's native integration APIs. No community plugins, no cloud relay, no API keys.
+VaultGate is a local [Model Context Protocol](https://modelcontextprotocol.io) server that bridges any MCP-compatible AI client with your Obsidian vault — built on Obsidian's native integration APIs. Locally, privately, with no plugins.
 
 **A different design:** VaultGate never reads or writes your vault files directly. Every operation is delegated to the running Obsidian instance, and the local server binds to `127.0.0.1` only — never exposed to the network. Your notes stay behind Obsidian's own application layer.
 
@@ -44,7 +44,7 @@ Note content never leaves your machine. Binds to `127.0.0.1` only — unreachabl
 <td width="50%">
 
 **🤖 Any MCP client**
-Joule Work Desktop, Claude, Cursor, Windsurf, Zed, and anything else that speaks MCP — via HTTP or stdio.
+Joule Work, Claude, Cursor, Windsurf, Zed, and anything else that speaks MCP — via HTTP or stdio.
 
 </td>
 </tr>
@@ -96,7 +96,7 @@ Drop a `VAULTGATE.md` at your vault root — injected into every AI session auto
 
 ### Why VaultGate
 
-Most vault bridges read and write your `.md` files directly on disk. VaultGate doesn't — every read and write is delegated to Obsidian itself, so indexes, links, and plugins stay consistent, and there's no second process mutating your files. The optional local HTTP transport binds to `127.0.0.1` only, never exposed to the network, and the server makes zero external calls. That application-layer boundary is what makes VaultGate a clean integration point for any MCP-compatible AI assistant — including SAP's Joule Work Desktop.
+Most vault bridges read and write your `.md` files directly on disk. VaultGate doesn't — every read and write is delegated to Obsidian itself, so indexes, links, and plugins stay consistent, and there's no second process mutating your files. The optional local HTTP transport binds to `127.0.0.1` only, never exposed to the network, and the server makes zero external calls. That application-layer boundary is what makes VaultGate a clean integration point for any MCP-compatible AI assistant — including SAP's Joule Work.
 
 ---
 
@@ -424,7 +424,7 @@ A scope zone is declared by placing a `VAULTGATE.md` (or your [configured conven
 
 ```
 vault/
-├── VAULTGATE.md                ← root conventions, no scope: key → global baseline
+├── VAULTGATE.md                ← root conventions (unscoped zone)
 ├── Inbox/
 │   └── Todo.md                 ← unscoped zone
 ├── Work/
@@ -518,11 +518,10 @@ VaultGate discovers scope zones automatically at startup via the Obsidian CLI �
 
 For every read or write on a note path, VaultGate applies these rules in order. They are not instructions to the model — the model has no way to override them:
 
-1. **Conventions files are always readable.** `VAULTGATE.md` is readable across scope boundaries so VaultGate can load context. Writes still follow normal rules.
-2. **`access: none` is absolute.** A note in a `none` zone is blocked regardless of the active scope and regardless of how the path was obtained.
-3. **Scope membership is enforced.** Notes are only accessible when their zone matches the active scope — unless the zone has `isolation: shared`, in which case its notes are visible from any active scope. Knowing a path does not bypass this — `files_read("Work/Secret.md")` is subject to the same check as `files_list`.
-4. **`access: read` blocks writes.** Reads from a read-only zone succeed; create, append, and update operations are blocked.
-5. **Conventions file frontmatter is protected.** `vault_context_set` cannot overwrite `scope:` or `access:` keys — these must be edited manually in Obsidian.
+1. **`access: none` is absolute.** A note in a `none` zone is blocked regardless of the active scope and regardless of how the path was obtained.
+2. **Scope membership is enforced.** Notes are only accessible when their zone matches the active scope — unless the zone has `isolation: shared`, in which case its notes are visible from any active scope. Knowing a path does not bypass this — `files_read("Work/Secret.md")` is subject to the same check as `files_list`.
+3. **`access: read` blocks writes.** Reads from a read-only zone succeed; create, append, and update operations are blocked.
+4. **Conventions file frontmatter is protected.** `vault_context_set` cannot overwrite `scope:` or `access:` keys — these must be edited manually in Obsidian.
 
 #### Common patterns
 
@@ -570,8 +569,8 @@ access: none
 
 When a subfolder's conventions file carries a `scope:` key, VaultGate adjusts what it injects at session start:
 
-- **Root `VAULTGATE.md` without `scope:`** — always injected as the global baseline, with the active scope's conventions file appended on top.
-- **Root `VAULTGATE.md` with `scope:`** — the root is itself a scope zone. Only the matching scope's file is injected; there is no global baseline.
+- **Root `VAULTGATE.md` without `scope:`** — it is the unscoped zone's own conventions file, injected only when `unscoped` is the active scope. When a named scope is active, only that scope's conventions file is injected.
+- **Root `VAULTGATE.md` with `scope:`** — the root is itself a scope zone. Only the matching scope's file is injected.
 
 The AI receives the relevant conventions at the start of each session without extra prompting.
 
@@ -702,7 +701,7 @@ The Task Scheduler task is configured to stop on battery by default. To fix: ope
 
 ## Tray Companion App
 
-A menu-bar app that wraps the same VaultGate MCP server core in a native macOS GUI — no terminal needed. It exposes the [same 34 + 5 tools](#available-tools) as the headless package, and adds a layer of GUI conveniences on top:
+A menu-bar app that wraps the same VaultGate MCP server core in a native macOS GUI — no terminal needed. It exposes the [same 35 + 5 tools](#available-tools) as the headless package, and adds a layer of GUI conveniences on top:
 
 <div align="center">
 
@@ -808,7 +807,7 @@ After the tray icon shows `● Running — <Vault Name>`:
 
 1. Click the tray icon → **Copy URL**. This copies the exact URL VaultGate is listening on — use this rather than typing the address manually, since the port may differ from the default if 3002 is already taken.
 2. Paste the copied URL into your client's MCP configuration:
-   - **Joule Work Desktop / Cursor / Windsurf / Zed**: add it as a Streamable HTTP MCP server.
+   - **Joule Work / Cursor / Windsurf / Zed**: add it as a Streamable HTTP MCP server.
    - **Claude Code**: prefer the npm-package + stdio transport (see [Claude Code](#claude-code) above).
 
 The URL never leaves `127.0.0.1` — it is bound to localhost and refuses other origins.

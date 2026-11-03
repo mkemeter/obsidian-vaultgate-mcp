@@ -4,7 +4,7 @@
 
 # VaultGate
 
-**Your Obsidian vault, accessible to any AI assistant — locally, privately, with no plugins.**
+**Your Obsidian vault, with controlled access for any AI assistant — locally, privately, with no plugins.**
 
 [![npm version](https://img.shields.io/npm/v/obsidian-vaultgate-mcp)](https://www.npmjs.com/package/obsidian-vaultgate-mcp)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
@@ -15,7 +15,7 @@
 
 </div>
 
-VaultGate is a local [Model Context Protocol](https://modelcontextprotocol.io) server that bridges any MCP-compatible AI client with your Obsidian vault — built on Obsidian's native integration APIs. No community plugins, no cloud relay, no API keys.
+VaultGate is a local [Model Context Protocol](https://modelcontextprotocol.io) server that bridges any MCP-compatible AI client with your Obsidian vault — built on Obsidian's native integration APIs. Locally, privately, with no plugins.
 
 **A different design:** VaultGate never reads or writes your vault files directly. Every operation is delegated to the running Obsidian instance, and the local server binds to `127.0.0.1` only — never exposed to the network. Your notes stay behind Obsidian's own application layer.
 
@@ -44,7 +44,7 @@ Note content never leaves your machine. Binds to `127.0.0.1` only — unreachabl
 <td width="50%">
 
 **🤖 Any MCP client**
-Joule Work Desktop, Claude, Cursor, Windsurf, Zed, and anything else that speaks MCP — via HTTP or stdio.
+Joule Work, Claude, Cursor, Windsurf, Zed, and anything else that speaks MCP — via HTTP or stdio.
 
 </td>
 </tr>
@@ -96,7 +96,7 @@ Drop a `VAULTGATE.md` at your vault root — injected into every AI session auto
 
 ### Why VaultGate
 
-Most vault bridges read and write your `.md` files directly on disk. VaultGate doesn't — every read and write is delegated to Obsidian itself, so indexes, links, and plugins stay consistent, and there's no second process mutating your files. The optional local HTTP transport binds to `127.0.0.1` only, never exposed to the network, and the server makes zero external calls. That application-layer boundary is what makes VaultGate a clean integration point for any MCP-compatible AI assistant — including SAP's Joule Work Desktop.
+Most vault bridges read and write your `.md` files directly on disk. VaultGate doesn't — every read and write is delegated to Obsidian itself, so indexes, links, and plugins stay consistent, and there's no second process mutating your files. The optional local HTTP transport binds to `127.0.0.1` only, never exposed to the network, and the server makes zero external calls. That application-layer boundary is what makes VaultGate a clean integration point for any MCP-compatible AI assistant — including SAP's Joule Work.
 
 ---
 
@@ -807,7 +807,7 @@ After the tray icon shows `● Running — <Vault Name>`:
 
 1. Click the tray icon → **Copy URL**. This copies the exact URL VaultGate is listening on — use this rather than typing the address manually, since the port may differ from the default if 3002 is already taken.
 2. Paste the copied URL into your client's MCP configuration:
-   - **Joule Work Desktop / Cursor / Windsurf / Zed**: add it as a Streamable HTTP MCP server.
+   - **Joule Work / Cursor / Windsurf / Zed**: add it as a Streamable HTTP MCP server.
    - **Claude Code**: prefer the npm-package + stdio transport (see [Claude Code](#claude-code) above).
 
 The URL never leaves `127.0.0.1` — it is bound to localhost and refuses other origins.
