@@ -23,7 +23,6 @@ pre-commit:
       run: npm run type-coverage
     sync-server-readme:
       run: node scripts/sync-readme.js
-      stage_fixed: true
 
 pre-push:
   parallel: true
