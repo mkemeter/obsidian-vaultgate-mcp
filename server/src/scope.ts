@@ -324,7 +324,6 @@ export function checkAccess(path: string | undefined, op: "read" | "write"): Acc
   if (access === "read" && op === "write")
     return { allowed: false, message: SCOPE_WRITE_BLOCKED_MESSAGE };
 
-  // Future: note-level access rules slot in here
   return { allowed: true };
 }
 
