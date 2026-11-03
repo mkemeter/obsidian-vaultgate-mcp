@@ -271,10 +271,13 @@ jobs:
         run: node ../scripts/sync-version.js
       - name: Build and pack
         run: npm run build && npm pack
-      - name: Install globally from tarball
+      - name: Pester unit tests (deploy scripts)
         run: |
-          $tgz = Get-ChildItem obsidian-vaultgate-mcp-*.tgz | Select-Object -First 1
-          npm install -g $tgz.FullName
+          Import-Module Pester
+          $cfg = [PesterConfiguration]::Default
+          $cfg.Run.Path = 'deploy/tests'
+          $cfg.Output.Verbosity = 'Normal'
+          Invoke-Pester -Configuration $cfg
       - name: Create dummy Obsidian.exe
         run: |
           $dummy = Join-Path $env:RUNNER_TEMP 'Obsidian.exe'
@@ -283,8 +286,15 @@ jobs:
       - name: Run installer (non-interactive)
         run: |
           $ErrorActionPreference = 'Stop'
+          $tgz = Get-ChildItem obsidian-vaultgate-mcp-*.tgz | Select-Object -First 1
           $dummy = Join-Path $env:RUNNER_TEMP 'Obsidian.exe'
-          & "$PWD\deploy\install.ps1" -NonInteractive -ObsidianPath $dummy -VaultName test
+          & "$PWD\deploy\install.ps1" `
+            -NonInteractive `
+            -ObsidianPath $dummy `
+            -VaultName test `
+            -PackagePath $tgz.FullName `
+            -SkipNodeInstall `
+            -SkipGitInstall
       - name: Assert scheduled task registered
         run: Get-ScheduledTask -TaskName 'VaultGate MCP Server' -ErrorAction Stop | Out-Null
       - name: Start server via wrapper
