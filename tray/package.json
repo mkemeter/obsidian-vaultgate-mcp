@@ -35,7 +35,7 @@
     "type-coverage": "type-coverage --at-least 99 --strict"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.6.4",
+    "@biomejs/biome": "^2.6.5",
     "@electron/fuses": "^2.1.3",
     "@electron/rebuild": "^4.2.1",
     "@huggingface/transformers": "^4.3.2",
@@ -44,11 +44,11 @@
     "@stryker-mutator/vitest-runner": "^10.1.1",
     "@types/node": "^26.6.6",
     "@vitest/coverage-v8": "^4.1.12",
-    "electron": "^45.1.0",
+    "electron": "^45.2.3",
     "electron-builder": "^26.18.0",
-    "knip": "^6.44.0",
+    "knip": "^6.44.1",
     "sharp": "^0.35.5",
-    "type-coverage": "^2.30.4",
+    "type-coverage": "^2.31.2",
     "typescript": "^5.9.3",
     "vitest": "^4.1.11"
   },
