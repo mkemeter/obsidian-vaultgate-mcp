@@ -4,6 +4,7 @@ import { runObsidian } from "../cli.js";
 import { filterByScope, isPathBlocked, SCOPE_BLOCKED_MESSAGE } from "../scope.js";
 import {
   buildFileArgs,
+  contentSizeGuard,
   dryRunPreview,
   dryRunSchema,
   errorMessage,
@@ -192,6 +193,16 @@ export function registerFileTools(server: McpServer): void {
         return { content: [{ type: "text", text: dryRunPreview(args) }] };
       }
 
+      if (content) {
+        const sizeError = contentSizeGuard(
+          content,
+          "Split the content and write in two or more calls:\n" +
+            "  1. Call note_create with the first chunk.\n" +
+            "  2. Call note_append for each subsequent chunk until all content is written."
+        );
+        if (sizeError) return sizeError;
+      }
+
       try {
         const output = await runObsidian(args);
         return { content: [{ type: "text", text: output || `Created: ${path ?? name}` }] };
@@ -231,6 +242,12 @@ export function registerFileTools(server: McpServer): void {
       if (dryRun) {
         return { content: [{ type: "text", text: dryRunPreview(args) }] };
       }
+
+      const sizeErrorAppend = contentSizeGuard(
+        content,
+        "Split the content and call note_append multiple times with smaller chunks."
+      );
+      if (sizeErrorAppend) return sizeErrorAppend;
 
       try {
         const output = await runObsidian(args);
@@ -272,6 +289,15 @@ export function registerFileTools(server: McpServer): void {
       if (dryRun) {
         return { content: [{ type: "text", text: dryRunPreview(args) }] };
       }
+
+      const sizeErrorPrepend = contentSizeGuard(
+        content,
+        "To prepend large content, read the note first with files_read, then combine " +
+          "the new content with the existing content and write in chunks:\n" +
+          "  1. Call note_update with the first chunk (this overwrites the note).\n" +
+          "  2. Call note_append for each subsequent chunk until all content is written."
+      );
+      if (sizeErrorPrepend) return sizeErrorPrepend;
 
       try {
         const output = await runObsidian(args);
@@ -315,6 +341,14 @@ export function registerFileTools(server: McpServer): void {
       if (dryRun) {
         return { content: [{ type: "text", text: dryRunPreview(args) }] };
       }
+
+      const sizeErrorUpdate = contentSizeGuard(
+        content,
+        "Split the content and write in two or more calls:\n" +
+          "  1. Call note_update with the first chunk (this overwrites the note).\n" +
+          "  2. Call note_append for each subsequent chunk until all content is written."
+      );
+      if (sizeErrorUpdate) return sizeErrorUpdate;
 
       try {
         const output = await runObsidian(args);

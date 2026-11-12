@@ -97,3 +97,59 @@ export function buildFileArgs(file: string | undefined, path: string | undefined
   if (file?.trim()) return [`file=${file}`];
   return [];
 }
+
+/**
+ * Per-platform content length limits (characters) for the Obsidian CLI `content=` argument.
+ *
+ * Obsidian forwards CLI arguments through its IPC pipe, parsing each pipe chunk as JSON.
+ * When an argument crosses a chunk boundary the message is corrupted or dropped (GH #10).
+ * The failure threshold follows the OS default pipe-buffer size:
+ *   - Windows: ~4 KB pipe buffer → hard crash, arg dropped entirely (`,,` in JSON)
+ *   - macOS:   ~8 KB pipe buffer → silent UTF-8 corruption at the boundary
+ *   - Linux:   ~64 KB pipe buffer → not a practical concern; no limit applied
+ *
+ * Values are set conservatively below the respective pipe-buffer size to leave room for
+ * the `content=` prefix, path, vault name, and any quoting/escaping overhead.
+ */
+export const WIN32_CONTENT_LIMIT = 3 * 1024; // stay well under the 4 KB Windows pipe buffer
+export const DARWIN_CONTENT_LIMIT = 7 * 1024; // stay well under the 8 KB macOS pipe buffer
+
+/**
+ * Returns an error response if `content` exceeds the platform's Obsidian CLI argument size
+ * limit, or `null` if the check passes (content is within limits, or the platform is Linux
+ * or another OS where the limit is not a practical concern).
+ *
+ * Callers should invoke this guard after the `dryRun` early-return but before calling
+ * `runObsidian`, so previews are never blocked.
+ *
+ * @param content   The content string to check.
+ * @param strategy  Actionable guidance for the caller on how to split the write.
+ */
+export function contentSizeGuard(content: string, strategy: string) {
+  let limit: number | undefined;
+  let platformName: string | undefined;
+  if (process.platform === "win32") {
+    limit = WIN32_CONTENT_LIMIT;
+    platformName = "Windows";
+  } else if (process.platform === "darwin") {
+    limit = DARWIN_CONTENT_LIMIT;
+    platformName = "macOS";
+  }
+
+  if (limit === undefined || content.length <= limit) return null;
+
+  const kb = (content.length / 1024).toFixed(1);
+  const limitKb = (limit / 1024).toFixed(0);
+  return {
+    content: [
+      {
+        type: "text" as const,
+        text:
+          `Content too large for the Obsidian CLI on ${platformName} ` +
+          `(${kb} KB; limit ~${limitKb} KB per call).\n` +
+          strategy,
+      },
+    ],
+    isError: true as const,
+  };
+}
