@@ -9,6 +9,16 @@ Both distributions — the headless npm package (`server/`) and the Electron tra
 (`tray/`) — share a single version line. Each release entry groups changes by distribution.
 A section may be absent if that distribution had no changes in the release.
 
+## [Unreleased]
+
+### Server
+
+#### Fixed
+
+- **Large-content writes on Windows and macOS now return a clear error instead of crashing or silently corrupting data** — Obsidian forwards CLI arguments through its IPC pipe and parses each chunk as JSON. When a `content=` argument crosses a chunk boundary, the message is either dropped (Windows, ~4 KB) or has its UTF-8 multi-byte characters corrupted (macOS, ~8 KB). The new `contentSizeGuard()` helper intercepts oversized `content=` writes in `note_create`, `note_append`, `note_prepend`, and `note_update` before they reach the CLI. It returns `isError: true` with the content size, the per-platform limit, and step-by-step chunking guidance. Dry-run previews are never blocked. Linux (~64 KB pipe buffer) has no practical limit and is unaffected. Closes #10.
+
+---
+
 ## [0.4.0] — 2026-11-02
 
 ### Server
