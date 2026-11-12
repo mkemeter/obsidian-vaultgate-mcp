@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerFileTools } from "../../../src/tools/files.js";
+import { WIN32_CONTENT_LIMIT, DARWIN_CONTENT_LIMIT } from "../../../src/tools/_helpers.js";
 
 vi.mock("../../../src/cli.js", () => ({ runObsidian: vi.fn() }));
 vi.mock("../../../src/config.js", () => ({
@@ -9,6 +10,14 @@ vi.mock("../../../src/config.js", () => ({
 
 const { runObsidian } = await import("../../../src/cli.js");
 const mockRun = vi.mocked(runObsidian);
+
+const platformDescriptor = Object.getOwnPropertyDescriptor(process, "platform")!;
+function setPlatform(p: string) {
+  Object.defineProperty(process, "platform", { value: p, configurable: true });
+}
+function restorePlatform() {
+  Object.defineProperty(process, "platform", platformDescriptor);
+}
 
 function invoke(server: McpServer, name: string, args: Record<string, unknown>) {
   // @ts-ignore
@@ -183,9 +192,83 @@ describe("note_create (destructive)", () => {
     expect(result.content[0].text).not.toContain("[DRY RUN]");
     expect(mockRun).not.toHaveBeenCalled();
   });
-});
 
-describe("note_append (destructive)", () => {
+  it("blocks execution on Windows when content exceeds limit", async () => {
+    setPlatform("win32");
+    try {
+      const result = await invoke(makeServer(), "note_create", {
+        name: "Note",
+        content: "x".repeat(WIN32_CONTENT_LIMIT + 1),
+        dryRun: false,
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("Content too large");
+      expect(mockRun).not.toHaveBeenCalled();
+    } finally {
+      restorePlatform();
+    }
+  });
+
+  it("allows dry run on Windows even when content exceeds limit", async () => {
+    setPlatform("win32");
+    try {
+      const result = await invoke(makeServer(), "note_create", {
+        name: "Note",
+        content: "x".repeat(WIN32_CONTENT_LIMIT + 1),
+      });
+      expect(result.isError).toBeFalsy();
+      expect(result.content[0].text).toContain("[DRY RUN]");
+    } finally {
+      restorePlatform();
+    }
+  });
+
+  it("blocks execution on macOS when content exceeds DARWIN limit", async () => {
+    setPlatform("darwin");
+    try {
+      const result = await invoke(makeServer(), "note_create", {
+        name: "Note",
+        content: "x".repeat(DARWIN_CONTENT_LIMIT + 1),
+        dryRun: false,
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("Content too large");
+      expect(result.content[0].text).toContain("macOS");
+      expect(mockRun).not.toHaveBeenCalled();
+    } finally {
+      restorePlatform();
+    }
+  });
+
+  it("allows dry run on macOS even when content exceeds DARWIN limit", async () => {
+    setPlatform("darwin");
+    try {
+      const result = await invoke(makeServer(), "note_create", {
+        name: "Note",
+        content: "x".repeat(DARWIN_CONTENT_LIMIT + 1),
+      });
+      expect(result.isError).toBeFalsy();
+      expect(result.content[0].text).toContain("[DRY RUN]");
+    } finally {
+      restorePlatform();
+    }
+  });
+
+  it("allows large content on Linux regardless of size", async () => {
+    setPlatform("linux");
+    mockRun.mockResolvedValue("Note created.");
+    try {
+      const result = await invoke(makeServer(), "note_create", {
+        name: "Note",
+        content: "x".repeat(DARWIN_CONTENT_LIMIT + 1),
+        dryRun: false,
+      });
+      expect(result.isError).toBeFalsy();
+      expect(mockRun).toHaveBeenCalled();
+    } finally {
+      restorePlatform();
+    }
+  });
   beforeEach(() => vi.resetAllMocks());
 
   it("returns dry run preview by default", async () => {
@@ -208,6 +291,52 @@ describe("note_append (destructive)", () => {
     mockRun.mockRejectedValue(new Error("append failed"));
     const result = await invoke(makeServer(), "note_append", { content: "x", dryRun: false });
     expect(result.isError).toBe(true);
+  });
+
+  it("blocks execution on Windows when content exceeds limit", async () => {
+    setPlatform("win32");
+    try {
+      const result = await invoke(makeServer(), "note_append", {
+        content: "x".repeat(WIN32_CONTENT_LIMIT + 1),
+        dryRun: false,
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("Content too large");
+      expect(mockRun).not.toHaveBeenCalled();
+    } finally {
+      restorePlatform();
+    }
+  });
+
+  it("blocks execution on macOS when content exceeds DARWIN limit", async () => {
+    setPlatform("darwin");
+    try {
+      const result = await invoke(makeServer(), "note_append", {
+        content: "x".repeat(DARWIN_CONTENT_LIMIT + 1),
+        dryRun: false,
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("Content too large");
+      expect(result.content[0].text).toContain("macOS");
+      expect(mockRun).not.toHaveBeenCalled();
+    } finally {
+      restorePlatform();
+    }
+  });
+
+  it("allows large content on Linux regardless of size", async () => {
+    setPlatform("linux");
+    mockRun.mockResolvedValue("");
+    try {
+      const result = await invoke(makeServer(), "note_append", {
+        content: "x".repeat(DARWIN_CONTENT_LIMIT + 1),
+        dryRun: false,
+      });
+      expect(result.isError).toBeFalsy();
+      expect(mockRun).toHaveBeenCalled();
+    } finally {
+      restorePlatform();
+    }
   });
 });
 
@@ -252,6 +381,37 @@ describe("note_prepend (destructive)", () => {
     const result = await invoke(makeServer(), "note_prepend", { content: "x", dryRun: false });
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("prepend failed");
+  });
+
+  it("blocks execution on Windows when content exceeds limit", async () => {
+    setPlatform("win32");
+    try {
+      const result = await invoke(makeServer(), "note_prepend", {
+        content: "x".repeat(WIN32_CONTENT_LIMIT + 1),
+        dryRun: false,
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("Content too large");
+      expect(mockRun).not.toHaveBeenCalled();
+    } finally {
+      restorePlatform();
+    }
+  });
+
+  it("blocks execution on macOS when content exceeds DARWIN limit", async () => {
+    setPlatform("darwin");
+    try {
+      const result = await invoke(makeServer(), "note_prepend", {
+        content: "x".repeat(DARWIN_CONTENT_LIMIT + 1),
+        dryRun: false,
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("Content too large");
+      expect(result.content[0].text).toContain("macOS");
+      expect(mockRun).not.toHaveBeenCalled();
+    } finally {
+      restorePlatform();
+    }
   });
 });
 
@@ -303,6 +463,85 @@ describe("note_update (destructive)", () => {
     });
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("file not found");
+  });
+
+  it("blocks execution on Windows when content exceeds limit", async () => {
+    setPlatform("win32");
+    try {
+      const result = await invoke(makeServer(), "note_update", {
+        path: "note.md",
+        content: "x".repeat(WIN32_CONTENT_LIMIT + 1),
+        dryRun: false,
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("Content too large");
+      expect(result.content[0].text).toContain("note_update");
+      expect(result.content[0].text).toContain("note_append");
+      expect(mockRun).not.toHaveBeenCalled();
+    } finally {
+      restorePlatform();
+    }
+  });
+
+  it("allows dry run on Windows even when content exceeds limit", async () => {
+    setPlatform("win32");
+    try {
+      const result = await invoke(makeServer(), "note_update", {
+        path: "note.md",
+        content: "x".repeat(WIN32_CONTENT_LIMIT + 1),
+      });
+      expect(result.isError).toBeFalsy();
+      expect(result.content[0].text).toContain("[DRY RUN]");
+    } finally {
+      restorePlatform();
+    }
+  });
+
+  it("blocks execution on macOS when content exceeds DARWIN limit", async () => {
+    setPlatform("darwin");
+    try {
+      const result = await invoke(makeServer(), "note_update", {
+        path: "note.md",
+        content: "x".repeat(DARWIN_CONTENT_LIMIT + 1),
+        dryRun: false,
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain("Content too large");
+      expect(result.content[0].text).toContain("macOS");
+      expect(mockRun).not.toHaveBeenCalled();
+    } finally {
+      restorePlatform();
+    }
+  });
+
+  it("allows dry run on macOS even when content exceeds DARWIN limit", async () => {
+    setPlatform("darwin");
+    try {
+      const result = await invoke(makeServer(), "note_update", {
+        path: "note.md",
+        content: "x".repeat(DARWIN_CONTENT_LIMIT + 1),
+      });
+      expect(result.isError).toBeFalsy();
+      expect(result.content[0].text).toContain("[DRY RUN]");
+    } finally {
+      restorePlatform();
+    }
+  });
+
+  it("allows large content on Linux regardless of size", async () => {
+    setPlatform("linux");
+    mockRun.mockResolvedValue("");
+    try {
+      const result = await invoke(makeServer(), "note_update", {
+        path: "note.md",
+        content: "x".repeat(DARWIN_CONTENT_LIMIT + 1),
+        dryRun: false,
+      });
+      expect(result.isError).toBeFalsy();
+      expect(mockRun).toHaveBeenCalled();
+    } finally {
+      restorePlatform();
+    }
   });
 });
 
