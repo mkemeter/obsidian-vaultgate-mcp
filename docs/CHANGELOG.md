@@ -9,7 +9,7 @@ Both distributions — the headless npm package (`server/`) and the Electron tra
 (`tray/`) — share a single version line. Each release entry groups changes by distribution.
 A section may be absent if that distribution had no changes in the release.
 
-## [Unreleased]
+## [0.4.1] — 2026-11-12
 
 ### Server
 
